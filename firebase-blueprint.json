@@ -1,0 +1,114 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile data",
+      "type": "object",
+      "properties": {
+        "fullName": { "type": "string", "description": "User's full name" },
+        "email": { "type": "string", "format": "email", "description": "User's email address" },
+        "mobile": { "type": "string", "description": "User's mobile number" },
+        "role": { "type": "string", "enum": ["user", "admin", "concierge"], "description": "User's role" },
+        "createdAt": { "type": "timestamp", "description": "Creation timestamp" },
+        "addresses": { "type": "array", "description": "User's saved addresses" }
+      },
+      "required": ["email", "role"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Product catalog item",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "price": { "type": "number" },
+        "category": { "type": "string" },
+        "image": { "type": "string" },
+        "description": { "type": "string" },
+        "details": { "type": "object" },
+        "countInStock": { "type": "number" },
+        "isArchived": { "type": "boolean" },
+        "sizes": { "type": "array" },
+        "uniquenessTag": { "type": "string" },
+        "createdAt": { "type": "timestamp" }
+      },
+      "required": ["title", "price", "category", "image"]
+    },
+    "Cart": {
+      "title": "Cart",
+      "description": "User's shopping cart",
+      "type": "object",
+      "properties": {
+        "user": { "type": "string", "description": "User ID" },
+        "items": { "type": "array", "description": "Cart items" }
+      },
+      "required": ["user", "items"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Customer order",
+      "type": "object",
+      "properties": {
+        "user": { "type": "string", "description": "User ID (nullable for guests)" },
+        "conciergeCode": { "type": "string" },
+        "items": { "type": "array" },
+        "shippingAddress": { "type": "object" },
+        "totalAmount": { "type": "number" },
+        "contactMethod": { "type": "string" },
+        "paymentStatus": { "type": "string" },
+        "orderStatus": { "type": "string" },
+        "createdAt": { "type": "timestamp" },
+        "statusHistory": { "type": "array" },
+        "conversationStartedAt": { "type": "timestamp" },
+        "internalNotes": { "type": "string" },
+        "paymentLink": { "type": "string" },
+        "paymentDetails": { "type": "object" }
+      },
+      "required": ["conciergeCode", "items", "shippingAddress", "totalAmount", "orderStatus"]
+    },
+    "Setting": {
+      "title": "Setting",
+      "description": "Global system settings",
+      "type": "object",
+      "properties": {
+        "key": { "type": "string" },
+        "conciergeConfig": { "type": "object" },
+        "siteContent": { "type": "object" }
+      },
+      "required": ["key"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "System audit logs",
+      "type": "object",
+      "properties": {
+        "timestamp": { "type": "timestamp" }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles"
+    },
+    "/products/{productId}": {
+      "schema": { "$ref": "#/entities/Product" },
+      "description": "Product catalog"
+    },
+    "/carts/{userId}": {
+      "schema": { "$ref": "#/entities/Cart" },
+      "description": "User carts"
+    },
+    "/orders/{orderId}": {
+      "schema": { "$ref": "#/entities/Order" },
+      "description": "Customer orders"
+    },
+    "/settings/{settingId}": {
+      "schema": { "$ref": "#/entities/Setting" },
+      "description": "System settings"
+    },
+    "/audit_logs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Audit logs"
+    }
+  }
+}

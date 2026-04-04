@@ -1,0 +1,288 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId}
+    // Fields:
+    //   - fullName: string
+    //   - email: string
+    //   - mobile: string
+    //   - role: string (enum: 'user', 'admin', 'concierge')
+    //   - createdAt: timestamp
+    //   - addresses: list
+    //
+    // Collection: products
+    // Document ID: {productId}
+    // Fields:
+    //   - title: string
+    //   - price: number
+    //   - category: string
+    //   - image: string
+    //   - description: string
+    //   - details: map
+    //   - countInStock: number
+    //   - isArchived: boolean
+    //   - sizes: list
+    //   - uniquenessTag: string
+    //   - createdAt: timestamp
+    //
+    // Collection: carts
+    // Document ID: {userId}
+    // Fields:
+    //   - user: string
+    //   - items: list
+    //
+    // Collection: orders
+    // Document ID: {orderId} (or conciergeCode)
+    // Fields:
+    //   - user: string (nullable)
+    //   - conciergeCode: string
+    //   - items: list
+    //   - shippingAddress: map
+    //   - totalAmount: number
+    //   - contactMethod: string
+    //   - paymentStatus: string
+    //   - orderStatus: string
+    //   - createdAt: timestamp
+    //   - statusHistory: list
+    //   - conversationStartedAt: timestamp
+    //   - internalNotes: string
+    //   - paymentLink: string
+    //   - paymentDetails: map
+    //
+    // Collection: settings
+    // Document ID: {settingId}
+    // Fields:
+    //   - key: string
+    //   - conciergeConfig: map
+    //   - siteContent: map
+    //
+    // Collection: audit_logs
+    // Document ID: {logId}
+    // Fields:
+    //   - timestamp: timestamp
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+        (request.auth.token.email == "unk410066@gmail.com" && request.auth.token.email_verified == true) ||
+        (request.auth.token.email == "muhammadbinbasheer777@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function hasOnlyAllowedFields(allowedFields) {
+      return request.resource.data.keys().hasOnly(allowedFields);
+    }
+
+    function hasRequiredFields(requiredFields) {
+      return request.resource.data.keys().hasAll(requiredFields);
+    }
+
+    function isValidString(field, minLen, maxLen) {
+      return request.resource.data[field] is string && 
+             request.resource.data[field].size() >= minLen && 
+             request.resource.data[field].size() <= maxLen;
+    }
+
+    function isValidOptionalString(field, minLen, maxLen) {
+      return !(field in request.resource.data) || 
+             request.resource.data[field] == null ||
+             (request.resource.data[field] is string && 
+              request.resource.data[field].size() >= minLen && 
+              request.resource.data[field].size() <= maxLen);
+    }
+
+    function areImmutableFieldsUnchanged(fields) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser() {
+      return hasOnlyAllowedFields(['fullName', 'email', 'mobile', 'role', 'createdAt', 'addresses']) &&
+             isValidOptionalString('fullName', 0, 100) &&
+             isValidString('email', 3, 100) &&
+             isValidOptionalString('mobile', 0, 20) &&
+             request.resource.data.role in ['user', 'admin', 'concierge'] &&
+             (!( 'createdAt' in request.resource.data ) || request.resource.data.createdAt is timestamp) &&
+             (!( 'addresses' in request.resource.data ) || request.resource.data.addresses is list);
+    }
+
+    function isValidProduct() {
+      return hasRequiredFields(['title', 'price', 'category', 'image']) &&
+             isValidString('title', 1, 200) &&
+             request.resource.data.price is number && request.resource.data.price >= 0 &&
+             isValidString('category', 1, 100) &&
+             isValidString('image', 1, 1000) &&
+             isValidOptionalString('description', 0, 5000) &&
+             (!( 'details' in request.resource.data ) || request.resource.data.details is map) &&
+             (!( 'countInStock' in request.resource.data ) || (request.resource.data.countInStock is number && request.resource.data.countInStock >= 0)) &&
+             (!( 'isArchived' in request.resource.data ) || request.resource.data.isArchived is bool) &&
+             (!( 'sizes' in request.resource.data ) || request.resource.data.sizes is list) &&
+             isValidOptionalString('uniquenessTag', 0, 100) &&
+             (!( 'productType' in request.resource.data ) || request.resource.data.productType in ['APPAREL', 'CARD']) &&
+             (!( 'fit' in request.resource.data ) || request.resource.data.fit in ['oversized', 'regular']) &&
+             (!( 'createdAt' in request.resource.data ) || request.resource.data.createdAt is timestamp);
+    }
+
+    function isValidCart() {
+      return hasRequiredFields(['user', 'items']) &&
+             isValidString('user', 1, 100) &&
+             request.resource.data.items is list;
+    }
+
+    function isValidOrder() {
+      return hasRequiredFields(['conciergeCode', 'items', 'shippingAddress', 'totalAmount', 'orderStatus']) &&
+             isValidOptionalString('user', 1, 100) &&
+             isValidString('conciergeCode', 1, 100) &&
+             request.resource.data.items is list &&
+             request.resource.data.shippingAddress is map &&
+             request.resource.data.totalAmount is number && request.resource.data.totalAmount >= 0 &&
+             isValidOptionalString('contactMethod', 0, 100) &&
+             isValidOptionalString('paymentStatus', 0, 50) &&
+             isValidString('orderStatus', 1, 50) &&
+             (!( 'createdAt' in request.resource.data ) || request.resource.data.createdAt is timestamp) &&
+             (!( 'statusHistory' in request.resource.data ) || request.resource.data.statusHistory is list) &&
+             (!( 'conversationStartedAt' in request.resource.data ) || request.resource.data.conversationStartedAt is timestamp) &&
+             isValidOptionalString('internalNotes', 0, 5000) &&
+             isValidOptionalString('paymentLink', 0, 1000) &&
+             (!( 'paymentDetails' in request.resource.data ) || request.resource.data.paymentDetails is map);
+    }
+
+    function isValidOrderUpdate() {
+      // For partial updates, we only validate the fields that are present
+      return (!( 'conciergeCode' in request.resource.data ) || isValidString('conciergeCode', 1, 100)) &&
+             (!( 'items' in request.resource.data ) || request.resource.data.items is list) &&
+             (!( 'shippingAddress' in request.resource.data ) || request.resource.data.shippingAddress is map) &&
+             (!( 'totalAmount' in request.resource.data ) || (request.resource.data.totalAmount is number && request.resource.data.totalAmount >= 0)) &&
+             (!( 'contactMethod' in request.resource.data ) || isValidOptionalString('contactMethod', 0, 100)) &&
+             (!( 'paymentStatus' in request.resource.data ) || isValidOptionalString('paymentStatus', 0, 50)) &&
+             (!( 'orderStatus' in request.resource.data ) || isValidString('orderStatus', 1, 50)) &&
+             (!( 'createdAt' in request.resource.data ) || request.resource.data.createdAt is timestamp) &&
+             (!( 'statusHistory' in request.resource.data ) || request.resource.data.statusHistory is list) &&
+             (!( 'conversationStartedAt' in request.resource.data ) || request.resource.data.conversationStartedAt is timestamp) &&
+             (!( 'internalNotes' in request.resource.data ) || isValidOptionalString('internalNotes', 0, 5000)) &&
+             (!( 'paymentLink' in request.resource.data ) || isValidOptionalString('paymentLink', 0, 1000)) &&
+             (!( 'paymentDetails' in request.resource.data ) || request.resource.data.paymentDetails is map) &&
+             (!( 'user' in request.resource.data ) || request.resource.data.user == null || isValidString('user', 1, 100));
+    }
+
+    function isValidSetting() {
+      return hasRequiredFields(['key']) &&
+             isValidString('key', 1, 100) &&
+             (!( 'conciergeConfig' in request.resource.data ) || request.resource.data.conciergeConfig is map) &&
+             (!( 'siteContent' in request.resource.data ) || request.resource.data.siteContent is map);
+    }
+
+    function isValidProductUpdate() {
+      // For partial updates, we only validate the fields that are present
+      return (!( 'title' in request.resource.data ) || isValidString('title', 1, 200)) &&
+             (!( 'price' in request.resource.data ) || (request.resource.data.price is number && request.resource.data.price >= 0)) &&
+             (!( 'category' in request.resource.data ) || isValidString('category', 1, 100)) &&
+             (!( 'image' in request.resource.data ) || isValidString('image', 1, 1000)) &&
+             isValidOptionalString('description', 0, 5000) &&
+             (!( 'details' in request.resource.data ) || request.resource.data.details is map) &&
+             (!( 'countInStock' in request.resource.data ) || (request.resource.data.countInStock is number && request.resource.data.countInStock >= 0)) &&
+             (!( 'isArchived' in request.resource.data ) || request.resource.data.isArchived is bool) &&
+             (!( 'sizes' in request.resource.data ) || request.resource.data.sizes is list) &&
+             isValidOptionalString('uniquenessTag', 0, 100) &&
+             (!( 'productType' in request.resource.data ) || request.resource.data.productType in ['APPAREL', 'CARD']) &&
+             (!( 'fit' in request.resource.data ) || request.resource.data.fit in ['oversized', 'regular']) &&
+             (!( 'createdAt' in request.resource.data ) || request.resource.data.createdAt is timestamp);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isAuthenticated() && isValidUser() && 
+                    (
+                      (isOwner(userId) && request.resource.data.role == 'user') || 
+                      isAdmin() ||
+                      (isOwner(userId) && request.resource.data.role == 'admin' && (request.auth.token.email == "unk410066@gmail.com" || request.auth.token.email == "muhammadbinbasheer777@gmail.com"))
+                    );
+      allow update: if isAuthenticated() && isValidUser() && 
+                    (
+                      (isOwner(userId) && areImmutableFieldsUnchanged(['role', 'createdAt'])) || 
+                      isAdmin()
+                    );
+      allow delete: if isAdmin();
+    }
+
+    match /products/{productId} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidProduct();
+      allow update: if isAdmin() && isValidProductUpdate() && areImmutableFieldsUnchanged(['createdAt']);
+      allow delete: if isAdmin();
+    }
+
+    match /carts/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && isValidCart() && request.resource.data.user == userId;
+      allow update: if isOwner(userId) && isValidCart() && areImmutableFieldsUnchanged(['user']);
+      allow delete: if isOwner(userId) || isAdmin();
+    }
+
+    match /orders/{orderId} {
+      // Allow read if admin, or owner, or if the user is fetching by exact ID (conciergeCode)
+      allow get: if true; 
+      allow list: if isAdmin() || (isAuthenticated() && resource.data.user == request.auth.uid);
+      
+      allow create: if isValidOrder() && 
+                    (
+                      (isAuthenticated() && request.resource.data.user == request.auth.uid) || 
+                      (!isAuthenticated() && !('user' in request.resource.data) || request.resource.data.user == null)
+                    );
+      
+      allow update: if isValidOrderUpdate() && 
+                    (
+                      isAdmin() || 
+                      (
+                        // Allow users to update contactMethod, conversationStartedAt, paymentStatus, orderStatus, paymentDetails
+                        ((isAuthenticated() && resource.data.user == request.auth.uid) || (!isAuthenticated() && (!('user' in resource.data) || resource.data.user == null))) &&
+                        areImmutableFieldsUnchanged(['user', 'conciergeCode', 'items', 'shippingAddress', 'totalAmount', 'createdAt', 'paymentLink', 'internalNotes'])
+                      )
+                    );
+      allow delete: if isAdmin();
+    }
+
+    match /settings/{settingId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin() && isValidSetting();
+    }
+
+    match /system/{documentId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    match /audit_logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin();
+      allow update, delete: if false;
+    }
+  }
+}
