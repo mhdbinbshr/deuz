@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Fingerprint, ArrowRight, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useSettings } from '../context/SettingsContext';
 
 const AuthModal: React.FC = () => {
   const { isAuthModalOpen, closeAuthModal, login, signup, loginWithGoogle } = useAuth();
+  const { content } = useSettings();
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [formData, setFormData] = useState({
     fullName: '',
@@ -18,11 +20,14 @@ const AuthModal: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [activeImage, setActiveImage] = useState(0);
 
-  const images = [
-    "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?q=80&w=2070&auto=format&fit=crop", // Luxury interior
-    "https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?q=80&w=2000&auto=format&fit=crop", // Cinematic architecture
-    "https://images.unsplash.com/photo-1507676184212-d0330a15233c?q=80&w=2069&auto=format&fit=crop"  // Abstract dark luxury
-  ];
+  const images = content.scrollImages && content.scrollImages.length > 0 
+    ? content.scrollImages 
+    : [
+        'https://images.unsplash.com/photo-1478720568477-152d9b164e63?q=80&w=1000&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?q=80&w=1000&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1518676590629-3dcbd9c5a5c9?q=80&w=1000&auto=format&fit=crop',
+        'https://images.unsplash.com/photo-1495554605298-8d361208bd48?q=80&w=1000&auto=format&fit=crop'
+      ];
 
   useEffect(() => {
     if (!isAuthModalOpen) return;

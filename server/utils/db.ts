@@ -45,59 +45,6 @@ const FALLBACK_SETTINGS = {
     }
 };
 
-// Fallback Data for Offline Demo
-const FALLBACK_PRODUCTS = [
-  {
-    _id: 'midnight-silk-kimono',
-    title: 'Midnight Silk Kimono',
-    price: 12500,
-    category: 'Outerwear',
-    image: 'https://images.unsplash.com/photo-1593030761757-71bd90d475dd?q=80&w=1000&auto=format&fit=crop',
-    description: 'Hand-dyed midnight silk with structured lapels. A fusion of traditional silhouette and modern noir aesthetics.',
-    details: { material: '100% Mulberry Silk', origin: 'Kyoto, Japan' },
-    countInStock: 20,
-    isArchived: false,
-    sizes: ['S', 'M', 'L', 'XL']
-  },
-  {
-    _id: 'architectural-blazer',
-    title: 'Architectural Blazer',
-    price: 18000,
-    category: 'Tailoring',
-    image: 'https://images.unsplash.com/photo-1550614000-4b9519e02a29?q=80&w=1000&auto=format&fit=crop',
-    description: 'Structured shoulders with a tapered waist. Crafted from heavyweight Italian wool for a commanding presence.',
-    details: { material: 'Virgin Wool Blend', fit: 'Structured' },
-    countInStock: 15,
-    isArchived: false,
-    sizes: ['S', 'M', 'L', 'XL']
-  },
-  {
-    _id: 'pleated-hakama-trousers',
-    title: 'Pleated Hakama Trousers',
-    price: 9500,
-    category: 'Bottoms',
-    image: 'https://images.unsplash.com/photo-1617114919297-3c8ddb01f599?q=80&w=1000&auto=format&fit=crop',
-    description: 'Voluminous wide-leg trousers featuring deep pleats and a high-waisted fit. Engineered for fluid motion.',
-    details: { material: 'Technical Cotton', cut: 'Wide Leg' },
-    countInStock: 30,
-    isArchived: false,
-    sizes: ['S', 'M', 'L', 'XL']
-  },
-  {
-    _id: 'ballistic-shell-parka',
-    title: 'Ballistic Shell Parka',
-    price: 24000,
-    category: 'Outerwear',
-    image: 'https://images.unsplash.com/photo-1551488852-080175cff233?q=80&w=1000&auto=format&fit=crop',
-    description: 'Matte black waterproof shell with concealed pockets and modular attachments. Protection against the elements.',
-    details: { material: 'Gore-Tex Pro', resistance: 'Waterproof' },
-    countInStock: 0,
-    isArchived: false,
-    sizes: ['S', 'M', 'L', 'XL'],
-    uniquenessTag: 'Sold Out'
-  }
-];
-
 const request = async (endpoint: string, options: RequestInit = {}) => {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -138,8 +85,8 @@ const request = async (endpoint: string, options: RequestInit = {}) => {
     }
 
     if (endpoint === '/products') {
-        console.warn("Offline Mode: Returning Fallback Products");
-        return FALLBACK_PRODUCTS;
+        console.warn("Offline Mode: Returning empty products list");
+        return [];
     }
 
     if (endpoint === '/cart' || endpoint === '/cart/merge' || endpoint.startsWith('/cart/')) {

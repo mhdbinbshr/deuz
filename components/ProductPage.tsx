@@ -14,59 +14,6 @@ interface ProductPageProps {
   wishlistItems: WishlistItem[];
 }
 
-// Fallback data - Standardized Apparel Collection with Alpha Sizing
-const FALLBACK_PRODUCTS = [
-  {
-    id: 'midnight-silk-kimono',
-    title: 'Midnight Silk Kimono',
-    price: 12500,
-    category: 'Outerwear',
-    image: 'https://images.unsplash.com/photo-1593030761757-71bd90d475dd?q=80&w=1000&auto=format&fit=crop',
-    description: 'Hand-dyed midnight silk with structured lapels. A fusion of traditional silhouette and modern noir aesthetics.',
-    details: { material: '100% Mulberry Silk', origin: 'Kyoto, Japan' },
-    inStock: true,
-    countInStock: 20,
-    sizes: ['S', 'M', 'L', 'XL', 'XXL']
-  },
-  {
-    id: 'architectural-blazer',
-    title: 'Architectural Blazer',
-    price: 18000,
-    category: 'Tailoring',
-    image: 'https://images.unsplash.com/photo-1550614000-4b9519e02a29?q=80&w=1000&auto=format&fit=crop',
-    description: 'Structured shoulders with a tapered waist. Crafted from heavyweight Italian wool for a commanding presence.',
-    details: { material: 'Virgin Wool Blend', fit: 'Structured' },
-    inStock: true,
-    countInStock: 15,
-    sizes: ['S', 'M', 'L', 'XL', 'XXL']
-  },
-  {
-    id: 'pleated-hakama-trousers',
-    title: 'Pleated Hakama Trousers',
-    price: 9500,
-    category: 'Bottoms',
-    image: 'https://images.unsplash.com/photo-1617114919297-3c8ddb01f599?q=80&w=1000&auto=format&fit=crop',
-    description: 'Voluminous wide-leg trousers featuring deep pleats and a high-waisted fit. Engineered for fluid motion.',
-    details: { material: 'Technical Cotton', cut: 'Wide Leg' },
-    inStock: true,
-    countInStock: 30,
-    sizes: ['S', 'M', 'L', 'XL', 'XXL']
-  },
-  {
-    id: 'ballistic-shell-parka',
-    title: 'Ballistic Shell Parka',
-    price: 24000,
-    category: 'Outerwear',
-    image: 'https://images.unsplash.com/photo-1551488852-080175cff233?q=80&w=1000&auto=format&fit=crop',
-    description: 'Matte black waterproof shell with concealed pockets and modular attachments. Protection against the elements.',
-    details: { material: 'Gore-Tex Pro', resistance: 'Waterproof' },
-    inStock: false,
-    countInStock: 0,
-    sizes: ['S', 'M', 'L', 'XL', 'XXL'],
-    uniquenessTag: 'Sold Out'
-  }
-];
-
 const ProductPage: React.FC<ProductPageProps> = ({ 
   onBack, 
   onBuyNow,
@@ -76,6 +23,7 @@ const ProductPage: React.FC<ProductPageProps> = ({
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [filterCategory, setFilterCategory] = useState('All');
   const [sortOption, setSortOption] = useState('Featured');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
@@ -100,6 +48,7 @@ const ProductPage: React.FC<ProductPageProps> = ({
                     price: p.price,
                     category: p.category,
                     image: p.image,
+                    gallery: p.gallery || [],
                     description: p.description,
                     details: p.details || {},
                     inStock: p.countInStock > 0,
@@ -107,22 +56,41 @@ const ProductPage: React.FC<ProductPageProps> = ({
                     isArchived: p.isArchived, // Add archived state
                     // Enforce Alpha sizing fallback if not present, though DB should now provide it
                     sizes: p.sizes && p.sizes.length > 0 ? p.sizes : ['S', 'M', 'L', 'XL', 'XXL'],
-                    uniquenessTag: p.uniquenessTag
+                    uniquenessTag: p.uniquenessTag,
+                    imageTag: p.imageTag,
+                    houseCode: p.houseCode
                 }));
                 // Filter out archived products for the public store
                 setProducts(mapped.filter((p: any) => !p.isArchived));
             } else {
-                setProducts(FALLBACK_PRODUCTS);
+                setProducts([]);
             }
         } catch (e) {
             console.error(e);
-            setProducts(FALLBACK_PRODUCTS);
+            setProducts([]);
         } finally {
             setLoading(false);
         }
     };
     fetchProducts();
   }, []);
+
+  // Auto-rotate gallery images
+  useEffect(() => {
+    if (selectedProduct) {
+      setCurrentImageIndex(0);
+      const allImages = selectedProduct.gallery?.length > 0 
+        ? [selectedProduct.image, ...selectedProduct.gallery] 
+        : [selectedProduct.image];
+        
+      if (allImages.length > 1) {
+        const interval = setInterval(() => {
+          setCurrentImageIndex(prev => (prev + 1) % allImages.length);
+        }, 4000);
+        return () => clearInterval(interval);
+      }
+    }
+  }, [selectedProduct]);
 
   const categories = useMemo(() => ['All', ...Array.from(new Set(products.map(p => p.category)))], [products]);
   
@@ -299,15 +267,51 @@ const ProductPage: React.FC<ProductPageProps> = ({
                 initial={{ scale: 0.9, opacity: 0, y: 40 }}
                 animate={{ scale: 1, opacity: 1, y: 0 }}
                 transition={{ duration: 1, ease: [0.22, 1, 0.36, 1], delay: 0.1 }}
-                className="relative z-10 w-64 md:w-96 aspect-[3/4] group perspective-[1000px]"
+                className="relative z-10 w-64 md:w-96 aspect-[3/4] group perspective-[1000px] overflow-hidden rounded-sm shadow-[0_30px_60px_rgba(0,0,0,0.9)]"
               >
-                 <motion.img 
-                   src={selectedProduct.image} 
-                   alt={selectedProduct.title}
-                   layoutId={`product-image-${selectedProduct.id}`}
-                   className={`w-full h-full object-cover rounded-sm shadow-[0_30px_60px_rgba(0,0,0,0.9)] ${!selectedProduct.inStock && selectedProduct.uniquenessTag ? 'grayscale contrast-125' : ''}`}
-                 />
-                 <div className="absolute -bottom-12 left-0 right-0 h-32 bg-gradient-to-t from-black via-transparent to-transparent z-20" />
+                 {(() => {
+                   const allImages = selectedProduct.gallery?.length > 0 
+                     ? [selectedProduct.image, ...selectedProduct.gallery] 
+                     : [selectedProduct.image];
+                   
+                   return (
+                     <>
+                       {allImages.map((img: string, idx: number) => (
+                         <motion.img 
+                           key={idx}
+                           src={img} 
+                           alt={`${selectedProduct.title} - Image ${idx + 1}`}
+                           layoutId={idx === 0 ? `product-image-${selectedProduct.id}` : undefined}
+                           initial={idx === 0 ? { scale: 1.1, filter: 'blur(10px)' } : { opacity: 0 }}
+                           animate={{ 
+                             scale: currentImageIndex === idx ? 1 : 1.05, 
+                             filter: 'blur(0px)',
+                             opacity: currentImageIndex === idx ? 1 : 0,
+                             zIndex: currentImageIndex === idx ? 10 : 0
+                           }}
+                           transition={{ duration: 1.5, ease: [0.16, 1, 0.3, 1] }}
+                           className={`absolute inset-0 w-full h-full object-cover ${!selectedProduct.inStock && selectedProduct.uniquenessTag ? 'grayscale contrast-125' : ''}`}
+                         />
+                       ))}
+                       
+                       {allImages.length > 1 && (
+                         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-30">
+                           {allImages.map((_: any, idx: number) => (
+                             <button
+                               key={idx}
+                               onClick={(e) => {
+                                 e.stopPropagation();
+                                 setCurrentImageIndex(idx);
+                               }}
+                               className={`h-1.5 rounded-full transition-all duration-500 ${currentImageIndex === idx ? 'w-6 bg-gold-500' : 'w-1.5 bg-white/30 hover:bg-white/60'}`}
+                             />
+                           ))}
+                         </div>
+                       )}
+                     </>
+                   );
+                 })()}
+                 <div className="absolute -bottom-12 left-0 right-0 h-32 bg-gradient-to-t from-black via-transparent to-transparent z-20 pointer-events-none" />
                  
                  {/* Visual Badge for 1-of-1 Sold */}
                  {!selectedProduct.inStock && selectedProduct.uniquenessTag && (
@@ -350,6 +354,13 @@ const ProductPage: React.FC<ProductPageProps> = ({
                   </div>
                 </div>
 
+                {selectedProduct.imageTag && (
+                  <div className="inline-flex items-center gap-2 border border-gold-500/50 px-3 py-1 mb-4 bg-gold-500/10">
+                    <span className="text-[9px] text-gold-500 uppercase tracking-[0.2em] font-bold">
+                      {selectedProduct.imageTag}
+                    </span>
+                  </div>
+                )}
                 {selectedProduct.uniquenessTag && (
                   <div className="inline-flex items-center gap-2 border border-gold-500/50 px-3 py-1 mb-6 bg-gold-500/10">
                     <Crown size={12} className="text-gold-500" />
@@ -367,7 +378,7 @@ const ProductPage: React.FC<ProductPageProps> = ({
                 </motion.h1>
 
                 <p className="text-[10px] text-white/30 uppercase tracking-[0.3em] mb-6 font-mono">
-                  House Code : WKW-282
+                  {selectedProduct.category} {selectedProduct.houseCode ? `// House Code : ${selectedProduct.houseCode}` : ''}
                 </p>
 
                 <p className="text-white/60 font-light leading-relaxed mb-8">
@@ -638,7 +649,11 @@ const ProductPage: React.FC<ProductPageProps> = ({
                              layoutId={`product-image-${product.id}`}
                              src={product.image} 
                              alt={product.title} 
-                             className={`w-full h-full object-cover transition-all duration-700 ${product.inStock ? 'opacity-80 group-hover:opacity-100 group-hover:scale-105' : 'opacity-40 grayscale'}`} 
+                             initial={{ scale: 1.1, filter: 'blur(5px)' }}
+                             animate={{ scale: 1, filter: 'blur(0px)' }}
+                             transition={{ duration: 1, ease: "easeOut" }}
+                             whileHover={{ scale: 1.05, transition: { duration: 0.8, ease: "easeOut" } }}
+                             className={`w-full h-full object-cover transition-all duration-700 ${product.inStock ? 'opacity-80 group-hover:opacity-100' : 'opacity-40 grayscale'}`} 
                            />
                            <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors duration-500" />
                            
@@ -651,8 +666,15 @@ const ProductPage: React.FC<ProductPageProps> = ({
                            )}
                            
                            {/* Small Badge on Grid Card */}
-                           {product.uniquenessTag && (
-                               <div className="absolute top-2 left-2 bg-gold-500/10 border border-gold-500/20 backdrop-blur-md px-2 py-1">
+                           {product.imageTag && (
+                               <div className="absolute top-2 left-2 bg-gold-500/10 border border-gold-500/20 backdrop-blur-md px-2 py-1 z-10">
+                                   <div className="flex items-center gap-1">
+                                       <span className="text-[8px] uppercase tracking-widest text-gold-500 font-bold">{product.imageTag}</span>
+                                   </div>
+                               </div>
+                           )}
+                           {product.uniquenessTag && !product.imageTag && (
+                               <div className="absolute top-2 left-2 bg-gold-500/10 border border-gold-500/20 backdrop-blur-md px-2 py-1 z-10">
                                    <div className="flex items-center gap-1">
                                        <Crown size={10} className="text-gold-500" />
                                        <span className="text-[8px] uppercase tracking-widest text-gold-500 font-bold">{product.uniquenessTag}</span>

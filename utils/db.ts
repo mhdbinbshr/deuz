@@ -90,58 +90,6 @@ async function testConnection() {
 }
 testConnection();
 
-// Fallback Data to Seed Firestore if empty
-const FALLBACK_PRODUCTS = [
-  {
-    _id: 'obsidian-chronograph',
-    title: "The Obsidian Chronograph",
-    price: 125000,
-    category: "Timepieces",
-    image: "https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&q=80&w=1000",
-    description: "A masterclass in horological engineering. Forged from a single block of obsidian-finished titanium, featuring a skeletonized dial that reveals the intricate mechanical heart within. Water-resistant to 100m with a 72-hour power reserve.",
-    countInStock: 5,
-    isArchived: false,
-    sizes: ["Standard"],
-    uniquenessTag: "Limited Edition of 50"
-  },
-  {
-    _id: 'midnight-silk-tuxedo',
-    title: "Midnight Silk Tuxedo",
-    price: 85000,
-    category: "Apparel",
-    image: "https://images.unsplash.com/photo-1593030761757-71fae45fa0e7?auto=format&fit=crop&q=80&w=1000",
-    description: "Tailored to perfection in Milan. This midnight blue tuxedo is crafted from 100% pure Italian silk, featuring satin lapels and a modern, structured silhouette. The ultimate statement for evening galas.",
-    countInStock: 12,
-    isArchived: false,
-    sizes: ["38R", "40R", "42R", "44R"],
-    uniquenessTag: "Bespoke Tailoring"
-  },
-  {
-    _id: 'aura-leather-briefcase',
-    title: "Aura Leather Briefcase",
-    price: 45000,
-    category: "Accessories",
-    image: "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&q=80&w=1000",
-    description: "Hand-stitched full-grain calfskin leather briefcase. Features solid brass hardware, a suede-lined interior with dedicated laptop compartment, and a secret document pocket. Ages beautifully, developing a unique patina over time.",
-    countInStock: 8,
-    isArchived: false,
-    sizes: ["One Size"],
-    uniquenessTag: "Handcrafted"
-  },
-  {
-    _id: 'elysium-fragrance',
-    title: "Elysium Fragrance",
-    price: 28000,
-    category: "Fragrance",
-    image: "https://images.unsplash.com/photo-1594035910387-fea47794261f?auto=format&fit=crop&q=80&w=1000",
-    description: "An intoxicating blend of rare oud, wild bergamot, and smoked vanilla. Created by master perfumers in Grasse, France. Housed in a hand-blown crystal flacon with a 24k gold-plated cap.",
-    countInStock: 25,
-    isArchived: false,
-    sizes: ["100ml"],
-    uniquenessTag: "Signature Scent"
-  }
-];
-
 const FALLBACK_SETTINGS = {
     key: 'global_config',
     conciergeConfig: {
@@ -276,21 +224,8 @@ export const db = {
         const q = query(collection(firestore, "products"));
         const querySnapshot = await getDocs(q);
         
-        // Auto-seed if empty (for demo purposes)
         if (querySnapshot.empty) {
-            try {
-                const batch = writeBatch(firestore);
-                FALLBACK_PRODUCTS.forEach(product => {
-                    const newRef = doc(collection(firestore, "products"));
-                    const { _id, ...data } = product; 
-                    batch.set(newRef, { ...data, createdAt: serverTimestamp() });
-                });
-                await batch.commit();
-                return FALLBACK_PRODUCTS.map(p => ({...p, id: p._id}));
-            } catch (seedError) {
-                // If seeding fails (e.g. permission denied), return fallback
-                return FALLBACK_PRODUCTS.map(p => ({...p, id: p._id}));
-            }
+            return [];
         }
 
         return querySnapshot.docs.map(mapDoc);
@@ -299,7 +234,7 @@ export const db = {
             console.error("Please check your Firebase configuration.");
         }
         handleFirestoreError(error, OperationType.LIST, 'products');
-        return FALLBACK_PRODUCTS.map(p => ({...p, id: p._id}));
+        return [];
     }
   },
 
@@ -313,7 +248,7 @@ export const db = {
         return null;
     } catch (error) {
         handleFirestoreError(error, OperationType.GET, `products/${id}`);
-        return FALLBACK_PRODUCTS.find(p => p._id === id) || null;
+        return null;
     }
   },
 

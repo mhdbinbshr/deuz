@@ -137,10 +137,10 @@ const FashionStore: React.FC<FashionStoreProps> = ({ onEnterStore }) => {
 
             {/* Floating Detail Card (Properties Panel Style) */}
             <motion.div 
-                initial={{ opacity: 0, x: 100, y: 50 }}
-                whileInView={{ opacity: 1, x: 100, y: 50 }}
+                initial={{ opacity: 0, y: 70 }}
+                whileInView={{ opacity: 1, y: 50 }}
                 transition={{ duration: 1.2, delay: 0.2, ease: "easeOut" }}
-                className="absolute w-64 bg-black/80 backdrop-blur-md border border-white/10 rounded-sm p-6 z-20 hidden md:block"
+                className="absolute right-4 md:right-auto md:left-[50%] md:ml-[100px] w-48 md:w-64 bg-black/80 backdrop-blur-md border border-white/10 rounded-sm p-4 md:p-6 z-20"
             >
                 <div className="flex items-center justify-between mb-4 pb-2 border-b border-white/10">
                     <span className="text-[9px] uppercase tracking-widest text-gold-500">Properties</span>
@@ -185,22 +185,22 @@ const FashionStore: React.FC<FashionStoreProps> = ({ onEnterStore }) => {
                initial={{ opacity: 0, y: 50 }}
                whileInView={{ opacity: 1, y: 0 }}
                exit={{ opacity: 0, y: 100, transition: { duration: 0.5 } }}
-               className="absolute bottom-24 z-50 flex flex-col items-center gap-6"
+               className="absolute bottom-12 md:bottom-24 z-50 flex flex-col items-center gap-6 w-full px-4"
              >
-                <div className="w-[800px] h-32 bg-gradient-to-t from-black via-black/80 to-transparent absolute -top-20 pointer-events-none" />
+                <div className="w-full max-w-[800px] h-32 bg-gradient-to-t from-black via-black/80 to-transparent absolute -top-20 pointer-events-none" />
                 
                 <motion.button
                   onClick={handleEnterClick}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  className="group relative px-12 py-5 overflow-hidden bg-white/5 border border-white/10 backdrop-blur-md rounded-none hover:border-gold-500/50 transition-all duration-500 shadow-[0_20px_40px_rgba(0,0,0,0.4)]"
+                  className="group relative px-6 py-4 md:px-12 md:py-5 overflow-hidden bg-white/5 border border-white/10 backdrop-blur-md rounded-none hover:border-gold-500/50 transition-all duration-500 shadow-[0_20px_40px_rgba(0,0,0,0.4)] w-full max-w-sm md:max-w-md"
                 >
                   <div className="absolute inset-0 bg-gradient-to-r from-gold-600/20 to-transparent translate-x-[-100%] group-hover:translate-x-0 transition-transform duration-700 ease-out" />
                   
                   <div className="relative flex flex-col items-center gap-1">
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm uppercase tracking-[0.3em] text-white font-medium group-hover:text-gold-200 transition-colors">EXPLORE COLLECTION I</span>
-                      <ArrowUpRight size={16} className="text-gold-500 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform duration-300" />
+                    <div className="flex items-center justify-center gap-3 w-full">
+                      <span className="text-xs md:text-sm uppercase tracking-[0.2em] md:tracking-[0.3em] text-white font-medium group-hover:text-gold-200 transition-colors text-center">EXPLORE COLLECTION I</span>
+                      <ArrowUpRight size={16} className="text-gold-500 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform duration-300 flex-shrink-0" />
                     </div>
                     <div className="w-full h-[1px] bg-white/20 mt-1 group-hover:bg-gold-500 transition-colors duration-500 scale-x-0 group-hover:scale-x-100 origin-left" />
                   </div>

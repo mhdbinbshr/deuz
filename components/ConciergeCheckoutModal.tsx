@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Instagram, MessageCircle, Mail, ArrowRight, ShieldCheck, Copy, CheckCircle2 } from 'lucide-react';
 import { getContactUrl, getInteractionDetails, CONCIERGE_CONFIG, generateConciergeMessage } from '../utils/conciergeService';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface ConciergeCheckoutModalProps {
   isOpen: boolean;
@@ -33,6 +35,41 @@ const ConciergeCheckoutModal: React.FC<ConciergeCheckoutModalProps> = ({
   };
 
   const handleSelect = (method: 'instagram' | 'whatsapp' | 'email') => {
+    // Generate Invoice PDF
+    const doc = new jsPDF();
+    doc.setFontSize(20);
+    doc.text('DEUZ & CO - Invoice', 14, 22);
+    doc.setFontSize(10);
+    doc.text(`Order ID: ${orderCode}`, 14, 30);
+    doc.text(`Date: ${new Date().toLocaleDateString()}`, 14, 36);
+    doc.text(`Client: ${address?.fullName || address?.firstName || 'Guest'}`, 14, 42);
+    
+    doc.setFontSize(14);
+    doc.text('Items', 14, 55);
+    
+    const itemData = items.map((item: any) => [
+        item.title,
+        item.selectedSize || item.size || 'N/A',
+        item.houseCode || 'N/A',
+        item.quantity.toString(),
+        `$${item.price}`
+    ]);
+    
+    autoTable(doc, {
+        startY: 60,
+        head: [['Item', 'Size', 'House Code', 'Qty', 'Price']],
+        body: itemData,
+        theme: 'grid',
+        styles: { fontSize: 10 },
+        headStyles: { fillColor: [20, 20, 20] }
+    });
+    
+    const finalY = (doc as any).lastAutoTable.finalY || 60;
+    doc.setFontSize(12);
+    doc.text(`Total: $${totalAmount}`, 14, finalY + 10);
+    
+    doc.save(`invoice-${orderCode}.pdf`);
+
     onInteractionStart(getInteractionDetails());
     onMethodSelect(method);
     

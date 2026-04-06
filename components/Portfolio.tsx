@@ -56,14 +56,13 @@ const Portfolio: React.FC<PortfolioProps> = ({ onEnterShop }) => {
           <motion.div style={{ x }} className="flex gap-12 px-12">
             {displayImages.map((imgUrl, index) => (
               <div key={index} className="group relative w-[85vw] md:w-[700px] h-[75vh] flex-shrink-0 cursor-none overflow-hidden">
-                <div className="w-full h-full overflow-hidden bg-white/5 border border-white/5 relative backdrop-blur-sm">
+                <div className="w-full h-full overflow-hidden bg-white/5 border border-white/5 relative backdrop-blur-sm flex items-center justify-center">
                   <motion.img
-                    style={{ x: imageX }}
                     whileHover={{ scale: 1.05 }}
                     transition={{ duration: 1.5, ease: [0.22, 1, 0.36, 1] }}
                     src={imgUrl}
                     alt={`Showcase ${index + 1}`}
-                    className="absolute top-0 left-[-25%] w-[150%] h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity duration-700 max-w-none"
+                    className="w-full h-full object-contain opacity-60 group-hover:opacity-100 transition-opacity duration-700"
                   />
                   {/* Hover Overlay */}
                   <div className="absolute inset-0 bg-black/40 group-hover:bg-transparent transition-colors duration-700" />

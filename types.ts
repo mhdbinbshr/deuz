@@ -23,7 +23,7 @@ export type OrderStatus =
   | 'CANCELLED';
 
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
-  ORDER_SECURED: 'Order Secured',
+  ORDER_SECURED: 'Not Confirmed',
   PAYMENT_AUTHORIZED: 'Payment Authorized',
   ORDER_VERIFIED: 'Order Verified',
   IN_PRODUCTION: 'In Production',
@@ -116,6 +116,7 @@ export interface CartItem {
   details?: Record<string, string>;
   selectedSize?: string;
   maxStock?: number;
+  houseCode?: string;
 }
 
 export type WishlistItem = Omit<CartItem, 'quantity'>;

@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { X, Package, Clock, ShieldCheck, AlertCircle, Search, ArrowUpRight, Copy, ExternalLink, Check } from 'lucide-react';
+import { X, Package, Clock, ShieldCheck, AlertCircle, Search, ArrowUpRight, Copy, ExternalLink, Check, FileText } from 'lucide-react';
 import { db } from '../utils/db';
 import { Order, ORDER_STATUS_LABELS, ORDER_STATUS_DESCRIPTIONS, ORDER_PHASES, OrderStatus } from '../types';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface MyOrdersPageProps {
   onBack: () => void;
@@ -84,6 +86,7 @@ const MyOrdersPage: React.FC<MyOrdersPageProps> = ({ onBack }) => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ message: string; visible: boolean }>({ message: '', visible: false });
+  const [orderTab, setOrderTab] = useState<'requested' | 'confirmed' | 'transit' | 'archived'>('requested');
 
   const showToast = (message: string) => {
     setToast({ message, visible: true });
@@ -117,6 +120,14 @@ const MyOrdersPage: React.FC<MyOrdersPageProps> = ({ onBack }) => {
       showToast("Reference copied to clipboard");
   };
 
+  const filteredOrders = orders.filter(o => {
+      if (orderTab === 'requested') return ['ORDER_SECURED', 'PAYMENT_AUTHORIZED'].includes(o.orderStatus);
+      if (orderTab === 'confirmed') return ['ORDER_VERIFIED', 'IN_PRODUCTION', 'QUALITY_ASSURED', 'READY_FOR_DISPATCH'].includes(o.orderStatus);
+      if (orderTab === 'transit') return ['DISPATCHED', 'IN_TRANSIT', 'ARRIVED_AT_HUB', 'OUT_FOR_DELIVERY'].includes(o.orderStatus);
+      if (orderTab === 'archived') return ['DELIVERED', 'EXPERIENCE_UNLOCKED', 'CANCELLED'].includes(o.orderStatus);
+      return true;
+  });
+
   return (
     <motion.div 
       initial={{ opacity: 0 }}
@@ -137,20 +148,46 @@ const MyOrdersPage: React.FC<MyOrdersPageProps> = ({ onBack }) => {
       </nav>
 
       <div className="max-w-5xl mx-auto px-6 py-12">
+        {/* Order Tabs */}
+        <div className="flex flex-wrap gap-4 mb-12 border-b border-white/10 pb-4">
+            {[
+                { id: 'requested', label: 'Requested' },
+                { id: 'confirmed', label: 'Confirmed' },
+                { id: 'transit', label: 'In Transit' },
+                { id: 'archived', label: 'Archived' }
+            ].map((tab) => (
+                <button
+                    key={tab.id}
+                    onClick={() => setOrderTab(tab.id as any)}
+                    className={`relative px-4 py-2 text-[10px] uppercase tracking-widest font-bold transition-colors ${
+                        orderTab === tab.id ? 'text-gold-500' : 'text-white/40 hover:text-white'
+                    }`}
+                >
+                    {tab.label}
+                    {orderTab === tab.id && (
+                        <motion.div 
+                            layoutId="orderTabIndicator"
+                            className="absolute bottom-[-17px] left-0 right-0 h-0.5 bg-gold-500"
+                        />
+                    )}
+                </button>
+            ))}
+        </div>
+
         {loading ? (
             <div className="flex flex-col items-center justify-center h-64 space-y-4">
                 <div className="w-12 h-12 border-2 border-white/10 border-t-gold-500 rounded-full animate-spin" />
                 <p className="text-white/30 text-[10px] uppercase tracking-widest">Retrieving Records...</p>
             </div>
-        ) : orders.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-[60vh] text-center border border-white/5 bg-white/[0.02] rounded-sm">
+        ) : filteredOrders.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-[40vh] text-center border border-white/5 bg-white/[0.02] rounded-sm">
                 <Search size={48} className="text-white/20 mb-6" />
-                <h2 className="text-xl font-serif text-white mb-2">No Active Dossiers</h2>
-                <p className="text-white/40 text-sm max-w-md">Your acquisition history is empty. Visit the gallery to initiate a request.</p>
+                <h2 className="text-xl font-serif text-white mb-2">No Dossiers Found</h2>
+                <p className="text-white/40 text-sm max-w-md">Your {orderTab} records are currently empty.</p>
             </div>
         ) : (
             <div className="space-y-8">
-                {orders.map((order) => (
+                {filteredOrders.map((order) => (
                     <motion.div 
                         key={order.id || order._id}
                         initial={{ opacity: 0, y: 20 }}
@@ -269,6 +306,46 @@ const MyOrdersPage: React.FC<MyOrdersPageProps> = ({ onBack }) => {
                                 </div>
                                 
                                 <div className="mt-8 space-y-3">
+                                    <button
+                                        onClick={() => {
+                                            const doc = new jsPDF();
+                                            doc.setFontSize(20);
+                                            doc.text('DEUZ & CO - Invoice', 14, 22);
+                                            doc.setFontSize(10);
+                                            doc.text(`Order ID: ${order._id}`, 14, 30);
+                                            doc.text(`Date: ${new Date(order.createdAt).toLocaleDateString()}`, 14, 36);
+                                            
+                                            doc.setFontSize(14);
+                                            doc.text('Items', 14, 55);
+                                            
+                                            const itemData = order.items.map((item: any) => [
+                                                item.title,
+                                                item.size || 'N/A',
+                                                item.houseCode || 'N/A',
+                                                item.quantity.toString(),
+                                                `$${item.price}`
+                                            ]);
+                                            
+                                            autoTable(doc, {
+                                                startY: 60,
+                                                head: [['Item', 'Size', 'House Code', 'Qty', 'Price']],
+                                                body: itemData,
+                                                theme: 'grid',
+                                                styles: { fontSize: 10 },
+                                                headStyles: { fillColor: [20, 20, 20] }
+                                            });
+                                            
+                                            const finalY = (doc as any).lastAutoTable.finalY || 60;
+                                            doc.setFontSize(12);
+                                            doc.text(`Total: $${order.totalAmount || order.total}`, 14, finalY + 10);
+                                            
+                                            doc.save(`invoice-${order._id}.pdf`);
+                                        }}
+                                        className="w-full flex items-center justify-center gap-2 py-4 border border-gold-500/30 text-gold-500 hover:bg-gold-500 hover:text-black transition-all text-[10px] uppercase tracking-widest font-bold"
+                                    >
+                                        <FileText size={14} /> Download Invoice
+                                    </button>
+
                                     {order.paymentLink && order.orderStatus === 'ORDER_SECURED' && (
                                         <a 
                                             href={order.paymentLink}

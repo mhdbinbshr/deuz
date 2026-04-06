@@ -129,7 +129,7 @@ const Hero: React.FC = () => {
           variants={letterContainer}
           initial="hidden"
           animate="show"
-          className="text-5xl md:text-7xl lg:text-9xl font-serif text-white tracking-widest leading-[1.1] mix-blend-screen overflow-hidden max-w-6xl drop-shadow-2xl py-8"
+          className="text-4xl sm:text-5xl md:text-7xl lg:text-8xl xl:text-[9rem] font-serif text-white tracking-widest leading-[1.1] mix-blend-screen overflow-hidden max-w-6xl drop-shadow-2xl py-8"
         >
           <div className="flex justify-center flex-wrap overflow-hidden gap-x-4">
             {titleText.split(" ").map((word, wIdx) => (

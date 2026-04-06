@@ -33,86 +33,7 @@ const ArchivePage: React.FC<ArchivePageProps> = ({ onBack }) => {
             const safeProducts = Array.isArray(allProducts) ? allProducts : [];
             const archived = safeProducts.filter((p: any) => p.isArchived || p.countInStock === 0);
             
-            // Populate with premium mock data if archive is sparse to showcase the UI
-            if (archived.length < 8) {
-                setItems([
-                    ...archived,
-                    {
-                        _id: 'mock-1',
-                        title: 'Obsidian Monolith',
-                        image: 'https://images.unsplash.com/photo-1533106418989-88406c7cc8ca?q=80&w=1000&auto=format&fit=crop',
-                        category: 'Artifact',
-                        year: '2023',
-                        owner: 'Private Collection',
-                        location: 'Paris, FR'
-                    },
-                    {
-                        _id: 'mock-2',
-                        title: 'Aether Veil',
-                        image: 'https://images.unsplash.com/photo-1490481651871-32d2e76f897d?q=80&w=1000&auto=format&fit=crop',
-                        category: 'Haute Couture',
-                        year: '2024',
-                        owner: 'Anonymous',
-                        location: 'Tokyo, JP'
-                    },
-                    {
-                        _id: 'mock-3',
-                        title: 'Chronos Dial',
-                        image: 'https://images.unsplash.com/photo-1522312346375-d1a52e2b99b3?q=80&w=1000&auto=format&fit=crop',
-                        category: 'Timepiece',
-                        year: '2022',
-                        owner: 'The Crown',
-                        location: 'London, UK'
-                    },
-                    {
-                        _id: 'mock-4',
-                        title: 'Solaris Drape',
-                        image: 'https://images.unsplash.com/photo-1550614000-4b9519e02a29?q=80&w=1000&auto=format&fit=crop',
-                        category: 'Textile',
-                        year: '2025',
-                        owner: 'Auction Winner',
-                        location: 'Dubai, UAE'
-                    },
-                    {
-                        _id: 'mock-5',
-                        title: 'Nebula Shard',
-                        image: 'https://images.unsplash.com/photo-1618331835717-801e976710b2?q=80&w=1000&auto=format&fit=crop',
-                        category: 'Relic',
-                        year: '2021',
-                        owner: 'Royal Archives',
-                        location: 'Kyoto, JP'
-                    },
-                    {
-                        _id: 'mock-6',
-                        title: 'Void Walker',
-                        image: 'https://images.unsplash.com/photo-1608231387042-66d1773070a5?q=80&w=1000&auto=format&fit=crop',
-                        category: 'Footwear',
-                        year: '2025',
-                        owner: 'Private Collector',
-                        location: 'New York, US'
-                    },
-                    {
-                        _id: 'mock-7',
-                        title: 'Eclipse Core',
-                        image: 'https://images.unsplash.com/photo-1614850523459-c2f4c699c52e?q=80&w=1000&auto=format&fit=crop',
-                        category: 'Sculpture',
-                        year: '2022',
-                        owner: 'The Foundation',
-                        location: 'Berlin, DE'
-                    },
-                    {
-                        _id: 'mock-8',
-                        title: 'Argent Visor',
-                        image: 'https://images.unsplash.com/photo-1572635196237-14b3f281503f?q=80&w=1000&auto=format&fit=crop',
-                        category: 'Accessory',
-                        year: '2023',
-                        owner: 'Studio Vault',
-                        location: 'Milan, IT'
-                    }
-                ]);
-            } else {
-                setItems(archived);
-            }
+            setItems(archived);
         } catch (e) {
             console.error(e);
         } finally {
@@ -196,16 +117,23 @@ const ArchivePage: React.FC<ArchivePageProps> = ({ onBack }) => {
 
       {/* The Gallery */}
       <section className="relative z-10 px-6 md:px-12 pb-40">
-         <div className="max-w-[1800px] mx-auto grid grid-cols-1 lg:grid-cols-2 gap-x-32 gap-y-64">
-            {items.map((item, index) => (
-                <Archive3DDisplay 
-                    key={item._id || index} 
-                    item={item} 
-                    index={index} 
-                    containerRef={containerRef}
-                />
-            ))}
-         </div>
+         {items.length === 0 && !loading ? (
+             <div className="text-center py-32">
+                 <p className="text-white/30 font-serif text-xl tracking-widest">The Archive is currently empty.</p>
+                 <p className="text-white/20 text-sm mt-4 font-mono">No artifacts have been sealed yet.</p>
+             </div>
+         ) : (
+             <div className="max-w-[1800px] mx-auto grid grid-cols-1 lg:grid-cols-2 gap-x-32 gap-y-64">
+                {items.map((item, index) => (
+                    <Archive3DDisplay 
+                        key={item._id || index} 
+                        item={item} 
+                        index={index} 
+                        containerRef={containerRef}
+                    />
+                ))}
+             </div>
+         )}
       </section>
 
       <footer className="relative z-10 py-24 text-center border-t border-white/5 bg-gradient-to-b from-transparent to-black">

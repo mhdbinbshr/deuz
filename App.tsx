@@ -133,7 +133,6 @@ function AppContent() {
   };
 
   const handleRegisterDossier = (details: { orderCode: string }) => {
-    setActiveDossierCode(details.orderCode);
     clearCart();
     setShowCheckout(false);
   };

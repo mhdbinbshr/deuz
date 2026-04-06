@@ -2,6 +2,8 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { db } from '../utils/db';
 import { useAuth } from '../context/AuthContext';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { 
   Package, Users, ShoppingBag, Edit, Trash, Plus, X, 
   Save, AlertTriangle, Search, TrendingUp, LogOut, ServerOff,
@@ -22,9 +24,12 @@ interface ProductForm {
   countInStock: number;
   isArchived: boolean;
   image: string;
+  gallery?: string[];
   sizes: string[];
   details: Record<string, string>;
   uniquenessTag?: string;
+  imageTag?: string;
+  houseCode?: string;
 }
 
 const INITIAL_PRODUCT: ProductForm = {
@@ -37,9 +42,12 @@ const INITIAL_PRODUCT: ProductForm = {
   countInStock: 0,
   isArchived: false,
   image: '',
+  gallery: [],
   sizes: [],
   details: {},
-  uniquenessTag: ''
+  uniquenessTag: '',
+  imageTag: '',
+  houseCode: ''
 };
 
 interface AdminDashboardProps {
@@ -51,7 +59,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
   const isAdmin = user?.role === 'admin';
 
   // Navigation
-  const [activeTab, setActiveTab] = useState<'orders' | 'products' | 'users' | 'dashboard' | 'concierge' | 'settings' | 'audit' | 'trash'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'orders' | 'products' | 'users' | 'dashboard' | 'concierge' | 'settings' | 'audit' | 'trash' | 'archive'>('dashboard');
+  const [orderFilter, setOrderFilter] = useState<'all' | 'new' | 'confirmed' | 'shipped' | 'cancelled'>('all');
   
   // Data State
   const [orders, setOrders] = useState<any[]>([]);
@@ -368,6 +377,66 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
       setActionLoading(false);
   };
 
+  const generatePDFReport = () => {
+    try {
+      const doc = new jsPDF();
+      
+      doc.setFontSize(20);
+      doc.text('DEUZ & CO - System Report', 14, 22);
+      
+      doc.setFontSize(10);
+      doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 30);
+      
+      // Orders Table
+      doc.setFontSize(14);
+      doc.text('Recent Orders', 14, 45);
+      
+      const orderData = orders.filter(o => !o.isTrashed).map(o => [
+        o.conciergeCode || o.code || 'N/A',
+        o.userEmail || 'Guest',
+        `$${o.totalAmount}`,
+        o.orderStatus,
+        o.paymentStatus
+      ]);
+      
+      autoTable(doc, {
+        startY: 50,
+        head: [['Code', 'Client', 'Amount', 'Status', 'Payment']],
+        body: orderData,
+        theme: 'grid',
+        styles: { fontSize: 8 },
+        headStyles: { fillColor: [20, 20, 20] }
+      });
+      
+      // Products Table
+      const finalY = (doc as any).lastAutoTable.finalY || 50;
+      doc.text('Inventory Status', 14, finalY + 15);
+      
+      const productData = products.map(p => [
+        p.title,
+        p.category,
+        `$${p.price}`,
+        p.countInStock.toString(),
+        p.isArchived ? 'Yes' : 'No'
+      ]);
+      
+      autoTable(doc, {
+        startY: finalY + 20,
+        head: [['Product', 'Category', 'Price', 'Stock', 'Archived']],
+        body: productData,
+        theme: 'grid',
+        styles: { fontSize: 8 },
+        headStyles: { fillColor: [20, 20, 20] }
+      });
+      
+      doc.save('deuz-system-report.pdf');
+      showNotification('Report generated successfully');
+    } catch (error) {
+      console.error(error);
+      showNotification('Failed to generate report', 'error');
+    }
+  };
+
   // --- PRODUCT MANAGEMENT ---
 
   const handleOpenProductModal = (product?: any) => {
@@ -379,6 +448,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
         sizes: Array.isArray(product.sizes) ? product.sizes : [],
         details: product.details && typeof product.details === 'object' ? product.details : {},
         uniquenessTag: product.uniquenessTag || '',
+        imageTag: product.imageTag || '',
         isArchived: !!product.isArchived
       });
     } else {
@@ -405,75 +475,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
       showNotification(error.message || 'Failed to save product', 'error');
     }
     setActionLoading(false);
-  };
-
-  const handleLoadDemoProducts = async () => {
-    setConfirmModal({
-      isOpen: true,
-      title: 'Load Demo Products',
-      message: 'Load demo products? This will add sample items to your store.',
-      onConfirm: async () => {
-        setConfirmModal(prev => ({ ...prev, isOpen: false }));
-        setActionLoading(true);
-        try {
-          const demoProducts = [
-        {
-          title: "The Obsidian Chronograph",
-          price: 125000,
-          category: "Timepieces",
-          image: "https://images.unsplash.com/photo-1523170335258-f5ed11844a49?auto=format&fit=crop&q=80&w=1000",
-          description: "A masterclass in horological engineering. Forged from a single block of obsidian-finished titanium, featuring a skeletonized dial that reveals the intricate mechanical heart within. Water-resistant to 100m with a 72-hour power reserve.",
-          countInStock: 5,
-          isArchived: false,
-          sizes: ["Standard"],
-          uniquenessTag: "Limited Edition of 50"
-        },
-        {
-          title: "Midnight Silk Tuxedo",
-          price: 85000,
-          category: "Apparel",
-          image: "https://images.unsplash.com/photo-1593030761757-71fae45fa0e7?auto=format&fit=crop&q=80&w=1000",
-          description: "Tailored to perfection in Milan. This midnight blue tuxedo is crafted from 100% pure Italian silk, featuring satin lapels and a modern, structured silhouette. The ultimate statement for evening galas.",
-          countInStock: 12,
-          isArchived: false,
-          sizes: ["38R", "40R", "42R", "44R"],
-          uniquenessTag: "Bespoke Tailoring"
-        },
-        {
-          title: "Aura Leather Briefcase",
-          price: 45000,
-          category: "Accessories",
-          image: "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&q=80&w=1000",
-          description: "Hand-stitched full-grain calfskin leather briefcase. Features solid brass hardware, a suede-lined interior with dedicated laptop compartment, and a secret document pocket. Ages beautifully, developing a unique patina over time.",
-          countInStock: 8,
-          isArchived: false,
-          sizes: ["One Size"],
-          uniquenessTag: "Handcrafted"
-        },
-        {
-          title: "Elysium Fragrance",
-          price: 28000,
-          category: "Fragrance",
-          image: "https://images.unsplash.com/photo-1594035910387-fea47794261f?auto=format&fit=crop&q=80&w=1000",
-          description: "An intoxicating blend of rare oud, wild bergamot, and smoked vanilla. Created by master perfumers in Grasse, France. Housed in a hand-blown crystal flacon with a 24k gold-plated cap.",
-          countInStock: 25,
-          isArchived: false,
-          sizes: ["100ml"],
-          uniquenessTag: "Signature Scent"
-        }
-      ];
-
-      for (const product of demoProducts) {
-        await db.createProduct(product);
-      }
-      showNotification('Demo products loaded successfully');
-      fetchData();
-    } catch (error: any) {
-      showNotification(error.message || 'Failed to load demo products', 'error');
-    }
-    setActionLoading(false);
-      }
-    });
   };
 
   const handleDeleteProduct = async (id: string) => {
@@ -597,6 +598,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
                     { id: 'users', icon: Users, label: 'Operatives' }, 
                     { id: 'audit', icon: Activity, label: 'Audit Log' },
                     { id: 'settings', icon: Settings, label: 'System' },
+                    { id: 'archive', icon: Archive, label: 'Archive' },
                     { id: 'trash', icon: Trash, label: 'Trash' }
                 ] : [])
             ].map((item) => (
@@ -636,6 +638,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
             </div>
             {/* ... Status indicators ... */}
             <div className="flex items-center gap-4 md:gap-6">
+                <button 
+                  onClick={generatePDFReport}
+                  className="hidden sm:flex items-center gap-2 text-gold-500 hover:text-white transition-colors"
+                  title="Download Full System Report (PDF)"
+                >
+                  <FileText size={18} />
+                  <span className="text-[10px] uppercase tracking-widest font-bold">Export Report</span>
+                </button>
                 {isOfflineMode && (
                     <div className="hidden sm:flex items-center gap-2 text-red-500 bg-red-500/10 px-3 py-1 rounded-full border border-red-500/20">
                         <ServerOff size={14} />
@@ -703,6 +713,23 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
 
          {activeTab === 'orders' && (
              <div className="space-y-6">
+                 {/* Order Filters */}
+                 <div className="flex flex-wrap gap-2 mb-6">
+                     {['all', 'new', 'confirmed', 'shipped', 'cancelled'].map((filter) => (
+                         <button
+                             key={filter}
+                             onClick={() => setOrderFilter(filter as any)}
+                             className={`px-4 py-2 text-[10px] uppercase tracking-widest font-bold border transition-colors ${
+                                 orderFilter === filter 
+                                 ? 'border-gold-500 text-gold-500 bg-gold-500/10' 
+                                 : 'border-white/10 text-white/40 hover:border-white/30 hover:text-white'
+                             }`}
+                         >
+                             {filter}
+                         </button>
+                     ))}
+                 </div>
+
                  {/* Orders Table */}
                  <div className="bg-[#0A0A0A] border border-white/10 overflow-x-auto">
                      <table className="w-full text-left min-w-[800px]">
@@ -716,7 +743,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
                              </tr>
                          </thead>
                          <tbody className="divide-y divide-white/5">
-                             {orders.filter(o => !o.isTrashed).map((order) => (
+                             {orders.filter(o => !o.isTrashed).filter(o => {
+                                 if (orderFilter === 'all') return true;
+                                 if (orderFilter === 'new') return ['ORDER_SECURED', 'PAYMENT_AUTHORIZED'].includes(o.orderStatus);
+                                 if (orderFilter === 'confirmed') return ['ORDER_VERIFIED', 'IN_PRODUCTION', 'QUALITY_ASSURED', 'READY_FOR_DISPATCH'].includes(o.orderStatus);
+                                 if (orderFilter === 'shipped') return ['DISPATCHED', 'IN_TRANSIT', 'ARRIVED_AT_HUB', 'OUT_FOR_DELIVERY', 'DELIVERED', 'EXPERIENCE_UNLOCKED'].includes(o.orderStatus);
+                                 if (orderFilter === 'cancelled') return o.orderStatus === 'CANCELLED';
+                                 return true;
+                             }).map((order) => (
                                  <tr key={order._id} className="hover:bg-white/[0.02] transition-colors">
                                      <td className="p-4 text-xs font-mono text-gold-500">{order.conciergeCode || order._id.slice(-6)}</td>
                                      <td className="p-4">
@@ -817,9 +851,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
          {activeTab === 'products' && (
              <div>
                  <div className="flex flex-col sm:flex-row justify-end mb-6 gap-4">
-                     <button onClick={handleLoadDemoProducts} disabled={actionLoading} className="flex items-center justify-center gap-2 px-6 py-3 border border-white/20 text-white text-xs uppercase tracking-widest font-bold hover:bg-white hover:text-black transition-colors disabled:opacity-50">
-                         <Database size={14} /> Load Demo Products
-                     </button>
                      <button onClick={() => handleOpenProductModal()} className="flex items-center justify-center gap-2 px-6 py-3 bg-white text-black text-xs uppercase tracking-widest font-bold hover:bg-gold-500 hover:text-white transition-colors">
                          <Plus size={14} /> Add Artifact
                      </button>
@@ -867,6 +898,53 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
                              </div>
                          </div>
                      ))}
+                 </div>
+             </div>
+         )}
+         
+         {activeTab === 'archive' && (
+             <div>
+                 <div className="mb-6">
+                     <h3 className="text-xl font-serif text-white mb-2">The Vault</h3>
+                     <p className="text-white/40 text-xs font-mono">Manage sealed and archived artifacts.</p>
+                 </div>
+                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                     {products.filter(p => p.isArchived || p.countInStock === 0).map((product) => (
+                         <div key={product._id} className="bg-[#0A0A0A] border border-gold-500/20 transition-all duration-300 group relative">
+                             <div className="h-48 overflow-hidden relative">
+                                 <img src={product.image} alt={product.title} className="w-full h-full object-cover opacity-40 grayscale group-hover:grayscale-0 group-hover:opacity-80 transition-all duration-500" />
+                                 <div className="absolute top-2 right-2 flex gap-2">
+                                     <button onClick={() => handleOpenProductModal(product)} className="p-2 bg-black/50 text-white hover:bg-white hover:text-black transition-colors backdrop-blur-sm"><Edit size={12} /></button>
+                                 </div>
+                                 <div className="absolute bottom-2 left-2 flex gap-2">
+                                     <button 
+                                        onClick={() => handleArchiveToggle(product)} 
+                                        title={product.isArchived ? "Unarchive (Make Visible)" : "Archive (Hide from Store)"}
+                                        className={`p-2 backdrop-blur-sm transition-colors ${product.isArchived ? 'bg-white/20 text-white hover:bg-white hover:text-black' : 'bg-white/5 text-white/40 hover:text-white'}`}
+                                     >
+                                         <Archive size={12} />
+                                     </button>
+                                 </div>
+                             </div>
+                             <div className="p-4">
+                                 <div className="flex justify-between items-start mb-2">
+                                     <h3 className="text-white text-sm font-serif">{product.title}</h3>
+                                     <span className="text-gold-500 text-xs">₹{product.price}</span>
+                                 </div>
+                                 <div className="flex justify-between items-center text-[10px] uppercase tracking-widest text-white/40">
+                                     <span>{product.category} {product.houseCode ? `// ${product.houseCode}` : ''}</span>
+                                     <span className="text-white/20 italic">
+                                         {product.isArchived ? 'ARCHIVED' : 'SOLD OUT'}
+                                     </span>
+                                 </div>
+                             </div>
+                         </div>
+                     ))}
+                     {products.filter(p => p.isArchived || p.countInStock === 0).length === 0 && (
+                         <div className="col-span-full py-12 text-center border border-white/5 bg-white/5">
+                             <p className="text-white/40 font-mono text-sm">No artifacts in the vault.</p>
+                         </div>
+                     )}
                  </div>
              </div>
          )}
@@ -1240,6 +1318,47 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
 
                   {/* Lifecycle Actions */}
                   <div className="flex flex-col sm:flex-row justify-end gap-4 border-t border-white/10 pt-6">
+                      <button 
+                          onClick={() => {
+                              const doc = new jsPDF();
+                              doc.setFontSize(20);
+                              doc.text('DEUZ & CO - Invoice', 14, 22);
+                              doc.setFontSize(10);
+                              doc.text(`Order ID: ${selectedOrder._id}`, 14, 30);
+                              doc.text(`Date: ${new Date(selectedOrder.createdAt).toLocaleDateString()}`, 14, 36);
+                              doc.text(`Client: ${selectedOrder.userEmail || 'Guest'}`, 14, 42);
+                              
+                              doc.setFontSize(14);
+                              doc.text('Items', 14, 55);
+                              
+                              const itemData = selectedOrder.items.map((item: any) => [
+                                  item.title,
+                                  item.size || 'N/A',
+                                  item.houseCode || 'N/A',
+                                  item.quantity.toString(),
+                                  `$${item.price}`
+                              ]);
+                              
+                              autoTable(doc, {
+                                  startY: 60,
+                                  head: [['Item', 'Size', 'House Code', 'Qty', 'Price']],
+                                  body: itemData,
+                                  theme: 'grid',
+                                  styles: { fontSize: 10 },
+                                  headStyles: { fillColor: [20, 20, 20] }
+                              });
+                              
+                              const finalY = (doc as any).lastAutoTable.finalY || 60;
+                              doc.setFontSize(12);
+                              doc.text(`Total: $${selectedOrder.totalAmount}`, 14, finalY + 10);
+                              
+                              doc.save(`invoice-${selectedOrder._id}.pdf`);
+                          }}
+                          className="w-full sm:w-auto px-6 py-3 border border-gold-500/30 text-gold-500 hover:bg-gold-500 hover:text-black transition-colors text-xs font-bold uppercase tracking-widest"
+                      >
+                          Download Invoice
+                      </button>
+
                       {!['CANCELLED', 'DELIVERED', 'EXPERIENCE_UNLOCKED'].includes(selectedOrder.orderStatus) && (
                           <button 
                               onClick={handleCancelOrder}
@@ -1334,6 +1453,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
                           <input required value={currentProduct.category} onChange={e => setCurrentProduct({...currentProduct, category: e.target.value})} className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" />
                       </div>
                       <div>
+                          <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">House Code</label>
+                          <input value={currentProduct.houseCode || ''} onChange={e => setCurrentProduct({...currentProduct, houseCode: e.target.value})} placeholder="e.g. ARC-001" className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" />
+                      </div>
+                      <div>
+                          <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Uniqueness Tag</label>
+                          <input value={currentProduct.uniquenessTag || ''} onChange={e => setCurrentProduct({...currentProduct, uniquenessTag: e.target.value})} placeholder="e.g. Limited Edition of 50" className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" />
+                      </div>
+                      <div>
+                          <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Image Tag</label>
+                          <input value={currentProduct.imageTag || ''} onChange={e => setCurrentProduct({...currentProduct, imageTag: e.target.value})} placeholder="e.g. NEW ARRIVAL" className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" />
+                      </div>
+                      <div>
                           <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Fit</label>
                           <select 
                             value={currentProduct.fit || 'regular'} 
@@ -1373,6 +1504,25 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
                       <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Image URL</label>
                       <input required value={currentProduct.image} onChange={e => setCurrentProduct({...currentProduct, image: e.target.value})} className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" />
                   </div>
+
+                  <div>
+                      <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Gallery Images (Optional)</label>
+                      {currentProduct.gallery?.map((img, idx) => (
+                          <div key={idx} className="flex gap-2 mb-2">
+                              <input value={img} onChange={e => {
+                                  const newGallery = [...(currentProduct.gallery || [])];
+                                  newGallery[idx] = e.target.value;
+                                  setCurrentProduct({...currentProduct, gallery: newGallery});
+                              }} placeholder="Additional Image URL" className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" />
+                              <button type="button" onClick={() => {
+                                  const newGallery = currentProduct.gallery?.filter((_, i) => i !== idx);
+                                  setCurrentProduct({...currentProduct, gallery: newGallery});
+                              }} className="px-4 bg-red-500/20 text-red-500 hover:bg-red-500 hover:text-white transition-colors">X</button>
+                          </div>
+                      ))}
+                      <button type="button" onClick={() => setCurrentProduct({...currentProduct, gallery: [...(currentProduct.gallery || []), '']})} className="text-[10px] uppercase tracking-widest text-gold-500 hover:text-white transition-colors mt-1">+ Add Gallery Image</button>
+                  </div>
+
                   <button disabled={actionLoading} className="w-full py-4 bg-white text-black uppercase tracking-widest text-xs font-bold hover:bg-gold-500 hover:text-white transition-colors disabled:opacity-50">
                       {actionLoading ? 'Processing...' : 'Save Artifact'}
                   </button>

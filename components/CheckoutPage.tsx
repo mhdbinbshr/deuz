@@ -18,7 +18,7 @@ interface CheckoutPageProps {
 type ContactMethod = 'instagram' | 'whatsapp' | 'email';
 
 const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onRegisterConciergeOrder }) => {
-  const { user } = useAuth();
+  const { user, openAuthModal } = useAuth();
   const { cartItems, total } = useCart();
   const { content } = useSettings();
   
@@ -50,7 +50,15 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onRegisterConcierge
   }, [cartItems, onBack, checkoutStatus]);
 
   useEffect(() => {
-    if (user) {
+    const savedAddress = localStorage.getItem('checkout_address');
+    if (savedAddress) {
+        try {
+            setAddress(JSON.parse(savedAddress));
+            localStorage.removeItem('checkout_address');
+        } catch (e) {
+            console.error("Failed to parse saved address");
+        }
+    } else if (user) {
       // Split full name if available and not already set
       let fName = user.fullName;
       let lName = '';
@@ -127,6 +135,12 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onRegisterConcierge
 
     if (!isAddressComplete(address)) {
         setFormError("Transmission halted. Registry data incomplete.");
+        return;
+    }
+
+    if (!user) {
+        localStorage.setItem('checkout_address', JSON.stringify(address));
+        openAuthModal();
         return;
     }
     

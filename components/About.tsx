@@ -61,8 +61,8 @@ const About: React.FC = () => {
             className="relative aspect-[4/5] overflow-hidden rounded-sm"
           >
             <img 
-              src="https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?q=80&w=1000&auto=format&fit=crop" 
-              alt="Studio Life" 
+              src="https://ik.imagekit.io/dto1zguat/Breathe_2.jpg" 
+              alt="The House Standard" 
               className="object-cover w-full h-full opacity-80 hover:scale-105 transition-transform duration-[2000ms]"
             />
             {/* Overlay Gradient */}

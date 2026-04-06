@@ -84,9 +84,11 @@ service cloud.firestore {
 
     function isAdmin() {
       return isAuthenticated() && 
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-        (request.auth.token.email == "unk410066@gmail.com" && request.auth.token.email_verified == true) ||
-        (request.auth.token.email == "muhammadbinbasheer777@gmail.com" && request.auth.token.email_verified == true));
+        (
+          (request.auth.token.email == "unk410066@gmail.com" && request.auth.token.email_verified == true) ||
+          (request.auth.token.email == "muhammadbinbasheer777@gmail.com" && request.auth.token.email_verified == true) ||
+          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+        );
     }
 
     function hasOnlyAllowedFields(allowedFields) {
@@ -140,7 +142,10 @@ service cloud.firestore {
              (!( 'countInStock' in request.resource.data ) || (request.resource.data.countInStock is number && request.resource.data.countInStock >= 0)) &&
              (!( 'isArchived' in request.resource.data ) || request.resource.data.isArchived is bool) &&
              (!( 'sizes' in request.resource.data ) || request.resource.data.sizes is list) &&
+             (!( 'gallery' in request.resource.data ) || request.resource.data.gallery is list) &&
              isValidOptionalString('uniquenessTag', 0, 100) &&
+             isValidOptionalString('imageTag', 0, 100) &&
+             (!( 'houseCode' in request.resource.data ) || isValidOptionalString('houseCode', 0, 100)) &&
              (!( 'productType' in request.resource.data ) || request.resource.data.productType in ['APPAREL', 'CARD']) &&
              (!( 'fit' in request.resource.data ) || request.resource.data.fit in ['oversized', 'regular']) &&
              (!( 'createdAt' in request.resource.data ) || request.resource.data.createdAt is timestamp);
@@ -206,7 +211,10 @@ service cloud.firestore {
              (!( 'countInStock' in request.resource.data ) || (request.resource.data.countInStock is number && request.resource.data.countInStock >= 0)) &&
              (!( 'isArchived' in request.resource.data ) || request.resource.data.isArchived is bool) &&
              (!( 'sizes' in request.resource.data ) || request.resource.data.sizes is list) &&
+             (!( 'gallery' in request.resource.data ) || request.resource.data.gallery is list) &&
              isValidOptionalString('uniquenessTag', 0, 100) &&
+             isValidOptionalString('imageTag', 0, 100) &&
+             (!( 'houseCode' in request.resource.data ) || isValidOptionalString('houseCode', 0, 100)) &&
              (!( 'productType' in request.resource.data ) || request.resource.data.productType in ['APPAREL', 'CARD']) &&
              (!( 'fit' in request.resource.data ) || request.resource.data.fit in ['oversized', 'regular']) &&
              (!( 'createdAt' in request.resource.data ) || request.resource.data.createdAt is timestamp);

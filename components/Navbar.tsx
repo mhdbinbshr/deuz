@@ -171,12 +171,15 @@ const Navbar: React.FC<NavbarProps> = ({
           <div className="flex items-center gap-8 md:gap-10">
             {/* User Profile */}
             <div 
-              className="hidden md:block relative"
+              className="relative"
               onMouseEnter={() => setIsUserMenuOpen(true)}
               onMouseLeave={() => setIsUserMenuOpen(false)}
             >
               {user ? (
-                 <div className="relative group cursor-pointer">
+                 <div 
+                   className="relative group cursor-pointer"
+                   onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                 >
                     <div className="flex items-center gap-2 opacity-60 group-hover:opacity-100 transition-opacity duration-300">
                       <span className="text-[10px] uppercase tracking-widest hidden lg:block">{user.fullName.split(' ')[0]}</span>
                       <User size={18} strokeWidth={1} className="text-white" />
@@ -205,6 +208,19 @@ const Navbar: React.FC<NavbarProps> = ({
                                className="w-full text-left px-6 py-4 text-[10px] uppercase tracking-[0.2em] text-white/70 hover:text-gold-500 hover:bg-white/[0.02] transition-all flex items-center gap-3 border-b border-white/5"
                              >
                                <Package size={12} /> My Dossiers
+                             </button>
+                          )}
+
+                          {/* Wishlist Link */}
+                          {onOpenWishlist && (
+                             <button 
+                               onClick={() => {
+                                 setIsUserMenuOpen(false);
+                                 onOpenWishlist();
+                               }}
+                               className="w-full text-left px-6 py-4 text-[10px] uppercase tracking-[0.2em] text-white/70 hover:text-red-500 hover:bg-white/[0.02] transition-all flex items-center gap-3 border-b border-white/5"
+                             >
+                               <Heart size={12} /> Wishlist
                              </button>
                           )}
 

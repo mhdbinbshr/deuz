@@ -28,7 +28,9 @@
         "countInStock": { "type": "number" },
         "isArchived": { "type": "boolean" },
         "sizes": { "type": "array" },
+        "gallery": { "type": "array" },
         "uniquenessTag": { "type": "string" },
+        "imageTag": { "type": "string" },
         "createdAt": { "type": "timestamp" }
       },
       "required": ["title", "price", "category", "image"]
