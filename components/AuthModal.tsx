@@ -192,6 +192,8 @@ const AuthModal: React.FC = () => {
                             <input 
                               name="mobile" 
                               type="tel" 
+                              inputMode="numeric"
+                              pattern="[0-9]*"
                               value={formData.mobile} 
                               onChange={handleChange} 
                               className="w-full bg-transparent border-b border-white/20 py-4 text-white text-sm focus:outline-none focus:border-gold-500 transition-colors peer" 

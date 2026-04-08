@@ -1,7 +1,9 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { motion, useScroll, useTransform, useSpring, AnimatePresence } from 'framer-motion';
 import { ArrowUpRight, MousePointer2 } from 'lucide-react';
 import { useSettings } from '../context/SettingsContext';
+import { db } from '../utils/db';
+import { Product } from '../types';
 
 interface FashionStoreProps {
   onEnterStore: () => void;
@@ -11,6 +13,37 @@ const FashionStore: React.FC<FashionStoreProps> = ({ onEnterStore }) => {
   const containerRef = useRef<HTMLElement>(null);
   const [isWalkingIn, setIsWalkingIn] = useState(false);
   const { content } = useSettings();
+  const [products, setProducts] = useState<Product[]>([]);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const fetchedProducts = await db.getProducts();
+        const availableProducts = fetchedProducts.filter(p => p.inStock && p.category !== 'card');
+        if (availableProducts.length > 0) {
+          setProducts(availableProducts);
+        }
+      } catch (error) {
+        console.error("Error fetching products for FashionStore:", error);
+      }
+    };
+    fetchProducts();
+  }, []);
+
+  useEffect(() => {
+    if (products.length > 0) {
+      const interval = setInterval(() => {
+        setCurrentImageIndex(prev => (prev + 1) % products.length);
+      }, 3000);
+      return () => clearInterval(interval);
+    }
+  }, [products]);
+
+  const currentProduct = products.length > 0 ? products[currentImageIndex] : null;
+  const displayImage = currentProduct ? currentProduct.image : (content.storeImage || "https://images.unsplash.com/photo-1539109136881-3be0616acf4b?q=80&w=1000&auto=format&fit=crop");
+  const displayTitle = currentProduct ? currentProduct.title : "SOVEREIGN";
+  const displayDesc = currentProduct ? currentProduct.description : "A study in structure and restraint. Precision-cut silhouettes designed for enduring presence.";
   
   // Reduced height to 105vh to essentially eliminate dead space while allowing scroll trigger
   const { scrollYProgress } = useScroll({
@@ -102,12 +135,19 @@ const FashionStore: React.FC<FashionStoreProps> = ({ onEnterStore }) => {
                 transition={{ duration: 1, ease: "easeOut" }}
                 className="relative w-[320px] md:w-[400px] aspect-[3/4] bg-[#050505] rounded-sm overflow-hidden border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-10 group"
             >
-                <img 
-                    src={content.storeImage || "https://images.unsplash.com/photo-1539109136881-3be0616acf4b?q=80&w=1000&auto=format&fit=crop"} 
-                    className="w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-[1.5s]"
-                    alt="Collection Preview"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-90" />
+                <AnimatePresence mode="wait">
+                  <motion.img 
+                      key={displayImage}
+                      initial={{ opacity: 0, scale: 1.05 }}
+                      animate={{ opacity: 0.8, scale: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 1.5 }}
+                      src={displayImage} 
+                      className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-[1.5s]"
+                      alt="Collection Preview"
+                  />
+                </AnimatePresence>
+                <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-90 pointer-events-none" />
                 
                 {/* Simulated UI Overlay */}
                 <div className="absolute top-6 left-6 right-6 flex justify-between items-center border-b border-white/10 pb-4">
@@ -117,11 +157,31 @@ const FashionStore: React.FC<FashionStoreProps> = ({ onEnterStore }) => {
                     <div className="text-[9px] uppercase tracking-[0.3em] text-white/50">COLLECTION I</div>
                 </div>
 
-                <div className="absolute bottom-8 left-8 right-8">
-                    <h2 className="text-3xl font-serif text-white mb-2">SOVEREIGN</h2>
-                    <p className="text-white/40 text-xs font-light leading-relaxed mb-6">
-                        A study in structure and restraint. Precision-cut silhouettes designed for enduring presence.
-                    </p>
+                <div className="absolute bottom-8 left-8 right-8 pointer-events-none">
+                    <AnimatePresence mode="wait">
+                      <motion.h2 
+                        key={displayTitle}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.5 }}
+                        className="text-3xl font-serif text-white mb-2 line-clamp-1"
+                      >
+                        {displayTitle}
+                      </motion.h2>
+                    </AnimatePresence>
+                    <AnimatePresence mode="wait">
+                      <motion.p 
+                        key={displayDesc}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.5 }}
+                        className="text-white/40 text-xs font-light leading-relaxed mb-6 line-clamp-2"
+                      >
+                          {displayDesc}
+                      </motion.p>
+                    </AnimatePresence>
                     <div className="flex gap-2">
                         <div className="h-[2px] w-full bg-white/20 rounded-full overflow-hidden">
                             <motion.div 
@@ -152,16 +212,18 @@ const FashionStore: React.FC<FashionStoreProps> = ({ onEnterStore }) => {
                 </div>
                 <div className="space-y-3 font-mono text-[10px] text-white/60">
                     <div className="flex justify-between">
-                        <span>Material</span>
-                        <span className="text-white">Silk</span>
+                        <span>Category</span>
+                        <span className="text-white uppercase">{currentProduct ? currentProduct.category : 'Apparel'}</span>
                     </div>
                     <div className="flex justify-between">
-                        <span>Opacity</span>
-                        <span className="text-white">85%</span>
+                        <span>Price</span>
+                        <span className="text-white">₹{currentProduct ? currentProduct.price.toLocaleString('en-IN') : '12,000'}</span>
                     </div>
                     <div className="flex justify-between">
-                        <span>Grade</span>
-                        <span className="text-gold-500">S-Tier</span>
+                        <span>Status</span>
+                        <span className={currentProduct?.inStock ? "text-green-500" : "text-red-500"}>
+                            {currentProduct ? (currentProduct.inStock ? 'Active' : 'Exhausted') : 'Active'}
+                        </span>
                     </div>
                 </div>
                 

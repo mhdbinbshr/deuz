@@ -44,8 +44,8 @@ const About: React.FC = () => {
                 transition={{ delay: 0.2 * idx, duration: 0.8 }}
                 className="flex flex-col justify-between h-full"
               >
-                <div className="text-sm sm:text-lg md:text-xl lg:text-2xl font-serif text-white mb-2 tracking-widest break-all sm:break-normal">{stat.value}</div>
-                <div className="text-[10px] uppercase tracking-widest text-gold-500">{stat.label}</div>
+                <div className="text-[10px] sm:text-sm md:text-lg lg:text-xl font-serif text-white mb-2 tracking-[0.1em] sm:tracking-widest break-words">{stat.value}</div>
+                <div className="text-[8px] sm:text-[10px] uppercase tracking-widest text-gold-500">{stat.label}</div>
               </motion.div>
             ))}
           </div>
@@ -61,7 +61,7 @@ const About: React.FC = () => {
             className="relative aspect-[4/5] overflow-hidden rounded-sm"
           >
             <img 
-              src="https://ik.imagekit.io/dto1zguat/Breathe_2.jpg" 
+              src="https://ik.imagekit.io/dto1zguat/file_0000000054e071fa80c009a3a2a07326.png" 
               alt="The House Standard" 
               className="object-cover w-full h-full opacity-80 hover:scale-105 transition-transform duration-[2000ms]"
             />

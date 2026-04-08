@@ -136,7 +136,8 @@ export const db = {
 
   updateUserProfile: async (userId: string, data: any) => {
     try {
-        await updateDoc(doc(firestore, "users", userId), data);
+        const safeData = JSON.parse(JSON.stringify(data));
+        await updateDoc(doc(firestore, "users", userId), safeData);
     } catch (error) {
         handleFirestoreError(error, OperationType.UPDATE, `users/${userId}`);
     }
@@ -254,8 +255,9 @@ export const db = {
 
   createProduct: async (data: any) => {
     try {
+        const safeData = JSON.parse(JSON.stringify(data));
         const docRef = await addDoc(collection(firestore, "products"), {
-            ...data,
+            ...safeData,
             createdAt: serverTimestamp()
         });
         return { ...data, id: docRef.id, _id: docRef.id };
@@ -269,7 +271,8 @@ export const db = {
     try {
         const docRef = doc(firestore, "products", id);
         const { _id, id: pid, ...updateData } = data;
-        await setDoc(docRef, updateData, { merge: true });
+        const safeData = JSON.parse(JSON.stringify(updateData));
+        await setDoc(docRef, safeData, { merge: true });
         return { ...data, id };
     } catch (error) {
         handleFirestoreError(error, OperationType.UPDATE, `products/${id}`);
@@ -331,20 +334,23 @@ export const db = {
         } else {
             currentItems.push({
                 product: {
-                    _id: item.productId || item.id || item.product._id,
-                    title: productData.title || item.title,
-                    price: productData.price || item.price,
-                    image: productData.image || item.image,
-                    category: productData.category,
-                    countInStock: productData.countInStock
+                    _id: item.productId || item.id || item.product?._id || "",
+                    title: productData.title || item.title || "",
+                    price: productData.price || item.price || 0,
+                    image: productData.image || item.image || "",
+                    category: productData.category || "",
+                    countInStock: productData.countInStock ?? null
                 },
                 quantity: item.quantity || 1,
-                selectedSize: item.selectedSize
+                selectedSize: item.selectedSize || null
             });
         }
 
-        await setDoc(cartRef, { user: user.uid, items: currentItems }, { merge: true });
-        return { user: user.uid, items: currentItems };
+        // Strip any undefined values that might cause Firestore errors
+        const safeItems = JSON.parse(JSON.stringify(currentItems));
+
+        await setDoc(cartRef, { user: user.uid, items: safeItems }, { merge: true });
+        return { user: user.uid, items: safeItems };
     } catch (error) {
         handleFirestoreError(error, OperationType.UPDATE, `carts/${user.uid}`);
         throw new Error("Unable to update cart. Please check your connection.");
@@ -377,9 +383,16 @@ export const db = {
         const cartSnap = await getDoc(cartRef);
         if (!cartSnap.exists()) return;
         
-        return { items: cartSnap.data().items }; 
+        const currentItems = cartSnap.data().items || [];
+        const updatedItems = currentItems.filter((i: any) => {
+            const currentItemId = i.cartItemId || `${i.product._id}_${i.selectedSize}`;
+            return currentItemId !== itemId;
+        });
+        
+        await setDoc(cartRef, { user: user.uid, items: updatedItems }, { merge: true });
+        return { items: updatedItems }; 
     } catch (error) {
-        handleFirestoreError(error, OperationType.GET, `carts/${user.uid}`);
+        handleFirestoreError(error, OperationType.UPDATE, `carts/${user.uid}`);
     }
   },
 

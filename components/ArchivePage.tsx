@@ -259,21 +259,22 @@ const Archive3DDisplay: React.FC<{ item: any; index: number; containerRef: React
                         <div className="absolute bottom-0 right-0 w-2 h-[1px] bg-white/30" />
                         <div className="absolute bottom-0 right-0 h-2 w-[1px] bg-white/30" />
 
-                        <div className="flex justify-between items-end">
+                        <div className="flex flex-col sm:flex-row justify-between sm:items-end gap-4 sm:gap-0">
                             <div>
-                                <h3 className="text-xl md:text-2xl font-serif text-white tracking-wide mix-blend-screen leading-none">{item.title}</h3>
+                                <h3 className="text-lg sm:text-xl md:text-2xl font-serif text-white tracking-wide mix-blend-screen leading-tight">{item.title}</h3>
                                 <p className="text-[9px] text-white/30 font-serif italic mt-1">{item.category || 'Archive Item'}</p>
                             </div>
                             
                             {/* Premium Product Code Display */}
-                            <div className="flex flex-col items-end pl-8 border-l border-white/10 relative">
-                                <div className="absolute -left-[1px] top-0 h-4 w-[1px] bg-gold-500" /> {/* Gold accent on border */}
+                            <div className="flex flex-col sm:items-end sm:pl-6 border-t sm:border-t-0 sm:border-l border-white/10 relative pt-3 sm:pt-0">
+                                <div className="hidden sm:block absolute -left-[1px] top-0 h-4 w-[1px] bg-gold-500" /> {/* Gold accent on border */}
+                                <div className="sm:hidden absolute left-0 -top-[1px] w-4 h-[1px] bg-gold-500" />
                                 
                                 <span className="text-[8px] font-serif text-gold-500 tracking-[0.3em] uppercase mb-1 opacity-80">Reference</span>
                                 
                                 <div className="flex items-baseline gap-2 font-mono relative z-10">
-                                    <span className="text-lg text-white/20 font-light">ARC</span>
-                                    <span className="text-2xl md:text-3xl text-white tracking-[0.2em] font-light shadow-black drop-shadow-lg">
+                                    <span className="text-sm sm:text-lg text-white/20 font-light">ARC</span>
+                                    <span className="text-xl sm:text-2xl md:text-3xl text-white tracking-[0.2em] font-light shadow-black drop-shadow-lg">
                                         {String(index + 1).padStart(3, '0')}
                                     </span>
                                 </div>

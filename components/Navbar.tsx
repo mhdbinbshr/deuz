@@ -15,13 +15,11 @@ interface NavbarProps {
   onOpenMyOrders?: () => void;
   onOpenArchive: () => void;
   onOpenContact: () => void;
-  onOpenServices: () => void;
 }
 
 const links: NavLink[] = [
   { name: 'Home', href: ROUTES.HOME },
   { name: 'Maison', href: ROUTES.ABOUT },
-  { name: 'Services', href: '#' },
   { name: 'Store', href: '#' },
   { name: 'Archive', href: '#' },
   { name: 'Contact', href: '#' },
@@ -34,8 +32,7 @@ const Navbar: React.FC<NavbarProps> = ({
   onOpenAdmin,
   onOpenMyOrders,
   onOpenArchive,
-  onOpenContact,
-  onOpenServices
+  onOpenContact
 }) => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -68,10 +65,6 @@ const Navbar: React.FC<NavbarProps> = ({
           e.preventDefault();
           setMobileMenuOpen(false);
           onOpenContact();
-      } else if (name === 'Services') {
-          e.preventDefault();
-          setMobileMenuOpen(false);
-          onOpenServices();
       }
   };
 

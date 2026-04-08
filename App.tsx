@@ -30,7 +30,6 @@ import ShippingPage from './components/ShippingPage';
 import ReturnsPage from './components/ReturnsPage';
 import ArchivePage from './components/ArchivePage';
 import ContactPage from './components/ContactPage';
-import ServicesPage from './components/ServicesPage';
 import { AdminRoute } from './components/AdminRoute'; 
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { CartProvider, useCart } from './context/CartContext';
@@ -62,7 +61,6 @@ function AppContent() {
   const [showGamePage, setShowGamePage] = useState(false);
   const [showArchivePage, setShowArchivePage] = useState(false);
   const [showContactPage, setShowContactPage] = useState(false);
-  const [showServicesPage, setShowServicesPage] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
   const [showAdminLogin, setShowAdminLogin] = useState(false);
@@ -138,12 +136,12 @@ function AppContent() {
   };
 
   useEffect(() => {
-    if (!loading && !showProductPage && !showGamePage && !showCheckout && !activeDossierCode && !showAdmin && !showAdminLogin && !showAdminSetup && !showMyOrders && !showPrivacy && !showTerms && !showShipping && !showReturns && !showArchivePage && !showContactPage && !showServicesPage) {
+    if (!loading && !showProductPage && !showGamePage && !showCheckout && !activeDossierCode && !showAdmin && !showAdminLogin && !showAdminSetup && !showMyOrders && !showPrivacy && !showTerms && !showShipping && !showReturns && !showArchivePage && !showContactPage) {
       document.body.style.overflow = 'auto';
     } else {
       document.body.style.overflow = 'hidden';
     }
-  }, [loading, showProductPage, showGamePage, showCheckout, activeDossierCode, showAdmin, showAdminLogin, showAdminSetup, showMyOrders, showPrivacy, showTerms, showShipping, showReturns, showArchivePage, showContactPage, showServicesPage]);
+  }, [loading, showProductPage, showGamePage, showCheckout, activeDossierCode, showAdmin, showAdminLogin, showAdminSetup, showMyOrders, showPrivacy, showTerms, showShipping, showReturns, showArchivePage, showContactPage]);
 
   useEffect(() => {
      const handler = (e: KeyboardEvent) => {
@@ -232,7 +230,7 @@ function AppContent() {
                 </AdminRoute>
              ) : (
                  <>
-                 {!(showProductPage || showGamePage || showCheckout || activeDossierCode || showMyOrders || showPrivacy || showTerms || showShipping || showReturns || showArchivePage || showContactPage || showServicesPage) && (
+                 {!(showProductPage || showGamePage || showCheckout || activeDossierCode || showMyOrders || showPrivacy || showTerms || showShipping || showReturns || showArchivePage || showContactPage) && (
                     <motion.main 
                       key="main-content"
                       initial={{ opacity: 0 }}
@@ -248,7 +246,6 @@ function AppContent() {
                         onOpenMyOrders={() => setShowMyOrders(true)}
                         onOpenArchive={() => setShowArchivePage(true)}
                         onOpenContact={() => setShowContactPage(true)}
-                        onOpenServices={() => setShowServicesPage(true)}
                       />
                       <Hero />
                       {/* CardShowcase section hidden as requested */}
@@ -302,16 +299,6 @@ function AppContent() {
                       <ContactPage 
                         key="contact-page" 
                         onClose={() => setShowContactPage(false)} 
-                      />
-                    )}
-                    {showServicesPage && (
-                      <ServicesPage 
-                        key="services-page" 
-                        onClose={() => setShowServicesPage(false)} 
-                        onContact={() => {
-                            setShowServicesPage(false);
-                            setShowContactPage(true);
-                        }}
                       />
                     )}
                     {showProductPage && (

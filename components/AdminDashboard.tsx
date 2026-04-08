@@ -27,7 +27,6 @@ interface ProductForm {
   gallery?: string[];
   sizes: string[];
   details: Record<string, string>;
-  uniquenessTag?: string;
   imageTag?: string;
   houseCode?: string;
 }
@@ -45,7 +44,6 @@ const INITIAL_PRODUCT: ProductForm = {
   gallery: [],
   sizes: [],
   details: {},
-  uniquenessTag: '',
   imageTag: '',
   houseCode: ''
 };
@@ -447,7 +445,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
         productType: product.productType || 'APPAREL',
         sizes: Array.isArray(product.sizes) ? product.sizes : [],
         details: product.details && typeof product.details === 'object' ? product.details : {},
-        uniquenessTag: product.uniquenessTag || '',
         imageTag: product.imageTag || '',
         isArchived: !!product.isArchived
       });
@@ -915,6 +912,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
                                  <img src={product.image} alt={product.title} className="w-full h-full object-cover opacity-40 grayscale group-hover:grayscale-0 group-hover:opacity-80 transition-all duration-500" />
                                  <div className="absolute top-2 right-2 flex gap-2">
                                      <button onClick={() => handleOpenProductModal(product)} className="p-2 bg-black/50 text-white hover:bg-white hover:text-black transition-colors backdrop-blur-sm"><Edit size={12} /></button>
+                                     <button onClick={() => handleDeleteProduct(product._id)} className="p-2 bg-black/50 text-white hover:bg-red-500 hover:text-white transition-colors backdrop-blur-sm"><Trash size={12} /></button>
                                  </div>
                                  <div className="absolute bottom-2 left-2 flex gap-2">
                                      <button 
@@ -1447,6 +1445,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
                       <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Description</label>
                       <textarea required value={currentProduct.description} onChange={e => setCurrentProduct({...currentProduct, description: e.target.value})} className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none h-24" />
                   </div>
+                  <div>
+                      <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Details (JSON Array of Strings)</label>
+                      <textarea 
+                        value={JSON.stringify(currentProduct.details || [], null, 2)} 
+                        onChange={e => {
+                            try {
+                                const parsed = JSON.parse(e.target.value);
+                                setCurrentProduct({...currentProduct, details: parsed});
+                            } catch (err) {
+                                // Ignore parse errors while typing
+                            }
+                        }} 
+                        className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none h-24 font-mono" 
+                        placeholder='["Detail 1", "Detail 2"]'
+                      />
+                  </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
                           <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Category</label>
@@ -1455,10 +1469,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
                       <div>
                           <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">House Code</label>
                           <input value={currentProduct.houseCode || ''} onChange={e => setCurrentProduct({...currentProduct, houseCode: e.target.value})} placeholder="e.g. ARC-001" className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" />
-                      </div>
-                      <div>
-                          <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Uniqueness Tag</label>
-                          <input value={currentProduct.uniquenessTag || ''} onChange={e => setCurrentProduct({...currentProduct, uniquenessTag: e.target.value})} placeholder="e.g. Limited Edition of 50" className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" />
                       </div>
                       <div>
                           <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Image Tag</label>
@@ -1475,6 +1485,30 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
                               <option value="oversized">Oversized Fit</option>
                           </select>
                       </div>
+                  </div>
+                  <div>
+                      <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Sizes (Comma separated)</label>
+                      <input 
+                        value={currentProduct.sizes?.join(', ') || ''} 
+                        onChange={e => {
+                            const sizesArray = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
+                            setCurrentProduct({...currentProduct, sizes: sizesArray});
+                        }} 
+                        placeholder="e.g. S, M, L, XL" 
+                        className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" 
+                      />
+                  </div>
+                  <div>
+                      <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Out of Stock Sizes (Comma separated)</label>
+                      <input 
+                        value={currentProduct.outOfStockSizes?.join(', ') || ''} 
+                        onChange={e => {
+                            const sizesArray = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
+                            setCurrentProduct({...currentProduct, outOfStockSizes: sizesArray});
+                        }} 
+                        placeholder="e.g. M, XL" 
+                        className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" 
+                      />
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>

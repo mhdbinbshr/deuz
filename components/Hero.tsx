@@ -44,7 +44,14 @@ const Hero: React.FC = () => {
         style={{ opacity, scale }}
         className="absolute inset-0 z-0 pointer-events-none overflow-hidden"
       >
-        <Cinematic3D />
+        {/* Replaced 3D with requested image */}
+        <div className="absolute inset-0 w-full h-full">
+          <img 
+            src="https://ik.imagekit.io/dto1zguat/file_000000002ecc7208a8ede084113063e5.png" 
+            alt="Hero Background" 
+            className="w-full h-full object-cover object-center opacity-25"
+          />
+        </div>
         
         {/* Transparent Base to show Global Premium Background */}
         

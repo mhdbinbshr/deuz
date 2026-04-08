@@ -269,7 +269,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onRegisterConcierge
                     </p>
                     <button 
                         onClick={onBack}
-                        className="w-full py-4 border border-white/10 text-white hover:bg-white hover:text-black transition-all duration-300 uppercase tracking-[0.2em] text-xs font-bold"
+                        className="w-full py-4 border border-white/10 text-white hover:bg-white hover:text-black transition-all duration-300 uppercase tracking-[0.2em] text-[10px] md:text-xs font-bold"
                     >
                         Return to Gallery
                     </button>
@@ -321,14 +321,14 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onRegisterConcierge
        <AnimatePresence>
        </AnimatePresence>
        
-       <div className="sticky top-0 z-50 bg-[#020202]/90 backdrop-blur-md border-b border-white/5 px-8 py-6 flex items-center justify-between">
+       <div className="sticky top-0 z-50 bg-[#020202]/90 backdrop-blur-md border-b border-white/5 px-6 md:px-8 py-4 md:py-6 flex items-center justify-between">
          <button onClick={onBack} disabled={checkoutStatus !== 'idle'} className="disabled:opacity-20 hover:text-gold-500 transition-colors flex items-center gap-2 group">
-            <ArrowLeft className="text-white group-hover:text-gold-500 transition-colors" size={18} />
-            <span className="text-xs uppercase tracking-widest text-white/60 group-hover:text-white">Return to Gallery</span>
+            <ArrowLeft className="text-white group-hover:text-gold-500 transition-colors" size={14} />
+            <span className="text-[9px] md:text-[10px] uppercase tracking-widest text-white/60 group-hover:text-white font-medium">Return to Gallery</span>
          </button>
          <div className="flex items-center gap-2">
-            <Lock size={14} className="text-gold-500" />
-            <h1 className="text-sm font-serif text-white tracking-[0.2em]">CONCIERGE REQUEST</h1>
+            <Lock size={12} className="text-gold-500" />
+            <h1 className="text-[10px] md:text-xs font-serif text-white tracking-[0.2em]">CONCIERGE REQUEST</h1>
          </div>
        </div>
        
@@ -434,6 +434,9 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onRegisterConcierge
                              value={address.pincode} 
                              onChange={handleInputChange} 
                              disabled={isChannelLocked}
+                             type="tel"
+                             inputMode="numeric"
+                             pattern="[0-9]*"
                              className={`w-full bg-transparent border-b py-3 text-white focus:border-gold-500 outline-none transition-colors placeholder:text-white/10 font-serif text-lg disabled:opacity-50 disabled:cursor-not-allowed ${errors.pincode ? 'border-red-500' : 'border-white/20'}`} 
                            />
                            {errors.pincode && <span className="text-red-500 text-xs mt-1 block flex items-center gap-1"><AlertCircle size={10}/> {errors.pincode}</span>}
@@ -450,6 +453,9 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onRegisterConcierge
                              onChange={handleInputChange} 
                              disabled={isChannelLocked}
                              placeholder="+91 ..."
+                             type="tel"
+                             inputMode="numeric"
+                             pattern="[0-9]*"
                              className={`w-full bg-transparent border-b py-3 text-white focus:border-gold-500 outline-none transition-colors placeholder:text-white/10 font-serif text-lg disabled:opacity-50 disabled:cursor-not-allowed ${errors.mobile ? 'border-red-500' : 'border-white/20'}`} 
                            />
                            {errors.mobile && <span className="text-red-500 text-xs mt-1 block flex items-center gap-1"><AlertCircle size={10}/> {errors.mobile}</span>}
@@ -510,7 +516,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onRegisterConcierge
                           <span className="text-white/40 text-xs uppercase tracking-widest">Estimated Value</span>
                           <span className="text-2xl font-serif text-white">₹{total.toLocaleString('en-IN')}</span>
                       </div>
-                      <p className="text-right text-[10px] text-white/30 uppercase">Excluding duties & shipping</p>
+                      <p className="text-right text-[10px] text-white/30 uppercase">Including free shipping</p>
                    </div>
                 </div>
 

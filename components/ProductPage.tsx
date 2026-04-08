@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Heart, Filter, ChevronDown, Check, ShieldCheck, RefreshCw, AlertCircle, Crown, Lock, ArrowRight, ShoppingBag } from 'lucide-react';
 import { CartItem, WishlistItem } from '../types';
@@ -14,6 +14,98 @@ interface ProductPageProps {
   wishlistItems: WishlistItem[];
 }
 
+const ProductCard = ({ product, onClick, itemVariants }: { product: any, onClick: () => void, itemVariants: any }) => {
+  const [isHovered, setIsHovered] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  
+  const allImages = useMemo(() => {
+    return product.gallery?.length > 0 
+      ? [product.image, ...product.gallery] 
+      : [product.image];
+  }, [product.image, product.gallery]);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (allImages.length > 1) {
+      interval = setInterval(() => {
+        setCurrentImageIndex(prev => (prev + 1) % allImages.length);
+      }, 2000);
+    }
+    return () => clearInterval(interval);
+  }, [allImages.length]);
+
+  return (
+    <motion.div
+      layout
+      variants={itemVariants}
+      onClick={onClick}
+      className="group cursor-pointer flex flex-col"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      whileHover={{ y: -10 }}
+      transition={{ type: "spring", stiffness: 200, damping: 20 }}
+    >
+      <div className="w-full aspect-[3/4] overflow-hidden bg-[#0A0A0A] relative mb-6 rounded-sm">
+        {allImages.map((img: string, idx: number) => (
+          <motion.img 
+            key={idx}
+            layoutId={idx === 0 ? `product-image-${product.id}` : undefined}
+            src={img} 
+            alt={product.title} 
+            initial={idx === 0 ? { scale: 1.1, filter: 'blur(5px)' } : { opacity: 0 }}
+            animate={{ 
+                scale: currentImageIndex === idx ? 1 : 1.05, 
+                filter: 'blur(0px)',
+                opacity: currentImageIndex === idx ? 1 : 0,
+                zIndex: currentImageIndex === idx ? 10 : 0
+            }}
+            transition={{ duration: 0.8, ease: "easeOut" }}
+            className={`absolute inset-0 w-full h-full object-cover transition-all duration-700 ${product.inStock ? 'opacity-80 group-hover:opacity-100' : 'opacity-40 grayscale'}`} 
+          />
+        ))}
+        <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors duration-500 z-20 pointer-events-none" />
+        
+        {!product.inStock && (
+          <div className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none">
+            <div className="bg-black/80 px-4 py-2 text-white text-xs uppercase tracking-widest border border-white/20 backdrop-blur-sm">
+                Waitlist Only
+            </div>
+          </div>
+        )}
+        
+        {/* Small Badge on Grid Card */}
+        {product.imageTag && (
+            <div className="absolute top-4 left-4 bg-black/40 border border-white/10 backdrop-blur-md px-3 py-1.5 z-30 rounded-sm pointer-events-none">
+                <div className="flex items-center gap-1">
+                    <span className="text-[9px] uppercase tracking-[0.2em] text-white font-medium">{product.imageTag}</span>
+                </div>
+            </div>
+        )}
+
+        {product.inStock && (
+        <div className="absolute bottom-0 left-0 right-0 p-6 translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-[0.22,1,0.36,1] flex justify-between items-center bg-gradient-to-t from-black/80 via-black/40 to-transparent z-30 pointer-events-none">
+            <span className="text-[10px] uppercase tracking-[0.2em] text-white font-medium">View Artifact</span>
+        </div>
+        )}
+      </div>
+      
+      <div className="flex flex-col gap-2 px-1">
+        <div className="flex justify-between items-start gap-4">
+            <motion.h3 layoutId={`product-title-${product.id}`} className="text-lg font-serif text-white leading-tight group-hover:text-gold-500 transition-colors duration-300">{product.title}</motion.h3>
+            <motion.span layoutId={`product-price-${product.id}`} className="text-sm text-white/60 font-mono">₹{product.price.toLocaleString('en-IN')}</motion.span>
+        </div>
+        
+        <div className="flex flex-col gap-1 mt-1">
+            <span className="text-[10px] uppercase tracking-[0.2em] text-white/40">{product.category}</span>
+            {product.houseCode && (
+                <span className="text-[10px] uppercase tracking-[0.2em] text-gold-500/70">House Code: {product.houseCode}</span>
+            )}
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
 const ProductPage: React.FC<ProductPageProps> = ({ 
   onBack, 
   onBuyNow,
@@ -25,6 +117,13 @@ const ProductPage: React.FC<ProductPageProps> = ({
   const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [filterCategory, setFilterCategory] = useState('All');
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (selectedProduct && containerRef.current) {
+      containerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [selectedProduct]);
   const [sortOption, setSortOption] = useState('Featured');
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [selectedSize, setSelectedSize] = useState<string>('');
@@ -56,7 +155,6 @@ const ProductPage: React.FC<ProductPageProps> = ({
                     isArchived: p.isArchived, // Add archived state
                     // Enforce Alpha sizing fallback if not present, though DB should now provide it
                     sizes: p.sizes && p.sizes.length > 0 ? p.sizes : ['S', 'M', 'L', 'XL', 'XXL'],
-                    uniquenessTag: p.uniquenessTag,
                     imageTag: p.imageTag,
                     houseCode: p.houseCode
                 }));
@@ -221,25 +319,26 @@ const ProductPage: React.FC<ProductPageProps> = ({
 
   return (
     <motion.div 
+      ref={containerRef}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0, transition: { duration: 0.5 } }}
       className="fixed inset-0 z-50 bg-[#050505] overflow-y-auto overflow-x-hidden"
     >
       {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 flex justify-between items-center p-8 md:p-12 mix-blend-difference pointer-events-none">
+      <nav className="fixed top-0 left-0 right-0 z-50 flex justify-between items-center p-6 md:p-10 bg-gradient-to-b from-black/80 to-transparent pointer-events-none">
         <div className="pointer-events-auto">
           <button 
             onClick={() => selectedProduct ? setSelectedProduct(null) : onBack()}
             className="flex items-center gap-2 text-white/60 hover:text-white transition-colors group"
           >
-            <ArrowLeft size={20} className="group-hover:-translate-x-1 transition-transform duration-300 ease-out" />
-            <span className="uppercase tracking-[0.2em] text-xs">
+            <ArrowLeft size={14} className="group-hover:-translate-x-1 transition-transform duration-300 ease-out" />
+            <span className="uppercase tracking-[0.2em] text-[9px] md:text-[10px] font-medium">
               {selectedProduct ? 'Back to Collection' : 'Return to Surface'}
             </span>
           </button>
         </div>
-        <div className="text-2xl font-serif text-white tracking-[0.2em]">DEUZ & CO</div>
+        <div className="text-sm md:text-base font-serif text-white tracking-[0.3em] pointer-events-auto">DEUZ & CO</div>
         <div className="w-6" /> 
       </nav>
 
@@ -252,10 +351,10 @@ const ProductPage: React.FC<ProductPageProps> = ({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-            className="min-h-screen flex flex-col md:flex-row"
+            className="min-h-screen flex flex-col md:flex-row md:h-screen md:overflow-hidden"
           >
             {/* Left: Product Visuals */}
-            <div className="w-full md:w-1/2 h-[60vh] md:h-screen relative bg-[#080808] flex items-center justify-center overflow-hidden">
+            <div className="w-full md:w-1/2 lg:w-5/12 relative bg-[#080808] flex items-center justify-center overflow-hidden shrink-0 py-12 md:py-0 md:h-full">
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-gold-900/10 via-black to-black opacity-50" />
               <motion.div 
                 animate={{ rotate: 360 }}
@@ -267,7 +366,7 @@ const ProductPage: React.FC<ProductPageProps> = ({
                 initial={{ scale: 0.9, opacity: 0, y: 40 }}
                 animate={{ scale: 1, opacity: 1, y: 0 }}
                 transition={{ duration: 1, ease: [0.22, 1, 0.36, 1], delay: 0.1 }}
-                className="relative z-10 w-64 md:w-96 aspect-[3/4] group perspective-[1000px] overflow-hidden rounded-sm shadow-[0_30px_60px_rgba(0,0,0,0.9)]"
+                className="relative z-10 w-3/4 sm:w-2/3 md:w-80 lg:w-96 aspect-[3/4] group perspective-[1000px] overflow-hidden rounded-sm shadow-[0_30px_60px_rgba(0,0,0,0.9)]"
               >
                  {(() => {
                    const allImages = selectedProduct.gallery?.length > 0 
@@ -290,7 +389,7 @@ const ProductPage: React.FC<ProductPageProps> = ({
                              zIndex: currentImageIndex === idx ? 10 : 0
                            }}
                            transition={{ duration: 1.5, ease: [0.16, 1, 0.3, 1] }}
-                           className={`absolute inset-0 w-full h-full object-cover ${!selectedProduct.inStock && selectedProduct.uniquenessTag ? 'grayscale contrast-125' : ''}`}
+                           className={`absolute inset-0 w-full h-full object-cover ${!selectedProduct.inStock ? 'grayscale contrast-125' : ''}`}
                          />
                        ))}
                        
@@ -313,13 +412,13 @@ const ProductPage: React.FC<ProductPageProps> = ({
                  })()}
                  <div className="absolute -bottom-12 left-0 right-0 h-32 bg-gradient-to-t from-black via-transparent to-transparent z-20 pointer-events-none" />
                  
-                 {/* Visual Badge for 1-of-1 Sold */}
-                 {!selectedProduct.inStock && selectedProduct.uniquenessTag && (
+                 {/* Visual Badge for Exhausted */}
+                 {!selectedProduct.inStock && (
                     <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm">
                         <div className="border border-white/20 p-6 text-center bg-black/80">
                             <Lock size={32} className="text-white/40 mx-auto mb-2" />
-                            <p className="text-white font-serif tracking-widest text-lg">ARCHIVED</p>
-                            <p className="text-gold-500 text-[9px] uppercase tracking-[0.3em] mt-1">ONE OF ONE — ARCHIVED</p>
+                            <p className="text-white font-serif tracking-widest text-lg">EXHAUSTED</p>
+                            <p className="text-white/40 text-[9px] uppercase tracking-[0.3em] mt-1">WAITLIST ONLY</p>
                         </div>
                     </div>
                  )}
@@ -327,14 +426,14 @@ const ProductPage: React.FC<ProductPageProps> = ({
             </div>
 
             {/* Right: Details */}
-            <div className="w-full md:w-1/2 min-h-screen flex flex-col justify-center px-8 md:px-20 py-24 bg-[#050505]">
+            <div className="w-full md:w-1/2 lg:w-7/12 flex-1 md:h-full flex flex-col justify-start px-6 md:px-12 lg:px-16 pt-8 md:pt-32 pb-12 md:pb-24 bg-[#050505] overflow-y-auto">
               <motion.div
                 initial={{ opacity: 0, x: 50 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.8, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
-                className="max-w-xl"
+                className="max-w-2xl w-full"
               >
-                {/* --- HEADER: Release Status ONLY (Type of Wear Removed) --- */}
+                 {/* --- HEADER: Release Status ONLY (Type of Wear Removed) --- */}
                 <div className="flex items-center justify-end mb-8 border-b border-white/5 pb-6">
                   <div className="text-right">
                     <span className="text-[9px] text-white/40 uppercase tracking-widest block mb-1">Release Status</span>
@@ -361,38 +460,40 @@ const ProductPage: React.FC<ProductPageProps> = ({
                     </span>
                   </div>
                 )}
-                {selectedProduct.uniquenessTag && (
-                  <div className="inline-flex items-center gap-2 border border-gold-500/50 px-3 py-1 mb-6 bg-gold-500/10">
-                    <Crown size={12} className="text-gold-500" />
-                    <span className="text-[9px] text-gold-500 uppercase tracking-[0.2em] font-bold">
-                      {selectedProduct.uniquenessTag} — NEVER RESTOCKED
-                    </span>
-                  </div>
-                )}
 
                 <motion.h1 
                   layoutId={`product-title-${selectedProduct.id}`}
-                  className="text-4xl md:text-6xl font-serif text-white mb-2 leading-tight"
+                  className="text-3xl md:text-5xl font-serif text-white mb-3 leading-tight"
                 >
                   {selectedProduct.title}
                 </motion.h1>
 
-                <p className="text-[10px] text-white/30 uppercase tracking-[0.3em] mb-6 font-mono">
-                  {selectedProduct.category} {selectedProduct.houseCode ? `// House Code : ${selectedProduct.houseCode}` : ''}
-                </p>
+                <div className="flex items-center gap-3 mb-6">
+                  <span className="text-[9px] text-white/30 uppercase tracking-[0.3em] font-mono">
+                    {selectedProduct.category}
+                  </span>
+                  {selectedProduct.houseCode && (
+                    <>
+                      <span className="text-white/20">•</span>
+                      <span className="text-[9px] text-gold-500/70 uppercase tracking-[0.3em] font-mono">
+                        House Code: {selectedProduct.houseCode}
+                      </span>
+                    </>
+                  )}
+                </div>
 
-                <p className="text-white/60 font-light leading-relaxed mb-8">
+                <p className="text-sm text-white/50 font-light leading-relaxed mb-8">
                   {selectedProduct.description}
                 </p>
 
-                <div className="flex items-end gap-6 mb-8">
+                <div className="flex items-end gap-4 mb-8">
                    <motion.span 
                     layoutId={`product-price-${selectedProduct.id}`}
-                    className="text-3xl font-serif text-white"
+                    className="text-2xl font-serif text-white"
                    >
                      ₹{selectedProduct.price.toLocaleString('en-IN')}
                    </motion.span>
-                   <span className="text-sm text-white/40 mb-2 uppercase tracking-widest">INR (Inclusive of all taxes)</span>
+                   <span className="text-[9px] text-white/40 mb-1.5 uppercase tracking-[0.2em]">INR (Inclusive of all taxes)</span>
                 </div>
 
                 {selectedProduct.sizes && selectedProduct.sizes.length > 0 && selectedProduct.category !== 'card' && (
@@ -403,23 +504,31 @@ const ProductPage: React.FC<ProductPageProps> = ({
                     </div>
                     {/* Premium Size Selector - 5 Cols for S, M, L, XL, XXL */}
                     <div className="grid grid-cols-5 gap-2">
-                      {selectedProduct.sizes.map((size: string) => (
-                        <button
-                          key={size}
-                          onClick={() => { setSelectedSize(size); setError(''); }}
-                          disabled={!selectedProduct.inStock}
-                          className={`
-                            h-12 flex items-center justify-center text-xs font-medium uppercase tracking-widest transition-all duration-300 border
-                            ${selectedSize === size 
-                              ? 'bg-white text-black border-white shadow-[0_0_20px_rgba(255,255,255,0.3)]' 
-                              : 'bg-transparent text-white/40 border-white/10 hover:border-white/40 hover:text-white'
-                            }
-                            disabled:opacity-20 disabled:cursor-not-allowed
-                          `}
-                        >
-                          {size}
-                        </button>
-                      ))}
+                      {selectedProduct.sizes.map((size: string) => {
+                        const isSizeOutOfStock = selectedProduct.outOfStockSizes?.includes(size);
+                        return (
+                          <button
+                            key={size}
+                            onClick={() => { setSelectedSize(size); setError(''); }}
+                            disabled={!selectedProduct.inStock || isSizeOutOfStock}
+                            className={`
+                              h-12 flex items-center justify-center text-xs font-medium uppercase tracking-widest transition-all duration-300 border
+                              ${selectedSize === size 
+                                ? 'bg-white text-black border-white shadow-[0_0_20px_rgba(255,255,255,0.3)]' 
+                                : 'bg-transparent text-white/40 border-white/10 hover:border-white/40 hover:text-white'
+                              }
+                              disabled:opacity-20 disabled:cursor-not-allowed relative overflow-hidden
+                            `}
+                          >
+                            {size}
+                            {isSizeOutOfStock && (
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <div className="w-full h-[1px] bg-red-500/50 rotate-45 absolute" />
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
                     </div>
                     
                     <AnimatePresence>
@@ -445,7 +554,7 @@ const ProductPage: React.FC<ProductPageProps> = ({
                 )}
 
                 <div className="flex flex-col gap-4 mb-8">
-                  {!selectedProduct.inStock && selectedProduct.uniquenessTag ? (
+                  {!selectedProduct.inStock ? (
                       <div className="w-full py-6 bg-white/5 border border-white/10 text-center flex flex-col items-center justify-center gap-2 cursor-not-allowed opacity-70">
                           <Lock size={16} className="text-white/40" />
                           <span className="text-white/40 text-[10px] uppercase tracking-[0.3em]">Acquisition Closed</span>
@@ -635,68 +744,12 @@ const ProductPage: React.FC<ProductPageProps> = ({
                 >
                    <AnimatePresence>
                    {filteredProducts.map((product) => (
-                     <motion.div
-                       layout
-                       variants={itemVariants}
-                       key={product.id}
-                       onClick={() => handleProductSelect(product)}
-                       className="group cursor-pointer"
-                       whileHover={{ y: -10 }}
-                       transition={{ type: "spring", stiffness: 200, damping: 20 }}
-                     >
-                        <div className="w-full aspect-[3/4] overflow-hidden bg-[#0A0A0A] relative mb-6 rounded-sm">
-                           <motion.img 
-                             layoutId={`product-image-${product.id}`}
-                             src={product.image} 
-                             alt={product.title} 
-                             initial={{ scale: 1.1, filter: 'blur(5px)' }}
-                             animate={{ scale: 1, filter: 'blur(0px)' }}
-                             transition={{ duration: 1, ease: "easeOut" }}
-                             whileHover={{ scale: 1.05, transition: { duration: 0.8, ease: "easeOut" } }}
-                             className={`w-full h-full object-cover transition-all duration-700 ${product.inStock ? 'opacity-80 group-hover:opacity-100' : 'opacity-40 grayscale'}`} 
-                           />
-                           <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors duration-500" />
-                           
-                           {!product.inStock && (
-                             <div className="absolute inset-0 flex items-center justify-center">
-                               <div className="bg-black/80 px-4 py-2 text-white text-xs uppercase tracking-widest border border-white/20 backdrop-blur-sm">
-                                   {product.uniquenessTag ? 'ONE OF ONE — ARCHIVED' : 'Waitlist Only'}
-                               </div>
-                             </div>
-                           )}
-                           
-                           {/* Small Badge on Grid Card */}
-                           {product.imageTag && (
-                               <div className="absolute top-2 left-2 bg-gold-500/10 border border-gold-500/20 backdrop-blur-md px-2 py-1 z-10">
-                                   <div className="flex items-center gap-1">
-                                       <span className="text-[8px] uppercase tracking-widest text-gold-500 font-bold">{product.imageTag}</span>
-                                   </div>
-                               </div>
-                           )}
-                           {product.uniquenessTag && !product.imageTag && (
-                               <div className="absolute top-2 left-2 bg-gold-500/10 border border-gold-500/20 backdrop-blur-md px-2 py-1 z-10">
-                                   <div className="flex items-center gap-1">
-                                       <Crown size={10} className="text-gold-500" />
-                                       <span className="text-[8px] uppercase tracking-widest text-gold-500 font-bold">{product.uniquenessTag}</span>
-                                   </div>
-                               </div>
-                           )}
-
-                           {product.inStock && (
-                            <div className="absolute bottom-0 left-0 right-0 p-4 translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-[0.22,1,0.36,1] flex justify-between items-center bg-gradient-to-t from-black to-transparent">
-                                <span className="text-[10px] uppercase tracking-widest text-white">View Details</span>
-                            </div>
-                           )}
-                        </div>
-                        
-                        <div className="flex justify-between items-start">
-                           <div>
-                              <motion.h3 layoutId={`product-title-${product.id}`} className="text-lg font-serif text-white mb-1 group-hover:text-gold-400 transition-colors">{product.title}</motion.h3>
-                              <p className="text-xs text-white/40 uppercase tracking-widest">{product.category}</p>
-                           </div>
-                           <motion.span layoutId={`product-price-${product.id}`} className="text-gold-500 font-serif">₹{product.price.toLocaleString('en-IN')}</motion.span>
-                        </div>
-                     </motion.div>
+                     <ProductCard 
+                       key={product.id} 
+                       product={product} 
+                       onClick={() => handleProductSelect(product)} 
+                       itemVariants={itemVariants} 
+                     />
                    ))}
                    </AnimatePresence>
                 </motion.div>

@@ -93,7 +93,7 @@ const ConciergeInitiatedPage: React.FC<ConciergeInitiatedPageProps> = ({ orderCo
                 </div>
                 <h2 className="text-white font-serif text-xl tracking-widest mb-4">SYSTEM NOTIFICATION</h2>
                 <p className="text-white/50 text-sm mb-8">{error || 'Dossier record unavailable.'}</p>
-                <button onClick={onBackToGallery} className="border border-white/20 text-white px-8 py-3 uppercase tracking-widest text-xs hover:bg-white hover:text-black transition-colors">
+                <button onClick={onBackToGallery} className="border border-white/20 text-white px-8 py-3 uppercase tracking-widest text-[10px] md:text-xs hover:bg-white hover:text-black transition-colors">
                     Return to Gallery
                 </button>
             </div>
