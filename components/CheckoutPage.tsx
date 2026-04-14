@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, ShieldCheck, Crown, ChevronRight, Lock, CheckCircle2, UserCheck, BadgeCheck, ShieldAlert, AlertCircle } from 'lucide-react';
+import { ArrowLeft, ShieldCheck, Crown, ChevronRight, Lock, CheckCircle2, UserCheck, BadgeCheck, ShieldAlert, AlertCircle, Trash2 } from 'lucide-react';
 import { CartItem, Address, OrderStatus } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
@@ -19,7 +19,7 @@ type ContactMethod = 'instagram' | 'whatsapp' | 'email';
 
 const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onRegisterConciergeOrder }) => {
   const { user, openAuthModal } = useAuth();
-  const { cartItems, total } = useCart();
+  const { cartItems, total, removeFromCart } = useCart();
   const { content } = useSettings();
   
   const [checkoutStatus, setCheckoutStatus] = useState<'idle' | 'processing' | 'modal' | 'locked'>('idle');
@@ -35,6 +35,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onRegisterConcierge
     state: '',
     pincode: '',
     mobile: '',
+    alternateMobile: '',
     email: ''
   });
   
@@ -74,6 +75,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onRegisterConcierge
         lastName: lName || prev.lastName,
         email: user.email || prev.email,
         mobile: user.mobile || prev.mobile,
+        alternateMobile: user.alternateMobile || prev.alternateMobile,
         ...(user.address || {})
       }));
     }
@@ -111,6 +113,9 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onRegisterConcierge
     } else if (!/^\d{10}$/.test(address.mobile.replace(/\D/g, ''))) {
         newErrors.mobile = 'Phone must be 10 digits';
     }
+    if (address.alternateMobile && !/^\d{10}$/.test(address.alternateMobile.replace(/\D/g, ''))) {
+        newErrors.alternateMobile = 'Phone must be 10 digits';
+    }
     if(!address.email) newErrors.email = 'Email required';
     if(!address.city) newErrors.city = 'Town/City required';
     if(!address.state) newErrors.state = 'State required';
@@ -127,6 +132,11 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onRegisterConcierge
 
   const handleInitiateRequest = async () => {
     setFormError(null);
+
+    if (cartItems.some(item => item.maxStock !== undefined && item.quantity > item.maxStock)) {
+        setFormError("Some items in your vault exceed available stock. Please reduce quantities.");
+        return;
+    }
 
     if (!validate()) {
         setFormError("Please complete all mandatory fields correctly.");
@@ -149,10 +159,14 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onRegisterConcierge
     try {
         // Update user profile with latest address and mobile if logged in
         if (user && user.id) {
-            await db.updateUserProfile(user.id, {
-                address: address,
-                mobile: address.mobile
-            });
+            try {
+                await db.updateUserProfile(user.id, {
+                    addresses: [address],
+                    mobile: address.mobile
+                });
+            } catch (e) {
+                console.warn("Could not update user profile, proceeding anyway", e);
+            }
         }
 
         // Artificial delay for cinematic effect
@@ -444,7 +458,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onRegisterConcierge
                    </div>
 
                    {/* Row 5: Contact */}
-                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                        <div className="group">
                            <label className="text-[10px] uppercase tracking-widest text-gold-500 mb-2 block">Phone</label>
                            <input 
@@ -459,6 +473,21 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onRegisterConcierge
                              className={`w-full bg-transparent border-b py-3 text-white focus:border-gold-500 outline-none transition-colors placeholder:text-white/10 font-serif text-lg disabled:opacity-50 disabled:cursor-not-allowed ${errors.mobile ? 'border-red-500' : 'border-white/20'}`} 
                            />
                            {errors.mobile && <span className="text-red-500 text-xs mt-1 block flex items-center gap-1"><AlertCircle size={10}/> {errors.mobile}</span>}
+                       </div>
+                       <div className="group">
+                           <label className="text-[10px] uppercase tracking-widest text-gold-500 mb-2 block">Alternate Phone (Optional)</label>
+                           <input 
+                             name="alternateMobile" 
+                             value={address.alternateMobile || ''} 
+                             onChange={handleInputChange} 
+                             disabled={isChannelLocked}
+                             placeholder="+91 ..."
+                             type="tel"
+                             inputMode="numeric"
+                             pattern="[0-9]*"
+                             className={`w-full bg-transparent border-b py-3 text-white focus:border-gold-500 outline-none transition-colors placeholder:text-white/10 font-serif text-lg disabled:opacity-50 disabled:cursor-not-allowed ${errors.alternateMobile ? 'border-red-500' : 'border-white/20'}`} 
+                           />
+                           {errors.alternateMobile && <span className="text-red-500 text-xs mt-1 block flex items-center gap-1"><AlertCircle size={10}/> {errors.alternateMobile}</span>}
                        </div>
                        <div className="group">
                            <label className="text-[10px] uppercase tracking-widest text-gold-500 mb-2 block">Email Address</label>
@@ -500,12 +529,27 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onRegisterConcierge
                                   <img src={item.image} alt={item.title} className="w-full h-full object-cover opacity-60 group-hover:opacity-100 transition-opacity" />
                               </div>
                               <div className="flex-1">
-                                  <h4 className="text-white text-sm font-serif mb-1">{item.title}</h4>
+                                  <div className="flex justify-between items-start">
+                                      <h4 className="text-white text-sm font-serif mb-1">{item.title}</h4>
+                                      {checkoutStatus === 'idle' && (
+                                          <button 
+                                              onClick={() => removeFromCart(item.cartItemId)}
+                                              className="text-white/30 hover:text-red-400 transition-colors"
+                                          >
+                                              <Trash2 size={14} />
+                                          </button>
+                                      )}
+                                  </div>
                                   <div className="flex justify-between items-center text-xs">
                                       <span className="text-white/40 uppercase">{item.selectedSize || 'Standard'}</span>
                                       <span className="text-white/40">x{item.quantity}</span>
                                   </div>
                                   <div className="text-gold-500/80 text-xs mt-2">₹{(item.price * item.quantity).toLocaleString('en-IN')}</div>
+                                  {item.maxStock !== undefined && item.quantity > item.maxStock && (
+                                      <div className="text-red-500 text-[9px] uppercase tracking-wider mt-1 font-bold">
+                                          Exceeds Stock ({item.maxStock} max)
+                                      </div>
+                                  )}
                               </div>
                           </div>
                       ))}
@@ -568,6 +612,35 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onRegisterConcierge
 
        </div>
        
+       {/* Cinematic Processing Overlay */}
+       <AnimatePresence>
+         {checkoutStatus === 'processing' && (
+           <motion.div
+             initial={{ opacity: 0 }}
+             animate={{ opacity: 1 }}
+             exit={{ opacity: 0 }}
+             className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-md"
+           >
+             <div className="text-center space-y-8">
+               <motion.div
+                 animate={{ rotate: 360 }}
+                 transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                 className="w-16 h-16 border-t-2 border-r-2 border-gold-500 rounded-full mx-auto"
+               />
+               <motion.div
+                 initial={{ opacity: 0, y: 10 }}
+                 animate={{ opacity: 1, y: 0 }}
+                 transition={{ delay: 0.5 }}
+                 className="space-y-2"
+               >
+                 <h2 className="text-2xl font-serif text-white tracking-[0.3em] uppercase">Securing Allocation</h2>
+                 <p className="text-gold-500/60 text-xs tracking-[0.2em] uppercase">Generating unique dossier...</p>
+               </motion.div>
+             </div>
+           </motion.div>
+         )}
+       </AnimatePresence>
+
        {checkoutStatus === 'modal' && generatedOrder && (
            <ConciergeCheckoutModal
                isOpen={true}

@@ -1,7 +1,10 @@
 import React, { useRef } from 'react';
 import { motion, useScroll, useTransform } from 'framer-motion';
+import { useSettings } from '../context/SettingsContext';
 
 const About: React.FC = () => {
+  const { content } = useSettings();
+
   return (
     <section id="house-standards" className="relative py-32 bg-transparent px-6 md:px-12 overflow-hidden">
       {/* Background Ambience */}
@@ -19,13 +22,11 @@ const About: React.FC = () => {
           >
             <h2 className="text-gold-500 text-sm font-bold tracking-[0.3em] uppercase mb-8 flex items-center gap-4">
               <span className="w-8 h-[1px] bg-gold-500"></span>
-              THE HOUSE STANDARD
+              {content.aboutTitle || 'THE HOUSE STANDARD'}
             </h2>
-            <h3 className="text-4xl md:text-5xl lg:text-6xl font-serif text-white leading-tight mb-8">
-              DEUZ IS THE <br /> <span className="text-white/30">DESIGN.</span>
-            </h3>
+            <h3 className="text-4xl md:text-5xl lg:text-6xl font-serif text-white leading-tight mb-8" dangerouslySetInnerHTML={{ __html: (content.aboutSubtitle || 'DEUZ IS THE <br /> <span className="text-white/30">DESIGN.</span>').replace('\n', '<br />') }} />
             <p className="text-lg text-gray-400 font-light leading-relaxed mb-6">
-              DEUZ & CO is anchored in singularity. One design defines the house — structured with discipline, refined with precision, and elevated through measured evolution. We do not multiply form. We perfect it. Each release strengthens the standard.
+              {content.aboutDescription || 'DEUZ & CO is anchored in singularity. One design defines the house — structured with discipline, refined with precision, and elevated through measured evolution. We do not multiply form. We perfect it. Each release strengthens the standard.'}
             </p>
           </motion.div>
 
@@ -61,7 +62,7 @@ const About: React.FC = () => {
             className="relative aspect-[4/5] overflow-hidden rounded-sm"
           >
             <img 
-              src="https://ik.imagekit.io/dto1zguat/file_0000000054e071fa80c009a3a2a07326.png" 
+              src={content.aboutImage || "https://ik.imagekit.io/dto1zguat/file_0000000054e071fa80c009a3a2a07326.png"} 
               alt="The House Standard" 
               className="object-cover w-full h-full opacity-80 hover:scale-105 transition-transform duration-[2000ms]"
             />

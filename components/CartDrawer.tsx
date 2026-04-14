@@ -47,7 +47,7 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ onCheckout }) => {
             className="fixed inset-y-0 right-0 z-[70] w-full md:w-[450px] bg-[#0A0A0A] border-l border-white/10 shadow-2xl flex flex-col"
           >
             {/* Header */}
-            <div className="p-8 border-b border-white/10 flex justify-between items-center bg-[#050505] relative">
+            <div className="p-4 md:p-8 border-b border-white/10 flex justify-between items-center bg-[#050505] relative">
               <div className="flex items-center gap-3">
                 <ShoppingBag size={20} className="text-gold-500" />
                 <h2 className="text-xl font-serif text-white tracking-widest">THE VAULT</h2>
@@ -63,7 +63,7 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ onCheckout }) => {
             </div>
 
             {/* Items */}
-            <div className={`flex-1 overflow-y-auto p-8 space-y-8 ${cartLoading ? 'opacity-70 pointer-events-none' : ''} transition-opacity duration-200`}>
+            <div className={`flex-1 overflow-y-auto p-4 md:p-8 space-y-4 md:space-y-8 ${cartLoading ? 'opacity-70 pointer-events-none' : ''} transition-opacity duration-200`}>
               {cartItems.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-white/30 space-y-4 text-center">
                   <ShoppingBag size={48} strokeWidth={1} />
@@ -117,8 +117,11 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ onCheckout }) => {
                                <Plus size={12} />
                              </button>
                            </div>
-                           {item.maxStock !== undefined && item.quantity >= item.maxStock && (
-                             <span className="text-[9px] text-red-500 uppercase tracking-wider">Max Stock</span>
+                           {item.maxStock !== undefined && item.quantity > item.maxStock && (
+                             <span className="text-[9px] text-red-500 uppercase tracking-wider font-bold">Exceeds Stock ({item.maxStock} max)</span>
+                           )}
+                           {item.maxStock !== undefined && item.quantity === item.maxStock && (
+                             <span className="text-[9px] text-red-500 uppercase tracking-wider">Max Stock: {item.maxStock}</span>
                            )}
                       </div>
                     </div>
@@ -128,14 +131,21 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ onCheckout }) => {
             </div>
 
             {/* Footer */}
-            <div className="p-8 border-t border-white/10 bg-[#050505]">
+            <div className="p-4 md:p-8 border-t border-white/10 bg-[#050505]">
               <div className="flex justify-between items-center mb-6">
                 <span className="text-white/60 text-xs uppercase tracking-widest">ESTIMATED VALUE</span>
                 <span className="text-2xl font-serif text-white">₹{total.toLocaleString('en-IN')}</span>
               </div>
+              
+              {cartItems.some(item => item.maxStock !== undefined && item.quantity > item.maxStock) && (
+                <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 text-red-500 text-[10px] uppercase tracking-widest text-center">
+                  Some items exceed available stock. Please reduce quantities.
+                </div>
+              )}
+              
               <button 
                 onClick={handleCheckout}
-                disabled={cartItems.length === 0 || cartLoading}
+                disabled={cartItems.length === 0 || cartLoading || cartItems.some(item => item.maxStock !== undefined && item.quantity > item.maxStock)}
                 className="w-full py-4 bg-white text-black hover:bg-gold-500 hover:text-white disabled:opacity-50 disabled:hover:bg-white disabled:hover:text-black transition-all duration-300 font-bold text-xs uppercase tracking-[0.2em] flex items-center justify-center gap-2 group"
               >
                 {cartLoading ? (

@@ -9,6 +9,10 @@ interface SiteContent {
   footerText: string;
   storeImage: string;
   scrollImages: string[];
+  aboutTitle?: string;
+  aboutSubtitle?: string;
+  aboutDescription?: string;
+  aboutImage?: string;
 }
 
 interface ConciergeConfig {
@@ -28,7 +32,7 @@ interface SettingsContextType {
 
 const DEFAULT_CONTENT: SiteContent = {
   heroTitle: 'CINEMATIC REALITY',
-  heroSubtitle: 'Crafting immersive visual experiences for the world\'s leading brands and storytellers.',
+  heroSubtitle: 'Not for everyone.',
   ctaText: 'Initiate Request',
   checkoutDisclaimer: 'Submit your allocation request. No payment is required until our curators verify your dossier.',
   footerText: 'Designed in Cinematic Vision',
@@ -38,7 +42,11 @@ const DEFAULT_CONTENT: SiteContent = {
     'https://ik.imagekit.io/dto1zguat/EternalHorizon_1.jpg?updatedAt=1775278022400',
     'https://ik.imagekit.io/dto1zguat/Evolve_4.jpg?updatedAt=1775278133983',
     'https://ik.imagekit.io/dto1zguat/EternalHorizon_2.jpg?updatedAt=1775278048419'
-  ]
+  ],
+  aboutTitle: 'THE HOUSE STANDARD',
+  aboutSubtitle: 'DEUZ IS THE DESIGN.',
+  aboutDescription: 'DEUZ & CO is anchored in singularity. One design defines the house — structured with discipline, refined with precision, and elevated through measured evolution. We do not multiply form. We perfect it. Each release strengthens the standard.',
+  aboutImage: 'https://ik.imagekit.io/dto1zguat/file_0000000054e071fa80c009a3a2a07326.png'
 };
 
 const DEFAULT_CONCIERGE: ConciergeConfig = {

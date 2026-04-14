@@ -27,7 +27,7 @@ SHIPPING REGISTRY:
   ${address.city}, ${address.state} - ${address.pincode}
   Contact: ${address.mobile}
 =========================================
-"Crafting immersive visual experiences."
+"Not for everyone"
 Please confirm this dossier to proceed.
 `.trim();
 };

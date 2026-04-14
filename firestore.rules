@@ -122,13 +122,15 @@ service cloud.firestore {
     // ===============================================================
 
     function isValidUser() {
-      return hasOnlyAllowedFields(['fullName', 'email', 'mobile', 'role', 'createdAt', 'addresses']) &&
+      return hasOnlyAllowedFields(['fullName', 'email', 'mobile', 'alternateMobile', 'role', 'createdAt', 'addresses', 'address']) &&
              isValidOptionalString('fullName', 0, 100) &&
              isValidString('email', 3, 100) &&
              isValidOptionalString('mobile', 0, 20) &&
+             isValidOptionalString('alternateMobile', 0, 20) &&
              request.resource.data.role in ['user', 'admin', 'concierge'] &&
              (!( 'createdAt' in request.resource.data ) || request.resource.data.createdAt is timestamp) &&
-             (!( 'addresses' in request.resource.data ) || request.resource.data.addresses is list);
+             (!( 'addresses' in request.resource.data ) || request.resource.data.addresses is list) &&
+             (!( 'address' in request.resource.data ) || request.resource.data.address is map);
     }
 
     function isValidProduct() {
@@ -142,6 +144,8 @@ service cloud.firestore {
              (!( 'countInStock' in request.resource.data ) || (request.resource.data.countInStock is number && request.resource.data.countInStock >= 0)) &&
              (!( 'isArchived' in request.resource.data ) || request.resource.data.isArchived is bool) &&
              (!( 'sizes' in request.resource.data ) || request.resource.data.sizes is list) &&
+             (!( 'outOfStockSizes' in request.resource.data ) || request.resource.data.outOfStockSizes is list) &&
+             (!( 'sizeStock' in request.resource.data ) || request.resource.data.sizeStock is map) &&
              (!( 'gallery' in request.resource.data ) || request.resource.data.gallery is list) &&
              isValidOptionalString('uniquenessTag', 0, 100) &&
              isValidOptionalString('imageTag', 0, 100) &&
@@ -211,6 +215,8 @@ service cloud.firestore {
              (!( 'countInStock' in request.resource.data ) || (request.resource.data.countInStock is number && request.resource.data.countInStock >= 0)) &&
              (!( 'isArchived' in request.resource.data ) || request.resource.data.isArchived is bool) &&
              (!( 'sizes' in request.resource.data ) || request.resource.data.sizes is list) &&
+             (!( 'outOfStockSizes' in request.resource.data ) || request.resource.data.outOfStockSizes is list) &&
+             (!( 'sizeStock' in request.resource.data ) || request.resource.data.sizeStock is map) &&
              (!( 'gallery' in request.resource.data ) || request.resource.data.gallery is list) &&
              isValidOptionalString('uniquenessTag', 0, 100) &&
              isValidOptionalString('imageTag', 0, 100) &&

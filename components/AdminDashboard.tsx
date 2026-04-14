@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { db } from '../utils/db';
 import { useAuth } from '../context/AuthContext';
+import { useSettings } from '../context/SettingsContext';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { 
@@ -26,10 +27,14 @@ interface ProductForm {
   image: string;
   gallery?: string[];
   sizes: string[];
+  outOfStockSizes?: string[];
+  sizeStock?: Record<string, number>;
   details: Record<string, string>;
   imageTag?: string;
   houseCode?: string;
 }
+
+const PREDEFINED_SIZES = ['S', 'M', 'L', 'XL', 'XXL'];
 
 const INITIAL_PRODUCT: ProductForm = {
   title: '',
@@ -42,7 +47,7 @@ const INITIAL_PRODUCT: ProductForm = {
   isArchived: false,
   image: '',
   gallery: [],
-  sizes: [],
+  sizes: PREDEFINED_SIZES,
   details: {},
   imageTag: '',
   houseCode: ''
@@ -54,6 +59,7 @@ interface AdminDashboardProps {
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
   const { user } = useAuth();
+  const { refreshSettings } = useSettings();
   const isAdmin = user?.role === 'admin';
 
   // Navigation
@@ -158,7 +164,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
           setProducts(safeProducts);
           setUsers(safeUsers);
           setLogs(safeLogs);
-          if (safeSettings) setSettings(safeSettings);
+          if (safeSettings) {
+              setSettings((prev: any) => {
+                  if (prev) return prev;
+                  return {
+                      ...safeSettings,
+                      siteContent: safeSettings.siteContent || {},
+                      conciergeConfig: safeSettings.conciergeConfig || {}
+                  };
+              });
+          }
           
           const revenue = safeOrders.reduce((acc: number, o: any) => {
              return (o?.paymentStatus === 'Paid' && typeof o?.totalAmount === 'number') ? acc + o.totalAmount : acc;
@@ -213,13 +228,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
       e.preventDefault();
       setActionLoading(true);
       try {
-          await db.updateSystemSettings({ 
+          const cleanPayload = JSON.parse(JSON.stringify({ 
               conciergeConfig: settings.conciergeConfig,
               siteContent: settings.siteContent
-          });
+          }));
+          await db.updateSystemSettings(cleanPayload);
+          await refreshSettings();
           showNotification("System Configuration Updated");
-      } catch (e) {
-          showNotification("Failed to update settings", 'error');
+      } catch (e: any) {
+          console.error("Settings update error:", e);
+          showNotification("Failed to update settings: " + (e.message || "Unknown error"), 'error');
       }
       setActionLoading(false);
   };
@@ -392,14 +410,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
       const orderData = orders.filter(o => !o.isTrashed).map(o => [
         o.conciergeCode || o.code || 'N/A',
         o.userEmail || 'Guest',
-        `$${o.totalAmount}`,
+        `₹${o.totalAmount}`,
         o.orderStatus,
-        o.paymentStatus
+        o.paymentStatus,
+        o.items?.map((i: any) => `${i.quantity}x ${i.title || i.product?.title || 'Item'} (${i.selectedSize || 'std'})`).join(', ') || 'No items'
       ]);
       
       autoTable(doc, {
         startY: 50,
-        head: [['Code', 'Client', 'Amount', 'Status', 'Payment']],
+        head: [['Code', 'Client', 'Amount', 'Status', 'Payment', 'Items']],
         body: orderData,
         theme: 'grid',
         styles: { fontSize: 8 },
@@ -413,15 +432,36 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
       const productData = products.map(p => [
         p.title,
         p.category,
-        `$${p.price}`,
+        `₹${p.price}`,
         p.countInStock.toString(),
-        p.isArchived ? 'Yes' : 'No'
+        p.isArchived ? 'Yes' : 'No',
+        p.details ? (typeof p.details === 'object' ? Object.entries(p.details).map(([k,v]) => `${k}: ${v}`).join(', ') : p.details.toString()) : 'No details'
       ]);
       
       autoTable(doc, {
         startY: finalY + 20,
-        head: [['Product', 'Category', 'Price', 'Stock', 'Archived']],
+        head: [['Product', 'Category', 'Price', 'Stock', 'Archived', 'Details']],
         body: productData,
+        theme: 'grid',
+        styles: { fontSize: 8 },
+        headStyles: { fillColor: [20, 20, 20] }
+      });
+
+      // Users Table
+      const finalY2 = (doc as any).lastAutoTable.finalY || finalY + 20;
+      doc.text('Operatives / Users', 14, finalY2 + 15);
+      
+      const usersData = users.map(u => [
+        u.fullName || 'N/A',
+        u.email || 'N/A',
+        u.role || 'user',
+        new Date(u.createdAt).toLocaleDateString()
+      ]);
+
+      autoTable(doc, {
+        startY: finalY2 + 20,
+        head: [['Name', 'Email', 'Role', 'Joined']],
+        body: usersData,
         theme: 'grid',
         styles: { fontSize: 8 },
         headStyles: { fillColor: [20, 20, 20] }
@@ -443,7 +483,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
       setCurrentProduct({
         ...product,
         productType: product.productType || 'APPAREL',
-        sizes: Array.isArray(product.sizes) ? product.sizes : [],
+        sizes: Array.isArray(product.sizes) && product.sizes.length > 0 ? product.sizes : PREDEFINED_SIZES,
         details: product.details && typeof product.details === 'object' ? product.details : {},
         imageTag: product.imageTag || '',
         isArchived: !!product.isArchived
@@ -484,6 +524,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
         setActionLoading(true);
         try {
           await db.deleteProduct(id);
+          setProducts(prev => prev.filter(p => p._id !== id));
           showNotification('Product removed');
           fetchData();
         } catch (error: any) {
@@ -637,11 +678,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
             <div className="flex items-center gap-4 md:gap-6">
                 <button 
                   onClick={generatePDFReport}
-                  className="hidden sm:flex items-center gap-2 text-gold-500 hover:text-white transition-colors"
+                  className="flex items-center gap-2 text-gold-500 hover:text-white transition-colors"
                   title="Download Full System Report (PDF)"
                 >
                   <FileText size={18} />
-                  <span className="text-[10px] uppercase tracking-widest font-bold">Export Report</span>
+                  <span className="hidden sm:inline text-[10px] uppercase tracking-widest font-bold">Export Report</span>
                 </button>
                 {isOfflineMode && (
                     <div className="hidden sm:flex items-center gap-2 text-red-500 bg-red-500/10 px-3 py-1 rounded-full border border-red-500/20">
@@ -1030,38 +1071,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
                  <div className="bg-[#0A0A0A] border border-white/10 p-8">
                      <h3 className="text-white font-serif mb-6 flex items-center gap-2"><Crown size={18} className="text-gold-500"/> Site Content</h3>
                      <form onSubmit={handleSettingsUpdate} className="space-y-6">
-                         <div>
-                             <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Hero Title</label>
-                             <input value={settings.siteContent.heroTitle} onChange={e => setSettings({...settings, siteContent: {...settings.siteContent, heroTitle: e.target.value}})} className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" />
-                         </div>
-                         <div>
-                             <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Hero Subtitle</label>
-                             <textarea value={settings.siteContent.heroSubtitle} onChange={e => setSettings({...settings, siteContent: {...settings.siteContent, heroSubtitle: e.target.value}})} className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none h-24" />
-                         </div>
-                         <div>
-                             <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">CTA Text</label>
-                             <input value={settings.siteContent.ctaText} onChange={e => setSettings({...settings, siteContent: {...settings.siteContent, ctaText: e.target.value}})} className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" />
-                         </div>
-                         <div>
-                             <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Checkout Disclaimer</label>
-                             <textarea value={settings.siteContent.checkoutDisclaimer} onChange={e => setSettings({...settings, siteContent: {...settings.siteContent, checkoutDisclaimer: e.target.value}})} className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none h-24" />
-                         </div>
-                         <div>
-                             <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Footer Text</label>
-                             <input value={settings.siteContent.footerText} onChange={e => setSettings({...settings, siteContent: {...settings.siteContent, footerText: e.target.value}})} className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" />
-                         </div>
-                         <div>
-                             <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Go To Store Image URL</label>
-                             <input value={settings.siteContent.storeImage || ''} onChange={e => setSettings({...settings, siteContent: {...settings.siteContent, storeImage: e.target.value}})} className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" />
-                         </div>
-                         <div>
-                             <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Scroll Images (One URL per line)</label>
-                             <textarea 
-                                value={(settings.siteContent.scrollImages || []).join('\n')} 
-                                onChange={e => setSettings({...settings, siteContent: {...settings.siteContent, scrollImages: e.target.value.split('\n').filter(url => url.trim() !== '')}})} 
-                                className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none h-32" 
-                                placeholder="https://image1.jpg&#10;https://image2.jpg"
-                             />
+                         <div className="pt-4 border-t border-white/10 mt-4">
+                             <h4 className="text-gold-500 text-xs font-bold uppercase tracking-widest mb-4">Sovereign Preview</h4>
+                             <div className="space-y-4">
+                                 <div>
+                                     <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Category Display</label>
+                                     <input value={settings.siteContent.sovereignCategory || ''} onChange={e => setSettings({...settings, siteContent: {...settings.siteContent, sovereignCategory: e.target.value}})} className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" placeholder="Apparel" />
+                                 </div>
+                                 <div>
+                                     <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Price Display</label>
+                                     <input value={settings.siteContent.sovereignPrice || ''} onChange={e => setSettings({...settings, siteContent: {...settings.siteContent, sovereignPrice: e.target.value}})} className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" placeholder="12,000" />
+                                 </div>
+                                 <div>
+                                     <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Status Display</label>
+                                     <input value={settings.siteContent.sovereignStatus || ''} onChange={e => setSettings({...settings, siteContent: {...settings.siteContent, sovereignStatus: e.target.value}})} className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" placeholder="Active" />
+                                 </div>
+                             </div>
                          </div>
                          <button disabled={actionLoading} className="w-full py-3 bg-white text-black uppercase tracking-widest text-xs font-bold hover:bg-gold-500 hover:text-white transition-colors disabled:opacity-50">
                              {actionLoading ? 'Saving...' : 'Update Content'}
@@ -1070,27 +1095,19 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
                  </div>
 
                  <div className="bg-[#0A0A0A] border border-white/10 p-8">
-                     <h3 className="text-white font-serif mb-6 flex items-center gap-2"><Crown size={18} className="text-gold-500"/> Concierge Configuration</h3>
+                     <h3 className="text-white font-serif mb-6 flex items-center gap-2"><Crown size={18} className="text-gold-500"/> Private Acquisition Details</h3>
                      <form onSubmit={handleSettingsUpdate} className="space-y-6">
                          <div>
                              <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">WhatsApp Line</label>
-                             <input value={settings.conciergeConfig.whatsappNumber} onChange={e => setSettings({...settings, conciergeConfig: {...settings.conciergeConfig, whatsappNumber: e.target.value}})} className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" />
+                             <input value={settings.conciergeConfig.whatsappNumber || ''} onChange={e => setSettings({...settings, conciergeConfig: {...settings.conciergeConfig, whatsappNumber: e.target.value}})} className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" />
                          </div>
                          <div>
                              <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Instagram Handle</label>
-                             <input value={settings.conciergeConfig.instagramHandle} onChange={e => setSettings({...settings, conciergeConfig: {...settings.conciergeConfig, instagramHandle: e.target.value}})} className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" />
+                             <input value={settings.conciergeConfig.instagramHandle || ''} onChange={e => setSettings({...settings, conciergeConfig: {...settings.conciergeConfig, instagramHandle: e.target.value}})} className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" />
                          </div>
                          <div>
                              <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Email Address</label>
-                             <input value={settings.conciergeConfig.emailAddress} onChange={e => setSettings({...settings, conciergeConfig: {...settings.conciergeConfig, emailAddress: e.target.value}})} className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" />
-                         </div>
-                         <div>
-                             <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Business Hours</label>
-                             <input value={settings.conciergeConfig.businessHours} onChange={e => setSettings({...settings, conciergeConfig: {...settings.conciergeConfig, businessHours: e.target.value}})} className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" />
-                         </div>
-                         <div>
-                             <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">DM Template</label>
-                             <textarea value={settings.conciergeConfig.dmTemplate} onChange={e => setSettings({...settings, conciergeConfig: {...settings.conciergeConfig, dmTemplate: e.target.value}})} className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none h-24" />
+                             <input value={settings.conciergeConfig.emailAddress || ''} onChange={e => setSettings({...settings, conciergeConfig: {...settings.conciergeConfig, emailAddress: e.target.value}})} className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" />
                          </div>
                          <button disabled={actionLoading} className="w-full py-3 bg-white text-black uppercase tracking-widest text-xs font-bold hover:bg-gold-500 hover:text-white transition-colors disabled:opacity-50">
                              {actionLoading ? 'Saving...' : 'Update Protocol'}
@@ -1164,6 +1181,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
                                                       ${selectedOrder.shippingAddress?.house}, ${selectedOrder.shippingAddress?.street}<br/>
                                                       ${selectedOrder.shippingAddress?.city}, ${selectedOrder.shippingAddress?.state} - ${selectedOrder.shippingAddress?.pincode}<br/>
                                                       ${selectedOrder.shippingAddress?.mobile}<br/>
+                                                      ${selectedOrder.shippingAddress?.alternateMobile ? `${selectedOrder.shippingAddress?.alternateMobile}<br/>` : ''}
                                                       ${selectedOrder.shippingAddress?.email}</p>
                                                   </div>
                                                   <div style="margin-bottom: 30px;">
@@ -1200,6 +1218,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
                           <div className="space-y-2 text-sm text-white/80">
                               <p><span className="text-white/30">Name:</span> {selectedOrder.shippingAddress?.fullName}</p>
                               <p><span className="text-white/30">Mobile:</span> {selectedOrder.shippingAddress?.mobile}</p>
+                              {selectedOrder.shippingAddress?.alternateMobile && (
+                                  <p><span className="text-white/30">Alt Mobile:</span> {selectedOrder.shippingAddress?.alternateMobile}</p>
+                              )}
                               <p><span className="text-white/30">Email:</span> {selectedOrder.shippingAddress?.email}</p>
                               <p className="border-t border-white/10 pt-2 mt-2"><span className="text-white/30">Address:</span><br/>
                               {selectedOrder.shippingAddress?.house}, {selectedOrder.shippingAddress?.street}<br/>
@@ -1446,9 +1467,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
                       <textarea required value={currentProduct.description} onChange={e => setCurrentProduct({...currentProduct, description: e.target.value})} className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none h-24" />
                   </div>
                   <div>
-                      <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Details (JSON Array of Strings)</label>
+                      <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Details (JSON Object)</label>
                       <textarea 
-                        value={JSON.stringify(currentProduct.details || [], null, 2)} 
+                        value={JSON.stringify(currentProduct.details || {}, null, 2)} 
                         onChange={e => {
                             try {
                                 const parsed = JSON.parse(e.target.value);
@@ -1457,8 +1478,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
                                 // Ignore parse errors while typing
                             }
                         }} 
-                        className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none h-24 font-mono" 
-                        placeholder='["Detail 1", "Detail 2"]'
+                        className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none h-32 font-mono" 
+                        placeholder='{&#10;  "Material": "100% Cotton",&#10;  "Origin": "Italy"&#10;}'
                       />
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1487,51 +1508,81 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
                       </div>
                   </div>
                   <div>
-                      <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Sizes (Comma separated)</label>
-                      <input 
-                        value={currentProduct.sizes?.join(', ') || ''} 
-                        onChange={e => {
-                            const sizesArray = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
-                            setCurrentProduct({...currentProduct, sizes: sizesArray});
-                        }} 
-                        placeholder="e.g. S, M, L, XL" 
-                        className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" 
-                      />
-                  </div>
-                  <div>
-                      <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Out of Stock Sizes (Comma separated)</label>
-                      <input 
-                        value={currentProduct.outOfStockSizes?.join(', ') || ''} 
-                        onChange={e => {
-                            const sizesArray = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
-                            setCurrentProduct({...currentProduct, outOfStockSizes: sizesArray});
-                        }} 
-                        placeholder="e.g. M, XL" 
-                        className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" 
-                      />
+                      <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Sizes & Stock</label>
+                      <div className="space-y-2">
+                          {currentProduct.sizes?.map((size, idx) => (
+                              <div key={idx} className="flex gap-2 items-center">
+                                  <div className="w-1/3 bg-white/5 border border-white/10 p-2 text-white text-sm text-center font-mono">
+                                      {size}
+                                  </div>
+                                  <input 
+                                      type="number"
+                                      value={currentProduct.sizeStock?.[size] ?? ''}
+                                      onChange={e => {
+                                          const val = e.target.value;
+                                          const newStock = {...(currentProduct.sizeStock || {})};
+                                          
+                                          if (val === '') {
+                                              delete newStock[size];
+                                          } else {
+                                              newStock[size] = parseInt(val) || 0;
+                                          }
+                                          
+                                          const totalStock = Object.values(newStock).reduce((a, b) => a + b, 0);
+                                          
+                                          const outOfStock = Object.entries(newStock)
+                                              .filter(([_, stock]) => stock <= 0)
+                                              .map(([s, _]) => s);
+
+                                          setCurrentProduct({
+                                              ...currentProduct, 
+                                              sizeStock: newStock,
+                                              countInStock: totalStock,
+                                              outOfStockSizes: outOfStock
+                                          });
+                                      }}
+                                      className="w-2/3 bg-black border border-white/10 p-2 text-white text-sm focus:border-gold-500 outline-none"
+                                      placeholder="Stock Amount"
+                                  />
+                              </div>
+                          ))}
+                      </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
-                          <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Stock Count</label>
-                          <div className="flex items-center gap-2">
-                              <input type="number" required value={currentProduct.countInStock} onChange={e => setCurrentProduct({...currentProduct, countInStock: Number(e.target.value)})} className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" />
-                              <button 
-                                type="button"
-                                onClick={() => setCurrentProduct(prev => ({ ...prev, countInStock: prev.countInStock > 0 ? 0 : 1 }))}
-                                className={`p-3 border ${currentProduct.countInStock > 0 ? 'bg-green-500 text-black border-green-500' : 'bg-red-500 text-white border-red-500'}`}
-                                title="Quick Toggle Stock (0/1)"
-                              >
-                                  <Power size={16} />
-                              </button>
+                          <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Status</label>
+                          <select 
+                            value={currentProduct.isArchived ? 'archived' : currentProduct.countInStock > 0 ? 'active' : 'exhausted'} 
+                            onChange={e => {
+                                const val = e.target.value;
+                                if (val === 'archived') {
+                                    setCurrentProduct({...currentProduct, isArchived: true, countInStock: 0});
+                                } else if (val === 'active') {
+                                    setCurrentProduct({...currentProduct, isArchived: false, countInStock: Math.max(1, currentProduct.countInStock)});
+                                } else {
+                                    setCurrentProduct({...currentProduct, isArchived: false, countInStock: 0});
+                                }
+                            }} 
+                            className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none"
+                          >
+                              <option value="active">Active (In Stock)</option>
+                              <option value="exhausted">Exhausted (Out of Stock)</option>
+                              <option value="archived">Archived (Hidden)</option>
+                          </select>
+                      </div>
+                      {(!currentProduct.isArchived) && (
+                          <div>
+                              <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Total Stock Count</label>
+                              <input 
+                                type="number" 
+                                required 
+                                value={currentProduct.countInStock} 
+                                onChange={e => setCurrentProduct({...currentProduct, countInStock: Number(e.target.value)})} 
+                                className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none disabled:opacity-50" 
+                                disabled={currentProduct.sizes && currentProduct.sizes.length > 0}
+                              />
                           </div>
-                      </div>
-                  </div>
-                  {/* Archive Toggle in Modal */}
-                  <div className="flex items-center gap-4 border border-white/10 p-4">
-                      <div className={`w-4 h-4 border cursor-pointer flex items-center justify-center ${currentProduct.isArchived ? 'bg-white border-white' : 'border-white/40'}`} onClick={() => setCurrentProduct(prev => ({ ...prev, isArchived: !prev.isArchived }))}>
-                          {currentProduct.isArchived && <Check size={12} className="text-black" />}
-                      </div>
-                      <span className="text-xs uppercase tracking-widest text-white/60">Archive Item (Hidden from public store)</span>
+                      )}
                   </div>
 
                   <div>

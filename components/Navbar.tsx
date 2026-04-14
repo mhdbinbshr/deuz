@@ -184,7 +184,7 @@ const Navbar: React.FC<NavbarProps> = ({
                           initial={{ opacity: 0, y: 10, filter: "blur(5px)" }}
                           animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
                           exit={{ opacity: 0, y: 10, filter: "blur(5px)" }}
-                          className="absolute top-full right-0 mt-6 w-56 bg-[#050505]/90 border border-white/5 backdrop-blur-3xl shadow-2xl rounded-sm overflow-hidden"
+                          className="absolute top-full right-0 mt-4 w-56 max-w-[calc(100vw-2rem)] bg-[#050505]/95 border border-white/10 backdrop-blur-3xl shadow-2xl rounded-sm overflow-hidden z-50 origin-top-right"
                         >
                           <div className="px-6 py-4 border-b border-white/5 bg-white/[0.02]">
                             <p className="text-white text-xs font-serif tracking-wider">{user.fullName}</p>

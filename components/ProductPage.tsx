@@ -155,6 +155,8 @@ const ProductPage: React.FC<ProductPageProps> = ({
                     isArchived: p.isArchived, // Add archived state
                     // Enforce Alpha sizing fallback if not present, though DB should now provide it
                     sizes: p.sizes && p.sizes.length > 0 ? p.sizes : ['S', 'M', 'L', 'XL', 'XXL'],
+                    outOfStockSizes: p.outOfStockSizes || [],
+                    sizeStock: p.sizeStock || {},
                     imageTag: p.imageTag,
                     houseCode: p.houseCode
                 }));
@@ -240,31 +242,41 @@ const ProductPage: React.FC<ProductPageProps> = ({
     setError('');
   };
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
     if (!selectedProduct) return;
     if (selectedProduct.sizes && selectedProduct.sizes.length > 0 && !selectedSize) {
       setError('Size selection required.');
       return;
     }
-    addToCart({ 
+    const maxStock = selectedSize && selectedProduct.sizeStock && typeof selectedProduct.sizeStock[selectedSize] === 'number' 
+        ? selectedProduct.sizeStock[selectedSize] 
+        : selectedProduct.countInStock;
+        
+    await addToCart({ 
         ...selectedProduct, 
         selectedSize,
-        maxStock: selectedProduct.countInStock 
+        maxStock
     });
   };
 
-  const handleBuyNow = () => {
+  const handleBuyNow = async () => {
     if (!selectedProduct) return;
     if (selectedProduct.sizes && selectedProduct.sizes.length > 0 && !selectedSize) {
       setError('Size selection required.');
       return;
     }
-    addToCart({ ...selectedProduct, selectedSize });
+    const maxStock = selectedSize && selectedProduct.sizeStock && typeof selectedProduct.sizeStock[selectedSize] === 'number' 
+        ? selectedProduct.sizeStock[selectedSize] 
+        : selectedProduct.countInStock;
+        
+    const success = await addToCart({ ...selectedProduct, selectedSize, maxStock });
     
-    if (!user) {
-        openAuthModal();
-    } else {
-        onBuyNow({ ...selectedProduct, selectedSize });
+    if (success) {
+        if (!user) {
+            openAuthModal();
+        } else {
+            onBuyNow({ ...selectedProduct, selectedSize, maxStock });
+        }
     }
   };
 
@@ -537,9 +549,16 @@ const ProductPage: React.FC<ProductPageProps> = ({
                           initial={{ opacity: 0, height: 0 }} 
                           animate={{ opacity: 1, height: 'auto' }} 
                           exit={{ opacity: 0, height: 0 }}
-                          className="mt-4 text-[10px] text-white/50 font-mono uppercase tracking-widest border border-white/5 p-3 bg-white/5"
+                          className="mt-4 text-[10px] text-white/50 font-mono uppercase tracking-widest border border-white/5 p-3 bg-white/5 flex flex-col gap-2"
                         >
-                          {getSizeDetails(selectedProduct.fit, selectedSize)}
+                          <div className="flex justify-between items-center">
+                              <span>{getSizeDetails(selectedProduct.fit, selectedSize)}</span>
+                              {selectedProduct.sizeStock && typeof selectedProduct.sizeStock[selectedSize] === 'number' && (
+                                  <span className="text-gold-500 font-bold">
+                                      {selectedProduct.sizeStock[selectedSize]} IN STOCK
+                                  </span>
+                              )}
+                          </div>
                         </motion.div>
                       )}
                     </AnimatePresence>

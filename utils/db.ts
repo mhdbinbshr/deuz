@@ -101,7 +101,7 @@ const FALLBACK_SETTINGS = {
     },
     siteContent: {
         heroTitle: 'CINEMATIC REALITY',
-        heroSubtitle: 'Crafting immersive visual experiences for the world\'s leading brands and storytellers.',
+        heroSubtitle: 'Not for everyone.',
         ctaText: 'Initiate Request',
         checkoutDisclaimer: 'Submit your allocation request. No payment is required until our curators verify your dossier.',
         footerText: 'Designed in Cinematic Vision'
@@ -270,7 +270,7 @@ export const db = {
   updateProduct: async (id: string, data: any) => {
     try {
         const docRef = doc(firestore, "products", id);
-        const { _id, id: pid, ...updateData } = data;
+        const { _id, id: pid, createdAt, ...updateData } = data;
         const safeData = JSON.parse(JSON.stringify(updateData));
         await setDoc(docRef, safeData, { merge: true });
         return { ...data, id };
@@ -299,6 +299,31 @@ export const db = {
         const cartDoc = await getDoc(doc(firestore, "carts", user.uid));
         if (cartDoc.exists()) {
             const data = cartDoc.data();
+            if (data.items && data.items.length > 0) {
+                const updatedItems = await Promise.all(data.items.map(async (item: any) => {
+                    try {
+                        const pId = item.product?._id || item.product?.id;
+                        if (pId) {
+                            const pDoc = await getDoc(doc(firestore, "products", pId));
+                            if (pDoc.exists()) {
+                                const pData = pDoc.data();
+                                item.product = {
+                                    ...item.product,
+                                    countInStock: pData.countInStock ?? null,
+                                    sizeStock: pData.sizeStock || null,
+                                    price: pData.price || item.product.price,
+                                    title: pData.title || item.product.title,
+                                    image: pData.image || item.product.image
+                                };
+                            }
+                        }
+                    } catch (e) {
+                        // ignore
+                    }
+                    return item;
+                }));
+                data.items = updatedItems;
+            }
             return { ...data, _id: user.uid };
         }
         await setDoc(doc(firestore, "carts", user.uid), { user: user.uid, items: [] });
@@ -323,23 +348,40 @@ export const db = {
             if (pDoc.exists()) productData = { ...pDoc.data(), _id: pDoc.id };
         } catch (e) { /* ignore */ }
 
-        let currentItems = cartSnap.exists() ? cartSnap.data().items : [];
+        let currentItems = (cartSnap.exists() && cartSnap.data().items) ? cartSnap.data().items : [];
         const existingIdx = currentItems.findIndex((i: any) => 
             (i.product._id === (item.productId || item.id) || i.product.id === (item.productId || item.id)) && 
             i.selectedSize === item.selectedSize
         );
 
         if (existingIdx > -1) {
+            const maxStock = item.selectedSize && productData.sizeStock && typeof productData.sizeStock[item.selectedSize] === 'number'
+                ? productData.sizeStock[item.selectedSize]
+                : productData.countInStock ?? 99;
+                
+            if (currentItems[existingIdx].quantity + (item.quantity || 1) > maxStock) {
+                throw new Error(JSON.stringify({ error: "Maximum allocation reached for this artifact." }));
+            }
             currentItems[existingIdx].quantity += (item.quantity || 1);
         } else {
+            const maxStock = item.selectedSize && productData.sizeStock && typeof productData.sizeStock[item.selectedSize] === 'number'
+                ? productData.sizeStock[item.selectedSize]
+                : productData.countInStock ?? 99;
+                
+            if ((item.quantity || 1) > maxStock) {
+                throw new Error(JSON.stringify({ error: "Maximum allocation reached for this artifact." }));
+            }
+            
             currentItems.push({
+                _id: Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15),
                 product: {
                     _id: item.productId || item.id || item.product?._id || "",
                     title: productData.title || item.title || "",
                     price: productData.price || item.price || 0,
                     image: productData.image || item.image || "",
                     category: productData.category || "",
-                    countInStock: productData.countInStock ?? null
+                    countInStock: productData.countInStock ?? null,
+                    sizeStock: productData.sizeStock || null
                 },
                 quantity: item.quantity || 1,
                 selectedSize: item.selectedSize || null
@@ -350,7 +392,7 @@ export const db = {
         const safeItems = JSON.parse(JSON.stringify(currentItems));
 
         await setDoc(cartRef, { user: user.uid, items: safeItems }, { merge: true });
-        return { user: user.uid, items: safeItems };
+        return await db.getCart();
     } catch (error) {
         handleFirestoreError(error, OperationType.UPDATE, `carts/${user.uid}`);
         throw new Error("Unable to update cart. Please check your connection.");
@@ -366,12 +408,28 @@ export const db = {
         const cartSnap = await getDoc(cartRef);
         if (!cartSnap.exists()) return;
 
-        let items = cartSnap.data().items;
-        // Logic for updating single item in array would typically involve identifying it
-        // For this mock-up of Firebase logic, we return empty to trigger refresh or handle in context
-        return { items };
+        let items = cartSnap.data().items || [];
+        const itemIndex = items.findIndex((i: any) => {
+            const currentItemId = i._id || i.cartItemId || `${i.product?._id || i.product?.id}_${i.selectedSize}`;
+            return currentItemId === itemId;
+        });
+
+        if (itemIndex > -1) {
+            const item = items[itemIndex];
+            const maxStock = item.selectedSize && item.product?.sizeStock && typeof item.product.sizeStock[item.selectedSize] === 'number'
+                ? item.product.sizeStock[item.selectedSize]
+                : item.product?.countInStock ?? 99;
+                
+            if (quantity > maxStock) {
+                throw new Error(JSON.stringify({ error: "Maximum allocation reached for this artifact." }));
+            }
+            items[itemIndex].quantity = quantity;
+            await setDoc(cartRef, { user: user.uid, items }, { merge: true });
+        }
+        
+        return await db.getCart();
     } catch (error) {
-        handleFirestoreError(error, OperationType.GET, `carts/${user.uid}`);
+        handleFirestoreError(error, OperationType.UPDATE, `carts/${user.uid}`);
     }
   },
 
@@ -385,12 +443,12 @@ export const db = {
         
         const currentItems = cartSnap.data().items || [];
         const updatedItems = currentItems.filter((i: any) => {
-            const currentItemId = i.cartItemId || `${i.product._id}_${i.selectedSize}`;
+            const currentItemId = i._id || i.cartItemId || `${i.product?._id || i.product?.id}_${i.selectedSize}`;
             return currentItemId !== itemId;
         });
         
         await setDoc(cartRef, { user: user.uid, items: updatedItems }, { merge: true });
-        return { items: updatedItems }; 
+        return await db.getCart(); 
     } catch (error) {
         handleFirestoreError(error, OperationType.UPDATE, `carts/${user.uid}`);
     }
@@ -416,7 +474,7 @@ export const db = {
         }));
 
         await setDoc(cartRef, { user: user.uid, items: formattedItems }, { merge: true });
-        return { user: user.uid, items: formattedItems };
+        return await db.getCart();
     } catch (error) {
         handleFirestoreError(error, OperationType.UPDATE, `carts/${user.uid}`);
     }
@@ -498,8 +556,22 @@ export const db = {
                     const pRef = doc(firestore, "products", pid);
                     const pSnap = await getDoc(pRef);
                     if (pSnap.exists()) {
-                        const current = pSnap.data().countInStock || 0;
-                        await updateDoc(pRef, { countInStock: Math.max(0, current - item.quantity) });
+                        const productData = pSnap.data();
+                        const current = productData.countInStock || 0;
+                        const updateData: any = { countInStock: Math.max(0, current - item.quantity) };
+                        
+                        if (item.selectedSize && productData.sizeStock && typeof productData.sizeStock[item.selectedSize] === 'number') {
+                            const newSizeStock = { ...productData.sizeStock };
+                            newSizeStock[item.selectedSize] = Math.max(0, newSizeStock[item.selectedSize] - item.quantity);
+                            updateData.sizeStock = newSizeStock;
+                            
+                            const outOfStock = Object.entries(newSizeStock)
+                                .filter(([_, stock]) => (stock as number) <= 0)
+                                .map(([s, _]) => s);
+                            updateData.outOfStockSizes = outOfStock;
+                        }
+                        
+                        await updateDoc(pRef, updateData);
                     }
                 }
             } catch (e) {
@@ -594,8 +666,22 @@ export const db = {
                         const productRef = doc(firestore, "products", item.product);
                         const productSnap = await getDoc(productRef);
                         if (productSnap.exists()) {
-                            const currentStock = productSnap.data().countInStock || 0;
-                            await updateDoc(productRef, { countInStock: currentStock + item.quantity });
+                            const productData = productSnap.data();
+                            const currentStock = productData.countInStock || 0;
+                            const updateData: any = { countInStock: currentStock + item.quantity };
+                            
+                            if (item.selectedSize && productData.sizeStock && typeof productData.sizeStock[item.selectedSize] === 'number') {
+                                const newSizeStock = { ...productData.sizeStock };
+                                newSizeStock[item.selectedSize] = newSizeStock[item.selectedSize] + item.quantity;
+                                updateData.sizeStock = newSizeStock;
+                                
+                                const outOfStock = Object.entries(newSizeStock)
+                                    .filter(([_, stock]) => (stock as number) <= 0)
+                                    .map(([s, _]) => s);
+                                updateData.outOfStockSizes = outOfStock;
+                            }
+                            
+                            await updateDoc(productRef, updateData);
                         }
                     }
                 }
@@ -718,9 +804,10 @@ export const db = {
 
   updateSystemSettings: async (data: any) => {
     try {
-        await setDoc(doc(firestore, "settings", "global_config"), data, { merge: true });
+        await setDoc(doc(firestore, "settings", "global_config"), { ...data, key: 'global_config' }, { merge: true });
     } catch (error) {
         handleFirestoreError(error, OperationType.UPDATE, 'settings/global_config');
+        throw error;
     }
   },
   

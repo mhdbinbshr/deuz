@@ -213,16 +213,16 @@ const FashionStore: React.FC<FashionStoreProps> = ({ onEnterStore }) => {
                 <div className="space-y-3 font-mono text-[10px] text-white/60">
                     <div className="flex justify-between">
                         <span>Category</span>
-                        <span className="text-white uppercase">{currentProduct ? currentProduct.category : 'Apparel'}</span>
+                        <span className="text-white uppercase">{currentProduct ? currentProduct.category : (content.sovereignCategory || 'Apparel')}</span>
                     </div>
                     <div className="flex justify-between">
                         <span>Price</span>
-                        <span className="text-white">₹{currentProduct ? currentProduct.price.toLocaleString('en-IN') : '12,000'}</span>
+                        <span className="text-white">{currentProduct ? `₹${currentProduct.price.toLocaleString('en-IN')}` : (content.sovereignPrice || '₹12,000')}</span>
                     </div>
                     <div className="flex justify-between">
                         <span>Status</span>
-                        <span className={currentProduct?.inStock ? "text-green-500" : "text-red-500"}>
-                            {currentProduct ? (currentProduct.inStock ? 'Active' : 'Exhausted') : 'Active'}
+                        <span className={currentProduct?.inStock ? "text-green-500" : (content.sovereignStatus?.toLowerCase() === 'exhausted' ? "text-red-500" : "text-green-500")}>
+                            {currentProduct ? (currentProduct.inStock ? 'Active' : 'Exhausted') : (content.sovereignStatus || 'Active')}
                         </span>
                     </div>
                 </div>

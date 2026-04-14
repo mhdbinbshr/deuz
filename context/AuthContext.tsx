@@ -56,13 +56,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 if (userDoc.exists()) {
                   const userData = userDoc.data();
                   const isAdminEmail = firebaseUser.email === 'muhammadbinbasheer777@gmail.com' || firebaseUser.email === 'unk410066@gmail.com';
+                  const addressData = userData.address || (userData.addresses && userData.addresses.length > 0 ? userData.addresses[0] : undefined);
                   setUser({
                     id: firebaseUser.uid,
                     email: firebaseUser.email || '',
                     fullName: userData.fullName || 'User',
                     mobile: userData.mobile || '',
+                    alternateMobile: addressData?.alternateMobile || '',
                     role: isAdminEmail ? 'admin' : (userData.role || 'user'),
-                    address: userData.address,
+                    address: addressData,
                     orders: [], 
                     joinedDate: userData.createdAt ? new Date(userData.createdAt.seconds * 1000).toISOString() : new Date().toISOString()
                   });

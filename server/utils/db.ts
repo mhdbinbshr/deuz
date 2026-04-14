@@ -38,7 +38,7 @@ const FALLBACK_SETTINGS = {
     },
     siteContent: {
         heroTitle: 'CINEMATIC REALITY',
-        heroSubtitle: 'Crafting immersive visual experiences for the world\'s leading brands and storytellers.',
+        heroSubtitle: 'Not for everyone.',
         ctaText: 'Initiate Request',
         checkoutDisclaimer: 'Submit your allocation request.',
         footerText: 'Designed in Cinematic Vision'

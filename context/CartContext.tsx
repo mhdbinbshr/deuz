@@ -9,7 +9,7 @@ interface CartContextType {
   isCartOpen: boolean;
   cartLoading: boolean;
   setIsCartOpen: (open: boolean) => void;
-  addToCart: (item: Omit<CartItem, 'quantity'>) => Promise<void>;
+  addToCart: (item: Omit<CartItem, 'quantity'>) => Promise<boolean>;
   removeFromCart: (cartItemId: string | undefined) => Promise<void>;
   updateQuantity: (cartItemId: string | undefined, delta: number) => Promise<void>;
   clearCart: () => void;
@@ -32,8 +32,12 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return backendCart.items.map((item: any) => {
         // If product is populated
         if (item.product && typeof item.product === 'object') {
+            const maxStock = item.selectedSize && item.product.sizeStock && typeof item.product.sizeStock[item.selectedSize] === 'number'
+                ? item.product.sizeStock[item.selectedSize]
+                : item.product.countInStock;
+
             return {
-                cartItemId: item._id, // The ID of the line item in cart
+                cartItemId: item._id || item.cartItemId || `${item.product._id || item.product.id}_${item.selectedSize}`, // The ID of the line item in cart
                 id: item.product._id || item.product.id, // The Product ID
                 title: item.product.title,
                 price: item.product.price,
@@ -41,7 +45,7 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 quantity: item.quantity,
                 selectedSize: item.selectedSize,
                 category: item.product.category,
-                maxStock: item.product.countInStock
+                maxStock: maxStock
             };
         }
         return null;
@@ -83,7 +87,27 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         } else {
           // 2. Guest User - Load from Storage
           const stored = storage.getCart();
-          if (mounted) setCartItems(stored);
+          if (stored && stored.length > 0) {
+              try {
+                  const updatedStored = await Promise.all(stored.map(async (item: CartItem) => {
+                      try {
+                          const pDoc = await db.getProductById(item.id);
+                          if (pDoc) {
+                              const maxStock = item.selectedSize && pDoc.sizeStock && typeof pDoc.sizeStock[item.selectedSize] === 'number'
+                                  ? pDoc.sizeStock[item.selectedSize]
+                                  : pDoc.countInStock ?? 99;
+                              return { ...item, maxStock };
+                          }
+                      } catch (e) {}
+                      return item;
+                  }));
+                  if (mounted) setCartItems(updatedStored);
+              } catch (e) {
+                  if (mounted) setCartItems(stored);
+              }
+          } else {
+              if (mounted) setCartItems(stored);
+          }
         }
       } catch (error) {
         console.error("Cart initialization critical error", error);
@@ -119,7 +143,7 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         productType: newItem.productType,
         description: newItem.description,
         details: newItem.details,
-        cartItemId: newItem.cartItemId
+        cartItemId: newItem.cartItemId || Math.random().toString(36).substring(2, 15)
     };
 
     if (user) {
@@ -127,13 +151,29 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const updatedCart = await db.addToCart(sanitizedItem);
         setCartItems(mapBackendCartToFrontend(updatedCart));
         setIsCartOpen(true);
-      } catch (e) {
+        setCartLoading(false);
+        return true;
+      } catch (e: any) {
         console.error("Add to cart failed", e);
-        alert("Unable to secure item. Please check availability.");
+        let errorMsg = e.message || "Unable to secure item. Please check availability.";
+        try {
+            const parsed = JSON.parse(e.message);
+            if (parsed.error) {
+                errorMsg = parsed.error;
+            }
+        } catch(err) {}
+        
+        if (!errorMsg.includes('stock') && !errorMsg.includes('allocation')) {
+            errorMsg = "Unable to secure item. Please check availability.";
+        }
+        alert(errorMsg);
+        setCartLoading(false);
+        return false;
       }
     } else {
       // Simulate network delay slightly for consistent UX
       await new Promise(r => setTimeout(r, 200));
+      let success = true;
       setCartItems(prev => {
         const existingIndex = prev.findIndex(item => 
             item.id === sanitizedItem.id && item.selectedSize === sanitizedItem.selectedSize
@@ -148,6 +188,7 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
              updated[existingIndex].quantity += 1;
           } else {
              alert(`Maximum allocation reached for this artifact.`);
+             success = false;
           }
           return updated;
         }
@@ -156,9 +197,10 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const guestCartItemId = `guest_${sanitizedItem.id}_${sanitizedItem.selectedSize || 'std'}_${Date.now()}`;
         return [...prev, { ...sanitizedItem, quantity: 1, cartItemId: guestCartItemId }];
       });
-      setIsCartOpen(true);
+      if (success) setIsCartOpen(true);
+      setCartLoading(false);
+      return success;
     }
-    setCartLoading(false);
   };
 
   const updateQuantity = async (cartItemId: string | undefined, delta: number) => {
@@ -183,8 +225,14 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
            setCartItems(mapBackendCartToFrontend(updated));
         } catch(e: any) {
            console.error("Update quantity failed", e);
-           if(e.message && e.message.includes('stock')) {
-             alert(e.message);
+           let errorMsg = e.message;
+           try {
+               const parsed = JSON.parse(e.message);
+               if (parsed.error) errorMsg = parsed.error;
+           } catch(err) {}
+           
+           if(errorMsg && (errorMsg.includes('stock') || errorMsg.includes('allocation'))) {
+             alert(errorMsg);
            }
         }
     } else {

@@ -127,6 +127,7 @@ export interface Address {
   fullName?: string; // Optional/Legacy support
   email: string;
   mobile: string; // Phone
+  alternateMobile?: string; // Optional additional phone number
   country: string; // Fixed: India
   address: string; // Combined Address
   city: string; // Town/City
@@ -173,6 +174,7 @@ export interface User {
   fullName: string;
   email: string;
   mobile: string;
+  alternateMobile?: string;
   password?: string;
   joinedDate: string;
   orders: Order[];

@@ -37,38 +37,90 @@ const ConciergeCheckoutModal: React.FC<ConciergeCheckoutModalProps> = ({
   const handleSelect = (method: 'instagram' | 'whatsapp' | 'email') => {
     // Generate Invoice PDF
     const doc = new jsPDF();
-    doc.setFontSize(20);
-    doc.text('DEUZ & CO - Invoice', 14, 22);
-    doc.setFontSize(10);
-    doc.text(`Order ID: ${orderCode}`, 14, 30);
-    doc.text(`Date: ${new Date().toLocaleDateString()}`, 14, 36);
-    doc.text(`Client: ${address?.fullName || address?.firstName || 'Guest'}`, 14, 42);
     
-    doc.setFontSize(14);
-    doc.text('Items', 14, 55);
+    // Cinematic styling
+    doc.setFillColor(10, 10, 10);
+    doc.rect(0, 0, 210, 297, 'F'); // A4 size background
+    
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(28);
+    doc.text('DEUZ & CO.', 105, 30, { align: 'center' });
+    
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(150, 150, 150);
+    doc.text('CINEMATIC REALITY', 105, 38, { align: 'center' });
+    
+    doc.setDrawColor(50, 50, 50);
+    doc.line(20, 50, 190, 50);
+    
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text('ALLOCATION DOSSIER', 20, 65);
+    
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(200, 200, 200);
+    doc.text(`Dossier ID: ${orderCode}`, 20, 75);
+    doc.text(`Date: ${new Date().toLocaleDateString()}`, 20, 82);
+    
+    doc.text('BILLED TO:', 120, 65);
+    doc.setTextColor(255, 255, 255);
+    doc.text(`${address?.fullName || address?.firstName || 'Guest'}`, 120, 75);
+    doc.setTextColor(200, 200, 200);
+    doc.text(`${address?.email || ''}`, 120, 82);
+    doc.text(`${address?.mobile || ''}`, 120, 89);
     
     const itemData = items.map((item: any) => [
         item.title,
-        item.selectedSize || item.size || 'N/A',
-        item.houseCode || 'N/A',
+        item.selectedSize || item.size || 'STD',
         item.quantity.toString(),
-        `$${item.price}`
+        `INR ${item.price.toLocaleString('en-IN')}`
     ]);
     
     autoTable(doc, {
-        startY: 60,
-        head: [['Item', 'Size', 'House Code', 'Qty', 'Price']],
+        startY: 110,
+        head: [['ARTIFACT', 'SIZE', 'QTY', 'VALUE']],
         body: itemData,
-        theme: 'grid',
-        styles: { fontSize: 10 },
-        headStyles: { fillColor: [20, 20, 20] }
+        theme: 'plain',
+        styles: { 
+            fillColor: [10, 10, 10], 
+            textColor: [200, 200, 200],
+            fontSize: 10,
+            cellPadding: 6,
+            lineColor: [50, 50, 50],
+            lineWidth: 0.1
+        },
+        headStyles: { 
+            fillColor: [20, 20, 20], 
+            textColor: [255, 255, 255],
+            fontStyle: 'bold',
+            halign: 'left'
+        },
+        alternateRowStyles: {
+            fillColor: [15, 15, 15]
+        }
     });
     
-    const finalY = (doc as any).lastAutoTable.finalY || 60;
-    doc.setFontSize(12);
-    doc.text(`Total: $${totalAmount}`, 14, finalY + 10);
+    const finalY = (doc as any).lastAutoTable.finalY || 110;
     
-    doc.save(`invoice-${orderCode}.pdf`);
+    doc.setDrawColor(50, 50, 50);
+    doc.line(120, finalY + 10, 190, finalY + 10);
+    
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(255, 255, 255);
+    doc.text('TOTAL VALUE:', 120, finalY + 20);
+    doc.text(`INR ${totalAmount.toLocaleString('en-IN')}`, 190, finalY + 20, { align: 'right' });
+    
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(100, 100, 100);
+    doc.text('Not for everyone.', 105, 280, { align: 'center' });
+    
+    doc.save(`DEUZ_Dossier_${orderCode}.pdf`);
 
     onInteractionStart(getInteractionDetails());
     onMethodSelect(method);
@@ -149,7 +201,7 @@ const ConciergeCheckoutModal: React.FC<ConciergeCheckoutModalProps> = ({
                 </div>
 
                 <p className="text-[10px] text-white/40 uppercase tracking-widest text-center">
-                  "Crafting immersive visual experiences."
+                  "Not for everyone"
                 </p>
               </div>
 
