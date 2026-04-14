@@ -269,7 +269,7 @@ const ProductPage: React.FC<ProductPageProps> = ({
         ? selectedProduct.sizeStock[selectedSize] 
         : selectedProduct.countInStock;
         
-    const success = await addToCart({ ...selectedProduct, selectedSize, maxStock });
+    const success = await addToCart({ ...selectedProduct, selectedSize, maxStock }, false);
     
     if (success) {
         if (!user) {

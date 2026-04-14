@@ -37,7 +37,7 @@ const FALLBACK_SETTINGS = {
         dmTemplate: 'Greetings from DEUZ & CO.'
     },
     siteContent: {
-        heroTitle: 'CINEMATIC REALITY',
+        heroTitle: 'NOT FOR EVERYONE',
         heroSubtitle: 'Not for everyone.',
         ctaText: 'Initiate Request',
         checkoutDisclaimer: 'Submit your allocation request.',

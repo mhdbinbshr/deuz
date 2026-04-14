@@ -100,7 +100,7 @@ const FALLBACK_SETTINGS = {
         dmTemplate: 'Greetings from DEUZ & CO.'
     },
     siteContent: {
-        heroTitle: 'CINEMATIC REALITY',
+        heroTitle: 'NOT FOR EVERYONE',
         heroSubtitle: 'Not for everyone.',
         ctaText: 'Initiate Request',
         checkoutDisclaimer: 'Submit your allocation request. No payment is required until our curators verify your dossier.',
@@ -391,7 +391,11 @@ export const db = {
         // Strip any undefined values that might cause Firestore errors
         const safeItems = JSON.parse(JSON.stringify(currentItems));
 
-        await setDoc(cartRef, { user: user.uid, items: safeItems }, { merge: true });
+        if (cartSnap.exists()) {
+            await updateDoc(cartRef, { items: safeItems });
+        } else {
+            await setDoc(cartRef, { user: user.uid, items: safeItems });
+        }
         return await db.getCart();
     } catch (error) {
         handleFirestoreError(error, OperationType.UPDATE, `carts/${user.uid}`);
@@ -424,7 +428,7 @@ export const db = {
                 throw new Error(JSON.stringify({ error: "Maximum allocation reached for this artifact." }));
             }
             items[itemIndex].quantity = quantity;
-            await setDoc(cartRef, { user: user.uid, items }, { merge: true });
+            await updateDoc(cartRef, { items });
         }
         
         return await db.getCart();
@@ -447,7 +451,7 @@ export const db = {
             return currentItemId !== itemId;
         });
         
-        await setDoc(cartRef, { user: user.uid, items: updatedItems }, { merge: true });
+        await updateDoc(cartRef, { items: updatedItems });
         return await db.getCart(); 
     } catch (error) {
         handleFirestoreError(error, OperationType.UPDATE, `carts/${user.uid}`);
@@ -473,7 +477,12 @@ export const db = {
             selectedSize: i.selectedSize
         }));
 
-        await setDoc(cartRef, { user: user.uid, items: formattedItems }, { merge: true });
+        const cartSnap = await getDoc(cartRef);
+        if (cartSnap.exists()) {
+            await updateDoc(cartRef, { items: formattedItems });
+        } else {
+            await setDoc(cartRef, { user: user.uid, items: formattedItems });
+        }
         return await db.getCart();
     } catch (error) {
         handleFirestoreError(error, OperationType.UPDATE, `carts/${user.uid}`);

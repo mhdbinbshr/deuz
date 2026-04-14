@@ -256,7 +256,7 @@ service cloud.firestore {
     match /carts/{userId} {
       allow read: if isOwner(userId) || isAdmin();
       allow create: if isOwner(userId) && isValidCart() && request.resource.data.user == userId;
-      allow update: if isOwner(userId) && isValidCart() && areImmutableFieldsUnchanged(['user']);
+      allow update: if isOwner(userId) && isValidCart() && (!('user' in resource.data) || areImmutableFieldsUnchanged(['user']));
       allow delete: if isOwner(userId) || isAdmin();
     }
 

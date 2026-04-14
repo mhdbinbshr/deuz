@@ -58,7 +58,19 @@ const AuthModal: React.FC = () => {
             setFormData({ fullName: '', email: '', mobile: '', password: '', confirmPassword: '' });
           }, 1500);
         } else {
-          setError(result.message || 'Access Denied. Credentials Invalid.');
+          let errorMsg = result.message || 'Access Denied. Credentials Invalid.';
+          try {
+            const parsed = JSON.parse(errorMsg);
+            if (parsed.error) errorMsg = parsed.error;
+          } catch (e) {}
+          if (errorMsg.includes('auth/invalid-credential') || errorMsg.includes('auth/wrong-password')) {
+             errorMsg = 'Invalid password. Please check your credentials.';
+          } else if (errorMsg.includes('auth/user-not-found')) {
+             errorMsg = 'Email not found.';
+          } else if (errorMsg.includes('auth/too-many-requests')) {
+             errorMsg = 'Too many attempts. Try again later.';
+          }
+          setError(errorMsg);
         }
       } else {
         if (!formData.fullName || !formData.email || !formData.password) {
@@ -86,10 +98,20 @@ const AuthModal: React.FC = () => {
             setFormData({ fullName: '', email: '', mobile: '', password: '', confirmPassword: '' });
           }, 1500);
         } else {
-          setError(result.message || 'Identity creation failed.');
+          let errorMsg = result.message || 'Identity creation failed.';
+          try {
+            const parsed = JSON.parse(errorMsg);
+            if (parsed.error) errorMsg = parsed.error;
+          } catch (e) {}
+          if (errorMsg.includes('auth/email-already-in-use')) {
+             errorMsg = 'Email already in use.';
+          } else if (errorMsg.includes('auth/weak-password')) {
+             errorMsg = 'Password is too weak.';
+          }
+          setError(errorMsg);
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       setError('System unavailable.');
     } finally {
       setLoading(false);

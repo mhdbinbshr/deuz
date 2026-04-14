@@ -9,7 +9,7 @@ interface CartContextType {
   isCartOpen: boolean;
   cartLoading: boolean;
   setIsCartOpen: (open: boolean) => void;
-  addToCart: (item: Omit<CartItem, 'quantity'>) => Promise<boolean>;
+  addToCart: (item: Omit<CartItem, 'quantity'>, openDrawer?: boolean) => Promise<boolean>;
   removeFromCart: (cartItemId: string | undefined) => Promise<void>;
   updateQuantity: (cartItemId: string | undefined, delta: number) => Promise<void>;
   clearCart: () => void;
@@ -128,7 +128,7 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [cartItems, user]);
 
-  const addToCart = async (newItem: Omit<CartItem, 'quantity'>) => {
+  const addToCart = async (newItem: Omit<CartItem, 'quantity'>, openDrawer: boolean = true) => {
     setCartLoading(true);
     
     // Sanitize item to prevent circular references (e.g. if event object passed)
@@ -150,7 +150,7 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       try {
         const updatedCart = await db.addToCart(sanitizedItem);
         setCartItems(mapBackendCartToFrontend(updatedCart));
-        setIsCartOpen(true);
+        if (openDrawer) setIsCartOpen(true);
         setCartLoading(false);
         return true;
       } catch (e: any) {
@@ -197,7 +197,7 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const guestCartItemId = `guest_${sanitizedItem.id}_${sanitizedItem.selectedSize || 'std'}_${Date.now()}`;
         return [...prev, { ...sanitizedItem, quantity: 1, cartItemId: guestCartItemId }];
       });
-      if (success) setIsCartOpen(true);
+      if (success && openDrawer) setIsCartOpen(true);
       setCartLoading(false);
       return success;
     }

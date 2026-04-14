@@ -31,7 +31,7 @@ interface SettingsContextType {
 }
 
 const DEFAULT_CONTENT: SiteContent = {
-  heroTitle: 'CINEMATIC REALITY',
+  heroTitle: 'NOT FOR EVERYONE',
   heroSubtitle: 'Not for everyone.',
   ctaText: 'Initiate Request',
   checkoutDisclaimer: 'Submit your allocation request. No payment is required until our curators verify your dossier.',

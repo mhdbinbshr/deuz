@@ -68,11 +68,11 @@ const ContactPage: React.FC<ContactPageProps> = ({ onClose }) => {
       </button>
 
       {/* LEFT: Visual Atmosphere & Data */}
-      <div className="w-full md:w-5/12 relative bg-[#050505] flex flex-col justify-between p-12 border-r border-white/5 overflow-hidden">
+      <div className="w-full md:w-5/12 relative bg-[#050505] flex flex-col justify-between p-6 md:p-12 border-b md:border-b-0 md:border-r border-white/5 overflow-hidden shrink-0">
          {/* Top Meta */}
-         <div className="relative z-10 flex flex-col md:flex-row justify-between items-start gap-6">
-            <div className="space-y-4">
-                <h1 className="text-2xl font-serif text-white tracking-[0.2em] leading-none">DEUZ & CO.</h1>
+         <div className="relative z-10 flex flex-row justify-between items-start gap-6">
+            <div className="space-y-2 md:space-y-4">
+                <h1 className="text-xl md:text-2xl font-serif text-white tracking-[0.2em] leading-none">DEUZ & CO.</h1>
                 
                 <div className="flex items-center gap-2 text-gold-500/80">
                     <Activity size={12} className="animate-pulse" />
@@ -80,14 +80,14 @@ const ContactPage: React.FC<ContactPageProps> = ({ onClose }) => {
                 </div>
             </div>
             
-            <div className="text-left md:text-right hidden md:block">
+            <div className="text-right">
                 <p className="text-white/40 font-mono text-xs">{time} UTC</p>
-                <p className="text-[9px] text-white/20 uppercase tracking-widest mt-1">Secure Channel</p>
+                <p className="text-[9px] text-white/20 uppercase tracking-widest mt-1 hidden md:block">Secure Channel</p>
             </div>
          </div>
 
          {/* Center Abstract Visualization */}
-         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[140%] h-[60%] pointer-events-none opacity-30 flex items-center justify-center">
+         <div className="hidden md:flex absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[140%] h-[60%] pointer-events-none opacity-30 items-center justify-center">
             {/* Spinning Rings */}
             <motion.div 
                animate={{ rotateX: 360, rotateY: 180 }}
@@ -106,7 +106,7 @@ const ContactPage: React.FC<ContactPageProps> = ({ onClose }) => {
          </div>
 
          {/* Bottom Contact Info - Simplified */}
-         <div className="relative z-10 flex justify-between items-end">
+         <div className="relative z-10 hidden md:flex justify-between items-end">
             <div>
                 <p className="text-[9px] text-white/20 uppercase tracking-widest mb-1">Avg. Response Time</p>
                 <p className="text-xs text-white/60 font-mono">~ 24 Hours</p>
@@ -116,8 +116,8 @@ const ContactPage: React.FC<ContactPageProps> = ({ onClose }) => {
       </div>
 
       {/* RIGHT: Form Interaction */}
-      <div className="w-full md:w-7/12 relative bg-[#020202] overflow-y-auto flex flex-col justify-center p-8 md:p-24">
-         <div className="max-w-xl w-full mx-auto relative z-10">
+      <div className="w-full md:w-7/12 relative bg-[#020202] overflow-y-auto flex flex-col justify-start md:justify-center p-6 md:p-24 flex-1">
+         <div className="max-w-xl w-full mx-auto relative z-10 py-8 md:py-0">
             
             {!isSent && (
                 <motion.div

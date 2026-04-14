@@ -11,8 +11,8 @@ const systemSettingsSchema = mongoose.Schema({
     dmTemplate: { type: String, default: 'Greetings from DEUZ & CO.' }
   },
   siteContent: {
-    heroTitle: { type: String, default: 'CINEMATIC REALITY' },
-    heroSubtitle: { type: String, default: 'Crafting immersive visual experiences.' },
+    heroTitle: { type: String, default: 'NOT FOR EVERYONE' },
+    heroSubtitle: { type: String, default: 'Not for everyone.' },
     ctaText: { type: String, default: 'Initiate Request' },
     checkoutDisclaimer: { type: String, default: 'Submit your allocation request.' },
     footerText: { type: String, default: 'Designed in Cinematic Vision' }
