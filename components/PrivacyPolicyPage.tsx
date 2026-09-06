@@ -16,8 +16,8 @@ const PrivacyPolicyPage: React.FC<PrivacyPolicyPageProps> = ({ onClose }) => {
     >
       <div className="fixed inset-0 pointer-events-none opacity-20 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] mix-blend-overlay" />
       
-      <nav className="sticky top-0 left-0 right-0 z-50 p-8 flex justify-between items-center bg-[#050505]/90 backdrop-blur-md border-b border-white/5">
-        <div className="text-xl font-serif text-white tracking-[0.2em]">DEUZ & CO</div>
+      <nav className="sticky top-0 left-0 right-0 z-50 p-4 sm:p-8 flex justify-between items-center bg-[#050505]/90 backdrop-blur-md border-b border-white/5">
+        <div className="text-xs sm:text-sm md:text-base font-serif text-white tracking-[0.15em] sm:tracking-[0.2em] whitespace-nowrap">DEUZ & CO</div>
         <button onClick={onClose} className="text-white/50 hover:text-white transition-colors group flex items-center gap-2">
           <span className="text-[10px] uppercase tracking-widest hidden md:block group-hover:mr-1 transition-all">Close</span>
           <X size={24} strokeWidth={1} />

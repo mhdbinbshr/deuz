@@ -37,9 +37,9 @@ const AdminSetupPage: React.FC<AdminSetupPageProps> = ({ onSuccess, onCancel }) 
           // Map response to User type
           const userToSave: User = {
               id: response.id,
-              fullName: response.fullName,
+              fullName: (response as any).fullName || formData.fullName,
               email: response.email,
-              mobile: response.mobile,
+              mobile: (response as any).mobile || '',
               role: response.role as any,
               joinedDate: new Date().toISOString(), // Use current time as fallback for serverTimestamp
               orders: [],

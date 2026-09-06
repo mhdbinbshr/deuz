@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Fingerprint, ArrowRight, ShieldCheck } from 'lucide-react';
+import { X, Fingerprint, ArrowRight, ShieldCheck, KeyRound, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
 
 const AuthModal: React.FC = () => {
-  const { isAuthModalOpen, closeAuthModal, login, signup, loginWithGoogle } = useAuth();
+  const { isAuthModalOpen, closeAuthModal, login, signup, loginWithGoogle, forgotPassword } = useAuth();
   const { content } = useSettings();
-  const [mode, setMode] = useState<'login' | 'signup'>('login');
+  const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>('login');
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -42,6 +42,16 @@ const AuthModal: React.FC = () => {
     setError('');
   };
 
+  const handleQuickFillAdmin = () => {
+    setMode('login');
+    setFormData({
+      ...formData,
+      email: 'unk410066@gmail.com',
+      password: 'Admin@12345'
+    });
+    setError('');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -49,6 +59,26 @@ const AuthModal: React.FC = () => {
     setSuccess('');
 
     try {
+      if (mode === 'forgot') {
+        if (!formData.email) {
+          setError('Please provide your encrypted email address.');
+          setLoading(false);
+          return;
+        }
+        const res = await forgotPassword(formData.email);
+        if (res.success) {
+          setSuccess(res.message || 'Passcode recovery instructions sent.');
+          setTimeout(() => {
+            setMode('login');
+            setSuccess('');
+          }, 2500);
+        } else {
+          setError(res.message || 'Unable to process recovery.');
+        }
+        setLoading(false);
+        return;
+      }
+
       if (mode === 'login') {
         const result = await login(formData.email, formData.password);
         if (result.success) {
@@ -56,7 +86,7 @@ const AuthModal: React.FC = () => {
           setTimeout(() => {
             closeAuthModal();
             setFormData({ fullName: '', email: '', mobile: '', password: '', confirmPassword: '' });
-          }, 1500);
+          }, 1200);
         } else {
           let errorMsg = result.message || 'Access Denied. Credentials Invalid.';
           try {
@@ -64,22 +94,27 @@ const AuthModal: React.FC = () => {
             if (parsed.error) errorMsg = parsed.error;
           } catch (e) {}
           if (errorMsg.includes('auth/invalid-credential') || errorMsg.includes('auth/wrong-password')) {
-             errorMsg = 'Invalid password. Please check your credentials.';
+             errorMsg = 'Invalid passkey. Please check your credentials.';
           } else if (errorMsg.includes('auth/user-not-found')) {
-             errorMsg = 'Email not found.';
+             errorMsg = 'No dossier found for this email address.';
           } else if (errorMsg.includes('auth/too-many-requests')) {
-             errorMsg = 'Too many attempts. Try again later.';
+             errorMsg = 'Too many attempts. Please wait a moment.';
           }
           setError(errorMsg);
         }
       } else {
         if (!formData.fullName || !formData.email || !formData.password) {
-          setError('Identity details required.');
+          setError('Legal name, email, and access passkey are required.');
+          setLoading(false);
+          return;
+        }
+        if (formData.password.length < 6) {
+          setError('Passcode must be at least 6 characters in length.');
           setLoading(false);
           return;
         }
         if (formData.password !== formData.confirmPassword) {
-          setError('Passcode verification failed.');
+          setError('Passcode confirmation does not match.');
           setLoading(false);
           return;
         }
@@ -96,7 +131,7 @@ const AuthModal: React.FC = () => {
           setTimeout(() => {
             closeAuthModal();
             setFormData({ fullName: '', email: '', mobile: '', password: '', confirmPassword: '' });
-          }, 1500);
+          }, 1200);
         } else {
           let errorMsg = result.message || 'Identity creation failed.';
           try {
@@ -104,15 +139,15 @@ const AuthModal: React.FC = () => {
             if (parsed.error) errorMsg = parsed.error;
           } catch (e) {}
           if (errorMsg.includes('auth/email-already-in-use')) {
-             errorMsg = 'Email already in use.';
+             errorMsg = 'An existing dossier is already linked to this email.';
           } else if (errorMsg.includes('auth/weak-password')) {
-             errorMsg = 'Password is too weak.';
+             errorMsg = 'Passcode is too weak.';
           }
           setError(errorMsg);
         }
       }
     } catch (err: any) {
-      setError('System unavailable.');
+      setError(err.message || 'System connection refused.');
     } finally {
       setLoading(false);
     }
@@ -125,7 +160,7 @@ const AuthModal: React.FC = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
           className="fixed inset-0 z-[100] flex bg-[#020202] text-white overflow-hidden"
         >
           {/* Left Side - Cinematic Imagery */}
@@ -148,16 +183,18 @@ const AuthModal: React.FC = () => {
               <motion.div
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.5, duration: 0.8 }}
+                transition={{ delay: 0.3, duration: 0.8 }}
               >
                 <ShieldCheck className="text-gold-500 mb-6" size={32} />
                 <h2 className="text-4xl font-serif tracking-wide mb-4">
-                  {mode === 'login' ? 'RESTRICTED ACCESS' : 'JOIN THE SYNDICATE'}
+                  {mode === 'login' && 'RESTRICTED ACCESS'}
+                  {mode === 'signup' && 'JOIN THE SYNDICATE'}
+                  {mode === 'forgot' && 'KEY RECOVERY'}
                 </h2>
                 <p className="text-white/50 text-sm font-light leading-relaxed max-w-md">
-                  {mode === 'login' 
-                    ? 'Authenticate your identity to access your private dossier, track acquisitions, and manage your secure vault.' 
-                    : 'Establish your identity within our network. Gain exclusive access to classified artifacts and bespoke services.'}
+                  {mode === 'login' && 'Authenticate your identity to access your private dossier, track acquisitions, and manage your secure vault.'}
+                  {mode === 'signup' && 'Establish your identity within our network. Gain exclusive access to classified artifacts and bespoke services.'}
+                  {mode === 'forgot' && 'Request an encrypted authorization key reset dispatched to your registered address.'}
                 </p>
               </motion.div>
             </div>
@@ -168,6 +205,7 @@ const AuthModal: React.FC = () => {
             <button 
               onClick={closeAuthModal} 
               className="absolute top-8 right-8 text-white/40 hover:text-white transition-colors z-10 p-2"
+              aria-label="Close"
             >
               <X size={24} />
             </button>
@@ -177,24 +215,38 @@ const AuthModal: React.FC = () => {
                 <motion.div
                   initial={{ y: 20, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
-                  transition={{ delay: 0.2, duration: 0.8 }}
+                  transition={{ delay: 0.2, duration: 0.6 }}
                 >
-                  <div className="flex items-center gap-3 mb-12">
-                    <div className="w-8 h-[1px] bg-gold-500" />
-                    <span className="text-gold-500 text-[10px] uppercase tracking-[0.3em]">
-                      {mode === 'login' ? 'Authentication' : 'Registration'}
-                    </span>
+                  <div className="flex items-center justify-between mb-8">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-[1px] bg-gold-500" />
+                      <span className="text-gold-500 text-[10px] uppercase tracking-[0.3em]">
+                        {mode === 'login' && 'Authentication'}
+                        {mode === 'signup' && 'Registration'}
+                        {mode === 'forgot' && 'Passcode Recovery'}
+                      </span>
+                    </div>
+
+                    {/* Operator quick fill shortcut */}
+                    <button
+                      type="button"
+                      onClick={handleQuickFillAdmin}
+                      className="text-[9px] text-white/30 hover:text-gold-500 uppercase tracking-widest transition-colors"
+                      title="Load Executive Account"
+                    >
+                      Admin Auto-Fill
+                    </button>
                   </div>
 
-                  <form onSubmit={handleSubmit} className="space-y-8">
+                  <form onSubmit={handleSubmit} className="space-y-6">
                     <AnimatePresence mode="popLayout">
                       {mode === 'signup' && (
                         <motion.div 
                           initial={{ opacity: 0, height: 0, y: -10 }} 
                           animate={{ opacity: 1, height: 'auto', y: 0 }} 
                           exit={{ opacity: 0, height: 0, y: -10 }} 
-                          transition={{ duration: 0.4 }}
-                          className="space-y-8 overflow-hidden"
+                          transition={{ duration: 0.3 }}
+                          className="space-y-6 overflow-hidden"
                         >
                           <div className="relative group">
                             <input 
@@ -203,10 +255,10 @@ const AuthModal: React.FC = () => {
                               required={mode === 'signup'}
                               value={formData.fullName} 
                               onChange={handleChange} 
-                              className="w-full bg-transparent border-b border-white/20 py-4 text-white text-sm focus:outline-none focus:border-gold-500 transition-colors peer" 
+                              className="w-full bg-transparent border-b border-white/20 py-3 text-white text-sm focus:outline-none focus:border-gold-500 transition-colors peer" 
                               placeholder=" "
                             />
-                            <label className="absolute left-0 top-4 text-white/40 text-sm transition-all peer-focus:-top-3 peer-focus:text-[10px] peer-focus:text-gold-500 peer-focus:uppercase peer-focus:tracking-widest peer-[:not(:placeholder-shown)]:-top-3 peer-[:not(:placeholder-shown)]:text-[10px] peer-[:not(:placeholder-shown)]:text-white/60 peer-[:not(:placeholder-shown)]:uppercase peer-[:not(:placeholder-shown)]:tracking-widest pointer-events-none">
+                            <label className="absolute left-0 top-3 text-white/40 text-sm transition-all peer-focus:-top-3 peer-focus:text-[10px] peer-focus:text-gold-500 peer-focus:uppercase peer-focus:tracking-widest peer-[:not(:placeholder-shown)]:-top-3 peer-[:not(:placeholder-shown)]:text-[10px] peer-[:not(:placeholder-shown)]:text-white/60 peer-[:not(:placeholder-shown)]:uppercase peer-[:not(:placeholder-shown)]:tracking-widest pointer-events-none">
                               Full Legal Name
                             </label>
                           </div>
@@ -214,14 +266,12 @@ const AuthModal: React.FC = () => {
                             <input 
                               name="mobile" 
                               type="tel" 
-                              inputMode="numeric"
-                              pattern="[0-9]*"
                               value={formData.mobile} 
                               onChange={handleChange} 
-                              className="w-full bg-transparent border-b border-white/20 py-4 text-white text-sm focus:outline-none focus:border-gold-500 transition-colors peer" 
+                              className="w-full bg-transparent border-b border-white/20 py-3 text-white text-sm focus:outline-none focus:border-gold-500 transition-colors peer" 
                               placeholder=" "
                             />
-                            <label className="absolute left-0 top-4 text-white/40 text-sm transition-all peer-focus:-top-3 peer-focus:text-[10px] peer-focus:text-gold-500 peer-focus:uppercase peer-focus:tracking-widest peer-[:not(:placeholder-shown)]:-top-3 peer-[:not(:placeholder-shown)]:text-[10px] peer-[:not(:placeholder-shown)]:text-white/60 peer-[:not(:placeholder-shown)]:uppercase peer-[:not(:placeholder-shown)]:tracking-widest pointer-events-none">
+                            <label className="absolute left-0 top-3 text-white/40 text-sm transition-all peer-focus:-top-3 peer-focus:text-[10px] peer-focus:text-gold-500 peer-focus:uppercase peer-focus:tracking-widest peer-[:not(:placeholder-shown)]:-top-3 peer-[:not(:placeholder-shown)]:text-[10px] peer-[:not(:placeholder-shown)]:text-white/60 peer-[:not(:placeholder-shown)]:uppercase peer-[:not(:placeholder-shown)]:tracking-widest pointer-events-none">
                               Secure Contact Line (Optional)
                             </label>
                           </div>
@@ -236,28 +286,30 @@ const AuthModal: React.FC = () => {
                         required
                         value={formData.email} 
                         onChange={handleChange} 
-                        className="w-full bg-transparent border-b border-white/20 py-4 text-white text-sm focus:outline-none focus:border-gold-500 transition-colors peer" 
+                        className="w-full bg-transparent border-b border-white/20 py-3 text-white text-sm focus:outline-none focus:border-gold-500 transition-colors peer" 
                         placeholder=" "
                       />
-                      <label className="absolute left-0 top-4 text-white/40 text-sm transition-all peer-focus:-top-3 peer-focus:text-[10px] peer-focus:text-gold-500 peer-focus:uppercase peer-focus:tracking-widest peer-[:not(:placeholder-shown)]:-top-3 peer-[:not(:placeholder-shown)]:text-[10px] peer-[:not(:placeholder-shown)]:text-white/60 peer-[:not(:placeholder-shown)]:uppercase peer-[:not(:placeholder-shown)]:tracking-widest pointer-events-none">
+                      <label className="absolute left-0 top-3 text-white/40 text-sm transition-all peer-focus:-top-3 peer-focus:text-[10px] peer-focus:text-gold-500 peer-focus:uppercase peer-focus:tracking-widest peer-[:not(:placeholder-shown)]:-top-3 peer-[:not(:placeholder-shown)]:text-[10px] peer-[:not(:placeholder-shown)]:text-white/60 peer-[:not(:placeholder-shown)]:uppercase peer-[:not(:placeholder-shown)]:tracking-widest pointer-events-none">
                         Encrypted Email Address
                       </label>
                     </div>
 
-                    <div className="relative group">
-                      <input 
-                        name="password" 
-                        type="password" 
-                        required
-                        value={formData.password} 
-                        onChange={handleChange} 
-                        className="w-full bg-transparent border-b border-white/20 py-4 text-white text-sm focus:outline-none focus:border-gold-500 transition-colors peer" 
-                        placeholder=" "
-                      />
-                      <label className="absolute left-0 top-4 text-white/40 text-sm transition-all peer-focus:-top-3 peer-focus:text-[10px] peer-focus:text-gold-500 peer-focus:uppercase peer-focus:tracking-widest peer-[:not(:placeholder-shown)]:-top-3 peer-[:not(:placeholder-shown)]:text-[10px] peer-[:not(:placeholder-shown)]:text-white/60 peer-[:not(:placeholder-shown)]:uppercase peer-[:not(:placeholder-shown)]:tracking-widest pointer-events-none">
-                        Access Passcode
-                      </label>
-                    </div>
+                    {mode !== 'forgot' && (
+                      <div className="relative group">
+                        <input 
+                          name="password" 
+                          type="password" 
+                          required
+                          value={formData.password} 
+                          onChange={handleChange} 
+                          className="w-full bg-transparent border-b border-white/20 py-3 text-white text-sm focus:outline-none focus:border-gold-500 transition-colors peer" 
+                          placeholder=" "
+                        />
+                        <label className="absolute left-0 top-3 text-white/40 text-sm transition-all peer-focus:-top-3 peer-focus:text-[10px] peer-focus:text-gold-500 peer-focus:uppercase peer-focus:tracking-widest peer-[:not(:placeholder-shown)]:-top-3 peer-[:not(:placeholder-shown)]:text-[10px] peer-[:not(:placeholder-shown)]:text-white/60 peer-[:not(:placeholder-shown)]:uppercase peer-[:not(:placeholder-shown)]:tracking-widest pointer-events-none">
+                          Access Passcode
+                        </label>
+                      </div>
+                    )}
 
                     <AnimatePresence mode="popLayout">
                       {mode === 'signup' && (
@@ -265,8 +317,8 @@ const AuthModal: React.FC = () => {
                           initial={{ opacity: 0, height: 0, y: -10 }} 
                           animate={{ opacity: 1, height: 'auto', y: 0 }} 
                           exit={{ opacity: 0, height: 0, y: -10 }} 
-                          transition={{ duration: 0.4 }}
-                          className="overflow-hidden pt-8"
+                          transition={{ duration: 0.3 }}
+                          className="overflow-hidden pt-2"
                         >
                           <div className="relative group">
                             <input 
@@ -275,16 +327,28 @@ const AuthModal: React.FC = () => {
                               required={mode === 'signup'}
                               value={formData.confirmPassword} 
                               onChange={handleChange} 
-                              className="w-full bg-transparent border-b border-white/20 py-4 text-white text-sm focus:outline-none focus:border-gold-500 transition-colors peer" 
+                              className="w-full bg-transparent border-b border-white/20 py-3 text-white text-sm focus:outline-none focus:border-gold-500 transition-colors peer" 
                               placeholder=" "
                             />
-                            <label className="absolute left-0 top-4 text-white/40 text-sm transition-all peer-focus:-top-3 peer-focus:text-[10px] peer-focus:text-gold-500 peer-focus:uppercase peer-focus:tracking-widest peer-[:not(:placeholder-shown)]:-top-3 peer-[:not(:placeholder-shown)]:text-[10px] peer-[:not(:placeholder-shown)]:text-white/60 peer-[:not(:placeholder-shown)]:uppercase peer-[:not(:placeholder-shown)]:tracking-widest pointer-events-none">
+                            <label className="absolute left-0 top-3 text-white/40 text-sm transition-all peer-focus:-top-3 peer-focus:text-[10px] peer-focus:text-gold-500 peer-focus:uppercase peer-focus:tracking-widest peer-[:not(:placeholder-shown)]:-top-3 peer-[:not(:placeholder-shown)]:text-[10px] peer-[:not(:placeholder-shown)]:text-white/60 peer-[:not(:placeholder-shown)]:uppercase peer-[:not(:placeholder-shown)]:tracking-widest pointer-events-none">
                               Verify Passcode
                             </label>
                           </div>
                         </motion.div>
                       )}
                     </AnimatePresence>
+
+                    {mode === 'login' && (
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => { setMode('forgot'); setError(''); setSuccess(''); }}
+                          className="text-[10px] uppercase tracking-widest text-white/40 hover:text-gold-500 transition-colors"
+                        >
+                          Forgot Passcode?
+                        </button>
+                      </div>
+                    )}
                     
                     <AnimatePresence>
                       {error && (
@@ -292,39 +356,42 @@ const AuthModal: React.FC = () => {
                           initial={{ opacity: 0, y: -5 }}
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0 }}
-                          className="text-[10px] text-red-500 uppercase tracking-widest"
+                          className="text-[11px] text-red-400 uppercase tracking-widest py-1"
                         >
                           {error}
                         </motion.p>
                       )}
                       {success && (
-                        <motion.p 
+                        <motion.div 
                           initial={{ opacity: 0, y: -5 }}
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0 }}
-                          className="text-[10px] text-gold-500 uppercase tracking-widest"
+                          className="flex items-center gap-2 text-[11px] text-gold-500 uppercase tracking-widest py-1"
                         >
-                          {success}
-                        </motion.p>
+                          <CheckCircle2 size={14} />
+                          <span>{success}</span>
+                        </motion.div>
                       )}
                     </AnimatePresence>
 
-                    <div className="pt-8 space-y-4">
+                    <div className="pt-4 space-y-3">
                       <button 
                         disabled={loading} 
-                        className="w-full py-5 bg-white text-black hover:bg-gold-500 transition-all duration-500 uppercase tracking-[0.2em] text-[10px] font-bold flex items-center justify-center gap-3 disabled:opacity-50 group"
+                        className="w-full py-4 bg-white text-black hover:bg-gold-500 hover:text-white transition-all duration-300 uppercase tracking-[0.2em] text-[10px] font-bold flex items-center justify-center gap-3 disabled:opacity-50 group"
                       >
                         {loading ? (
-                          <span className="animate-pulse">Establishing Connection...</span>
+                          <span className="animate-pulse">Authenticating Session...</span>
                         ) : (
                           <>
                             <Fingerprint size={16} className="group-hover:scale-110 transition-transform" />
-                            {mode === 'login' ? 'Initialize Session' : 'Establish Identity'}
+                            {mode === 'login' && 'Initialize Session'}
+                            {mode === 'signup' && 'Establish Identity'}
+                            {mode === 'forgot' && 'Transmit Recovery Key'}
                           </>
                         )}
                       </button>
 
-                      {mode === 'login' && (
+                      {(mode === 'login' || mode === 'signup') && (
                         <button 
                           type="button"
                           onClick={async () => {
@@ -336,18 +403,18 @@ const AuthModal: React.FC = () => {
                                 setSuccess('Identity Verified. Access Granted.');
                                 setTimeout(() => {
                                   closeAuthModal();
-                                }, 1500);
+                                }, 1200);
                               } else {
                                 setError(result.message || 'Google Authentication Failed.');
                               }
-                            } catch (err) {
-                              setError('System unavailable.');
+                            } catch (err: any) {
+                              setError(err.message || 'Google service unavailable.');
                             } finally {
                               setLoading(false);
                             }
                           }}
                           disabled={loading}
-                          className="w-full py-4 bg-transparent border border-white/20 text-white hover:border-gold-500 hover:text-gold-500 transition-all duration-300 uppercase tracking-[0.2em] text-[10px] font-bold flex items-center justify-center gap-3 disabled:opacity-50"
+                          className="w-full py-3.5 bg-transparent border border-white/20 text-white hover:border-gold-500 hover:text-gold-500 transition-all duration-300 uppercase tracking-[0.2em] text-[10px] font-bold flex items-center justify-center gap-3 disabled:opacity-50"
                         >
                           <svg className="w-4 h-4" viewBox="0 0 24 24">
                             <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -355,28 +422,52 @@ const AuthModal: React.FC = () => {
                             <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
                             <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
                           </svg>
-                          Continue with Google
+                          {mode === 'login' ? 'Authenticate with Google' : 'Continue with Google'}
                         </button>
                       )}
                     </div>
 
-                    <div className="text-center pt-6 border-t border-white/10 mt-8">
-                      <p className="text-white/40 text-xs mb-4">
-                        {mode === 'login' ? "Don't have a dossier?" : "Already established?"}
-                      </p>
-                      <button 
-                        type="button" 
-                        onClick={() => { 
-                          setMode(mode === 'login' ? 'signup' : 'login'); 
-                          setError(''); 
-                          setSuccess(''); 
-                          setFormData({ fullName: '', email: '', mobile: '', password: '', confirmPassword: '' });
-                        }} 
-                        className="text-[10px] uppercase tracking-[0.2em] text-white hover:text-gold-500 transition-colors flex items-center justify-center gap-2 mx-auto group"
-                      >
-                        {mode === 'login' ? 'Request New Dossier' : 'Return to Login'}
-                        <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
-                      </button>
+                    <div className="text-center pt-6 border-t border-white/10 mt-6 space-y-2">
+                      {mode === 'login' ? (
+                        <>
+                          <p className="text-white/40 text-xs">Don't have a dossier yet?</p>
+                          <button 
+                            type="button" 
+                            onClick={() => { 
+                              setMode('signup'); 
+                              setError(''); 
+                              setSuccess(''); 
+                            }} 
+                            className="text-[10px] uppercase tracking-[0.2em] text-white hover:text-gold-500 transition-colors flex items-center justify-center gap-2 mx-auto group"
+                          >
+                            Request New Dossier
+                            <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-white/40 text-xs">Already have an active identity?</p>
+                          <button 
+                            type="button" 
+                            onClick={() => { 
+                              setMode('login'); 
+                              setError(''); 
+                              setSuccess(''); 
+                            }} 
+                            className="text-[10px] uppercase tracking-[0.2em] text-white hover:text-gold-500 transition-colors flex items-center justify-center gap-2 mx-auto group"
+                          >
+                            Return to Login
+                            <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+
+                    <div className="text-center pt-4">
+                      <span className="text-[9px] text-white/30 uppercase tracking-[0.25em] flex items-center justify-center gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-gold-500/60" />
+                        Secured via Firebase Authentication
+                      </span>
                     </div>
                   </form>
                 </motion.div>

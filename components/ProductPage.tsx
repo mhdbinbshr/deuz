@@ -350,7 +350,7 @@ const ProductPage: React.FC<ProductPageProps> = ({
             </span>
           </button>
         </div>
-        <div className="text-sm md:text-base font-serif text-white tracking-[0.3em] pointer-events-auto">DEUZ & CO</div>
+        <div className="text-xs sm:text-sm md:text-base font-serif text-white tracking-[0.15em] sm:tracking-[0.2em] whitespace-nowrap pointer-events-auto">DEUZ & CO</div>
         <div className="w-6" /> 
       </nav>
 

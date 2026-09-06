@@ -13,6 +13,9 @@ interface SiteContent {
   aboutSubtitle?: string;
   aboutDescription?: string;
   aboutImage?: string;
+  sovereignCategory?: string;
+  sovereignPrice?: string;
+  sovereignStatus?: string;
 }
 
 interface ConciergeConfig {
@@ -46,7 +49,7 @@ const DEFAULT_CONTENT: SiteContent = {
   aboutTitle: 'THE HOUSE STANDARD',
   aboutSubtitle: 'DEUZ IS THE DESIGN.',
   aboutDescription: 'DEUZ & CO is anchored in singularity. One design defines the house — structured with discipline, refined with precision, and elevated through measured evolution. We do not multiply form. We perfect it. Each release strengthens the standard.',
-  aboutImage: 'https://ik.imagekit.io/dto1zguat/file_0000000054e071fa80c009a3a2a07326.png'
+  aboutImage: 'https://ik.imagekit.io/dto1zguat/1775236374031.png?updatedAt=1788674480127'
 };
 
 const DEFAULT_CONCIERGE: ConciergeConfig = {

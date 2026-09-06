@@ -19,7 +19,7 @@ type ContactMethod = 'instagram' | 'whatsapp' | 'email';
 
 const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onRegisterConciergeOrder }) => {
   const { user, openAuthModal } = useAuth();
-  const { cartItems, total, removeFromCart } = useCart();
+  const { cartItems, total, removeFromCart, refreshCart } = useCart();
   const { content } = useSettings();
   
   const [checkoutStatus, setCheckoutStatus] = useState<'idle' | 'processing' | 'modal' | 'locked'>('idle');
@@ -169,8 +169,8 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onRegisterConcierge
             }
         }
 
-        // Artificial delay for cinematic effect
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        // Subtle delay for transition smoothness
+        await new Promise(resolve => setTimeout(resolve, 300));
 
         // Ensure full name is constructed for backend compatibility if needed
         const payloadAddress = {
@@ -207,6 +207,10 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onRegisterConcierge
 
         setCheckoutStatus('idle');
         setFormError(error.message || "Connection interrupted. Please try again.");
+        
+        if (error.message?.includes('out of stock') || error.message?.includes('no longer available')) {
+            await refreshCart();
+        }
     }
   };
 
@@ -611,35 +615,6 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onRegisterConcierge
           </div>
 
        </div>
-       
-       {/* Cinematic Processing Overlay */}
-       <AnimatePresence>
-         {checkoutStatus === 'processing' && (
-           <motion.div
-             initial={{ opacity: 0 }}
-             animate={{ opacity: 1 }}
-             exit={{ opacity: 0 }}
-             className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-md"
-           >
-             <div className="text-center space-y-8">
-               <motion.div
-                 animate={{ rotate: 360 }}
-                 transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                 className="w-16 h-16 border-t-2 border-r-2 border-gold-500 rounded-full mx-auto"
-               />
-               <motion.div
-                 initial={{ opacity: 0, y: 10 }}
-                 animate={{ opacity: 1, y: 0 }}
-                 transition={{ delay: 0.5 }}
-                 className="space-y-2"
-               >
-                 <h2 className="text-2xl font-serif text-white tracking-[0.3em] uppercase">Securing Allocation</h2>
-                 <p className="text-gold-500/60 text-xs tracking-[0.2em] uppercase">Generating unique dossier...</p>
-               </motion.div>
-             </div>
-           </motion.div>
-         )}
-       </AnimatePresence>
 
        {checkoutStatus === 'modal' && generatedOrder && (
            <ConciergeCheckoutModal

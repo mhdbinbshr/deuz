@@ -63,8 +63,8 @@ const FashionStore: React.FC<FashionStoreProps> = ({ onEnterStore }) => {
     setIsWalkingIn(true);
     setTimeout(() => {
       onEnterStore();
-      setTimeout(() => setIsWalkingIn(false), 2000);
-    }, 2000);
+      setIsWalkingIn(false);
+    }, 350);
   };
 
   return (
@@ -221,8 +221,8 @@ const FashionStore: React.FC<FashionStoreProps> = ({ onEnterStore }) => {
                     </div>
                     <div className="flex justify-between">
                         <span>Status</span>
-                        <span className={currentProduct?.inStock ? "text-green-500" : (content.sovereignStatus?.toLowerCase() === 'exhausted' ? "text-red-500" : "text-green-500")}>
-                            {currentProduct ? (currentProduct.inStock ? 'Active' : 'Exhausted') : (content.sovereignStatus || 'Active')}
+                        <span className={(currentProduct ? currentProduct.countInStock > 0 : content.sovereignStatus?.toLowerCase() !== 'exhausted') ? "text-green-500" : "text-red-500"}>
+                            {currentProduct ? (currentProduct.countInStock > 0 ? 'Active' : 'Exhausted') : (content.sovereignStatus || 'Active')}
                         </span>
                     </div>
                 </div>

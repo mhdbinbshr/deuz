@@ -80,11 +80,56 @@
     },
     "AuditLog": {
       "title": "AuditLog",
-      "description": "System audit logs",
+      "description": "System audit and operational event logs",
       "type": "object",
       "properties": {
-        "timestamp": { "type": "timestamp" }
-      }
+        "action": { "type": "string", "description": "Action performed" },
+        "targetResource": { "type": "string", "description": "Target entity or resource type" },
+        "targetId": { "type": "string", "description": "Resource identifier" },
+        "details": { "type": "object", "description": "Contextual metadata and payload" },
+        "performedBy": { "type": "object", "description": "User or operative who triggered the event" },
+        "timestamp": { "type": "string", "description": "ISO date string" },
+        "createdAt": { "type": "timestamp", "description": "Server creation timestamp" }
+      },
+      "required": ["action", "timestamp"]
+    },
+    "Log": {
+      "title": "Log",
+      "description": "Application and server event log stream",
+      "type": "object",
+      "properties": {
+        "level": { "type": "string", "enum": ["info", "warn", "error", "security"], "description": "Log severity level" },
+        "category": { "type": "string", "enum": ["auth", "system", "order", "catalog", "security"], "description": "Log category" },
+        "message": { "type": "string", "description": "Human readable event message" },
+        "action": { "type": "string", "description": "Action name" },
+        "userId": { "type": "string", "description": "User identifier" },
+        "userEmail": { "type": "string", "description": "User email address" },
+        "ip": { "type": "string", "description": "Client IP address" },
+        "userAgent": { "type": "string", "description": "Client user agent" },
+        "metadata": { "type": "object", "description": "Context data" },
+        "timestamp": { "type": "string", "description": "ISO timestamp" },
+        "createdAt": { "type": "timestamp", "description": "Server creation timestamp" }
+      },
+      "required": ["level", "category", "message", "action", "timestamp"]
+    },
+    "AuthLog": {
+      "title": "AuthLog",
+      "description": "Authentication-specific audit event log",
+      "type": "object",
+      "properties": {
+        "event": { "type": "string", "description": "Auth event type" },
+        "email": { "type": "string", "description": "User email" },
+        "userId": { "type": "string", "description": "User ID" },
+        "role": { "type": "string", "description": "User role at event time" },
+        "provider": { "type": "string", "description": "Auth provider" },
+        "status": { "type": "string", "description": "Authentication status" },
+        "failureReason": { "type": "string", "description": "Failure reason if applicable" },
+        "ip": { "type": "string", "description": "Client IP" },
+        "userAgent": { "type": "string", "description": "Client user agent" },
+        "timestamp": { "type": "string", "description": "ISO timestamp" },
+        "createdAt": { "type": "timestamp", "description": "Server creation timestamp" }
+      },
+      "required": ["event", "status", "timestamp"]
     }
   },
   "firestore": {
@@ -111,6 +156,14 @@
     "/audit_logs/{logId}": {
       "schema": { "$ref": "#/entities/AuditLog" },
       "description": "Audit logs"
+    },
+    "/logs/{logId}": {
+      "schema": { "$ref": "#/entities/Log" },
+      "description": "System event and operational logs"
+    },
+    "/auth_logs/{logId}": {
+      "schema": { "$ref": "#/entities/AuthLog" },
+      "description": "Dedicated authentication event logs"
     }
   }
 }

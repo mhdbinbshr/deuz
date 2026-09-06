@@ -1,7 +1,6 @@
 import React from 'react';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { useSettings } from '../context/SettingsContext';
-import { Cinematic3D } from './Cinematic3D';
 
 const Hero: React.FC = () => {
   const { content } = useSettings();

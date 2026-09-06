@@ -9,35 +9,32 @@ const Loader: React.FC<LoaderProps> = ({ onLoadingComplete }) => {
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
-    // Non-linear loading simulation
-    const steps = [
-      { increment: 1, delay: 30 },
-      { increment: 2, delay: 50 },
-      { increment: 5, delay: 20 },
-      { increment: 1, delay: 100 },
-    ];
-    
     let currentProgress = 0;
     let mounted = true;
-    
-    const runLoader = async () => {
-      while (currentProgress < 100 && mounted) {
-        const step = steps[Math.floor(Math.random() * steps.length)];
-        currentProgress = Math.min(currentProgress + step.increment, 100);
-        if (mounted) setProgress(currentProgress);
-        await new Promise(r => setTimeout(r, step.delay));
-      }
-      
-      // Artificial delay at 100% before revealing
-      if (mounted) {
-        setTimeout(() => {
-          onLoadingComplete();
-        }, 500);
-      }
-    };
+    const isReturning = typeof window !== 'undefined' && sessionStorage.getItem('deuz_intro_seen') === 'true';
+    const intervalTime = isReturning ? 15 : 25;
+    const increment = isReturning ? 8 : 4;
 
-    runLoader();
-    return () => { mounted = false; };
+    const interval = setInterval(() => {
+      if (!mounted) return;
+      currentProgress = Math.min(currentProgress + increment, 100);
+      setProgress(currentProgress);
+
+      if (currentProgress >= 100) {
+        clearInterval(interval);
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem('deuz_intro_seen', 'true');
+        }
+        setTimeout(() => {
+          if (mounted) onLoadingComplete();
+        }, isReturning ? 100 : 250);
+      }
+    }, intervalTime);
+
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
   }, [onLoadingComplete]);
 
   const loadingText = useMemo(() => {

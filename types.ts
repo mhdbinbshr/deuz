@@ -169,16 +169,74 @@ export interface Order {
   paymentLink?: string;
 }
 
+export interface Product {
+  _id?: string;
+  id?: string;
+  title: string;
+  price: number;
+  description: string;
+  category: string;
+  productType: 'APPAREL' | 'CARD';
+  fit?: 'oversized' | 'regular';
+  countInStock: number;
+  isArchived: boolean;
+  image: string;
+  gallery?: string[];
+  sizes: string[];
+  outOfStockSizes?: string[];
+  sizeStock?: Record<string, number>;
+  details: Record<string, string>;
+  imageTag?: string;
+  houseCode?: string;
+  createdAt?: any;
+}
+
 export interface User {
   id: string;
+  _id?: string;
   fullName: string;
   email: string;
   mobile: string;
   alternateMobile?: string;
   password?: string;
-  joinedDate: string;
-  orders: Order[];
+  joinedDate?: string;
+  createdAt?: any;
+  orders?: Order[];
   address?: Address;
+  addresses?: Address[];
   role?: UserRole;
   token?: string;
 }
+
+export interface SystemLog {
+  id?: string;
+  _id?: string;
+  level: 'info' | 'warn' | 'error' | 'security';
+  category: 'auth' | 'system' | 'order' | 'catalog' | 'security';
+  message: string;
+  action: string;
+  userId?: string;
+  userEmail?: string;
+  ip?: string;
+  userAgent?: string;
+  metadata?: Record<string, any>;
+  timestamp: string;
+  createdAt?: any;
+}
+
+export interface AuthLogRecord {
+  id?: string;
+  _id?: string;
+  event: string;
+  email?: string;
+  userId?: string;
+  role?: string;
+  provider?: string;
+  status: 'success' | 'failed' | 'pending';
+  failureReason?: string;
+  ip?: string;
+  userAgent?: string;
+  timestamp: string;
+  createdAt?: any;
+}
+

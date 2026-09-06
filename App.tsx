@@ -133,6 +133,9 @@ function AppContent() {
   const handleRegisterDossier = (details: { orderCode: string }) => {
     clearCart();
     setShowCheckout(false);
+    if (details?.orderCode) {
+      setActiveDossierCode(details.orderCode);
+    }
   };
 
   useEffect(() => {

@@ -1,16 +1,39 @@
-
 import { User, CartItem } from '../types';
 
 const KEYS = {
-  USER: 'lumiere_user', // Kept for caching profile data if needed
-  CART: 'lumiere_cart',
+  TOKEN: 'deuz_auth_token',
+  USER: 'deuz_user',
+  CART: 'deuz_cart',
 };
 
 export const storage = {
-  // --- Token Management (Deprecated with Firebase) ---
-  getToken: (): string | null => null,
-  setToken: (token: string) => {},
-  removeToken: () => {},
+  // --- Token Management ---
+  getToken: (): string | null => {
+    if (typeof window === 'undefined') return null;
+    try {
+      return localStorage.getItem(KEYS.TOKEN);
+    } catch {
+      return null;
+    }
+  },
+
+  setToken: (token: string) => {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(KEYS.TOKEN, token);
+    } catch (e) {
+      console.error('Failed to save token', e);
+    }
+  },
+
+  removeToken: () => {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.removeItem(KEYS.TOKEN);
+    } catch (e) {
+      console.error('Failed to remove token', e);
+    }
+  },
 
   // --- User Profile Management ---
   getUser: (): User | null => {
@@ -26,29 +49,17 @@ export const storage = {
   setUser: (user: User) => {
     if (typeof window === 'undefined') return;
     try {
-      const safeUser = {
-          id: user.id,
-          fullName: user.fullName,
-          email: user.email,
-          mobile: user.mobile,
-          role: user.role,
-          joinedDate: user.joinedDate,
-          // Avoid storing full order history in local storage if it gets large or complex
-          orders: user.orders ? user.orders.map(o => ({ 
-              id: o.id, 
-              total: o.total, 
-              date: o.date, 
-              orderStatus: o.orderStatus,
-              items: o.items ? o.items.map(i => ({
-                  id: i.id,
-                  title: i.title,
-                  price: i.price,
-                  quantity: i.quantity,
-                  image: i.image,
-                  selectedSize: i.selectedSize
-              })) : []
-          })) : [],
-          address: user.address
+      const safeUser: User = {
+        id: user.id,
+        fullName: user.fullName,
+        email: user.email,
+        mobile: user.mobile || '',
+        alternateMobile: user.alternateMobile || '',
+        role: user.role || 'user',
+        joinedDate: user.joinedDate || new Date().toISOString(),
+        orders: user.orders ? [...user.orders] : [],
+        address: user.address,
+        token: user.token
       };
       localStorage.setItem(KEYS.USER, JSON.stringify(safeUser));
     } catch (e) {
@@ -58,7 +69,11 @@ export const storage = {
 
   removeUser: () => {
     if (typeof window === 'undefined') return;
-    localStorage.removeItem(KEYS.USER);
+    try {
+      localStorage.removeItem(KEYS.USER);
+    } catch (e) {
+      console.error('Failed to remove user', e);
+    }
   },
 
   // --- Cart Management ---
@@ -75,7 +90,6 @@ export const storage = {
   setCart: (cart: CartItem[]) => {
     if (typeof window === 'undefined') return;
     try {
-      // Sanitize cart items to prevent circular references
       const safeCart = cart.map(item => ({
         id: item.id,
         cartItemId: item.cartItemId,
@@ -98,13 +112,22 @@ export const storage = {
 
   removeCart: () => {
     if (typeof window === 'undefined') return;
-    localStorage.removeItem(KEYS.CART);
+    try {
+      localStorage.removeItem(KEYS.CART);
+    } catch (e) {
+      console.error('Failed to remove cart', e);
+    }
   },
 
   // --- Global ---
   clearAll: () => {
     if (typeof window === 'undefined') return;
-    localStorage.removeItem(KEYS.USER);
-    localStorage.removeItem(KEYS.CART);
+    try {
+      localStorage.removeItem(KEYS.TOKEN);
+      localStorage.removeItem(KEYS.USER);
+      localStorage.removeItem(KEYS.CART);
+    } catch (e) {
+      console.error('Failed to clear storage', e);
+    }
   }
 };

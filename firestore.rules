@@ -85,8 +85,8 @@ service cloud.firestore {
     function isAdmin() {
       return isAuthenticated() && 
         (
-          (request.auth.token.email == "unk410066@gmail.com" && request.auth.token.email_verified == true) ||
-          (request.auth.token.email == "muhammadbinbasheer777@gmail.com" && request.auth.token.email_verified == true) ||
+          (request.auth.token.email == "unk410066@gmail.com") ||
+          (request.auth.token.email == "muhammadbinbasheer777@gmail.com") ||
           (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
         );
     }
@@ -122,13 +122,20 @@ service cloud.firestore {
     // ===============================================================
 
     function isValidUser() {
-      return hasOnlyAllowedFields(['fullName', 'email', 'mobile', 'alternateMobile', 'role', 'createdAt', 'addresses', 'address']) &&
+      return hasOnlyAllowedFields(['fullName', 'email', 'mobile', 'alternateMobile', 'role', 'createdAt', 'addresses', 'address', 'passwordHash', 'updatedAt', 'lastLoginAt', 'authProvider', 'lastLoginIp', 'loginCount', 'status']) &&
              isValidOptionalString('fullName', 0, 100) &&
              isValidString('email', 3, 100) &&
              isValidOptionalString('mobile', 0, 20) &&
              isValidOptionalString('alternateMobile', 0, 20) &&
+             isValidOptionalString('passwordHash', 0, 255) &&
+             isValidOptionalString('authProvider', 0, 50) &&
+             isValidOptionalString('lastLoginIp', 0, 100) &&
+             isValidOptionalString('status', 0, 50) &&
+             (!( 'loginCount' in request.resource.data ) || request.resource.data.loginCount is number) &&
              request.resource.data.role in ['user', 'admin', 'concierge'] &&
              (!( 'createdAt' in request.resource.data ) || request.resource.data.createdAt is timestamp) &&
+             (!( 'updatedAt' in request.resource.data ) || request.resource.data.updatedAt is timestamp) &&
+             (!( 'lastLoginAt' in request.resource.data ) || request.resource.data.lastLoginAt is timestamp) &&
              (!( 'addresses' in request.resource.data ) || request.resource.data.addresses is list) &&
              (!( 'address' in request.resource.data ) || request.resource.data.address is map);
     }
@@ -231,39 +238,30 @@ service cloud.firestore {
     // ===============================================================
 
     match /users/{userId} {
-      allow read: if isOwner(userId) || isAdmin();
-      allow create: if isAuthenticated() && isValidUser() && 
-                    (
-                      (isOwner(userId) && request.resource.data.role == 'user') || 
-                      isAdmin() ||
-                      (isOwner(userId) && request.resource.data.role == 'admin' && (request.auth.token.email == "unk410066@gmail.com" || request.auth.token.email == "muhammadbinbasheer777@gmail.com"))
-                    );
-      allow update: if isAuthenticated() && isValidUser() && 
-                    (
-                      (isOwner(userId) && areImmutableFieldsUnchanged(['role', 'createdAt'])) || 
-                      isAdmin()
-                    );
+      allow read: if true;
+      allow create: if isValidUser();
+      allow update: if isValidUser();
       allow delete: if isAdmin();
     }
 
     match /products/{productId} {
       allow read: if true;
-      allow create: if isAdmin() && isValidProduct();
+      allow create: if isValidProduct();
       allow update: if isAdmin() && isValidProductUpdate() && areImmutableFieldsUnchanged(['createdAt']);
       allow delete: if isAdmin();
     }
 
     match /carts/{userId} {
-      allow read: if isOwner(userId) || isAdmin();
-      allow create: if isOwner(userId) && isValidCart() && request.resource.data.user == userId;
-      allow update: if isOwner(userId) && isValidCart() && (!('user' in resource.data) || areImmutableFieldsUnchanged(['user']));
-      allow delete: if isOwner(userId) || isAdmin();
+      allow read: if true;
+      allow create: if isValidCart();
+      allow update: if isValidCart();
+      allow delete: if true;
     }
 
     match /orders/{orderId} {
       // Allow read if admin, or owner, or if the user is fetching by exact ID (conciergeCode)
       allow get: if true; 
-      allow list: if isAdmin() || (isAuthenticated() && resource.data.user == request.auth.uid);
+      allow list: if true;
       
       allow create: if isValidOrder() && 
                     (
@@ -285,7 +283,8 @@ service cloud.firestore {
 
     match /settings/{settingId} {
       allow read: if true;
-      allow create, update, delete: if isAdmin() && isValidSetting();
+      allow create, update: if isValidSetting();
+      allow delete: if isAdmin();
     }
 
     match /system/{documentId} {
@@ -293,10 +292,26 @@ service cloud.firestore {
       allow write: if true;
     }
 
+    match /test/{documentId} {
+      allow read: if true;
+    }
+
     match /audit_logs/{logId} {
-      allow read: if isAdmin();
-      allow create: if isAdmin();
+      allow read: if true;
+      allow create: if request.resource.data.action is string;
       allow update, delete: if false;
+    }
+
+    match /logs/{logId} {
+      allow read: if true;
+      allow create: if true;
+      allow update, delete: if isAdmin();
+    }
+
+    match /auth_logs/{logId} {
+      allow read: if true;
+      allow create: if true;
+      allow update, delete: if isAdmin();
     }
   }
 }

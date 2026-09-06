@@ -13,6 +13,7 @@ interface CartContextType {
   removeFromCart: (cartItemId: string | undefined) => Promise<void>;
   updateQuantity: (cartItemId: string | undefined, delta: number) => Promise<void>;
   clearCart: () => void;
+  refreshCart: () => Promise<void>;
   cartCount: number;
   total: number;
 }
@@ -52,6 +53,52 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }).filter(Boolean) as CartItem[];
   };
 
+  const refreshCart = async () => {
+    setCartLoading(true);
+    try {
+      if (user) {
+        const serverCart = await db.getCart();
+        setCartItems(mapBackendCartToFrontend(serverCart));
+      } else {
+        const stored = storage.getCart();
+        if (stored && stored.length > 0) {
+            const validStored = [];
+            let cartModified = false;
+            for (const item of stored) {
+                try {
+                    const pDoc = await db.getProductById(String(item.id));
+                    if (pDoc) {
+                        const maxStock = item.selectedSize && pDoc.sizeStock && typeof pDoc.sizeStock[item.selectedSize] === 'number'
+                            ? pDoc.sizeStock[item.selectedSize]
+                            : pDoc.countInStock ?? 99;
+                            
+                        if (maxStock <= 0) {
+                            cartModified = true;
+                            continue;
+                        }
+                        validStored.push({ ...item, maxStock });
+                    } else {
+                        cartModified = true;
+                    }
+                } catch (e) {
+                    validStored.push(item);
+                }
+            }
+            if (cartModified) {
+                storage.setCart(validStored);
+            }
+            setCartItems(validStored);
+        } else {
+            setCartItems([]);
+        }
+      }
+    } catch (error) {
+      console.error("Cart refresh error", error);
+    } finally {
+      setCartLoading(false);
+    }
+  };
+
   // Initialize and Sync Cart
   useEffect(() => {
     let mounted = true;
@@ -89,24 +136,39 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           const stored = storage.getCart();
           if (stored && stored.length > 0) {
               try {
-                  const updatedStored = await Promise.all(stored.map(async (item: CartItem) => {
+                  const validStored = [];
+                  let cartModified = false;
+                  
+                  for (const item of stored) {
                       try {
-                          const pDoc = await db.getProductById(item.id);
+                          const pDoc = await db.getProductById(String(item.id));
                           if (pDoc) {
                               const maxStock = item.selectedSize && pDoc.sizeStock && typeof pDoc.sizeStock[item.selectedSize] === 'number'
                                   ? pDoc.sizeStock[item.selectedSize]
                                   : pDoc.countInStock ?? 99;
-                              return { ...item, maxStock };
+                                  
+                              if (maxStock <= 0) {
+                                  cartModified = true;
+                                  continue;
+                              }
+                              validStored.push({ ...item, maxStock });
+                          } else {
+                              cartModified = true;
                           }
-                      } catch (e) {}
-                      return item;
-                  }));
-                  if (mounted) setCartItems(updatedStored);
+                      } catch (e) {
+                          validStored.push(item);
+                      }
+                  }
+                  
+                  if (cartModified) {
+                      storage.setCart(validStored);
+                  }
+                  if (mounted) setCartItems(validStored);
               } catch (e) {
                   if (mounted) setCartItems(stored);
               }
           } else {
-              if (mounted) setCartItems(stored);
+              if (mounted) setCartItems(stored || []);
           }
         }
       } catch (error) {
@@ -287,6 +349,7 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       removeFromCart,
       updateQuantity,
       clearCart,
+      refreshCart,
       cartCount,
       total
     }}>

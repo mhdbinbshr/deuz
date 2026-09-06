@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Lock, Fingerprint, ChevronRight, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { Lock, Fingerprint, AlertTriangle, ShieldCheck, KeyRound } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 interface AdminLoginPageProps {
@@ -10,8 +10,8 @@ interface AdminLoginPageProps {
 
 const AdminLoginPage: React.FC<AdminLoginPageProps> = ({ onLoginSuccess, onCancel }) => {
   const { login, user, isLoading } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('unk410066@gmail.com');
+  const [password, setPassword] = useState('Admin@12345');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -34,8 +34,8 @@ const AdminLoginPage: React.FC<AdminLoginPageProps> = ({ onLoginSuccess, onCance
       } else {
         setError(result.message || 'Credentials Invalid. Access Denied.');
       }
-    } catch (err) {
-      setError('Connection refused.');
+    } catch (err: any) {
+      setError(err.message || 'Connection refused.');
     } finally {
       setLoading(false);
     }
@@ -50,48 +50,49 @@ const AdminLoginPage: React.FC<AdminLoginPageProps> = ({ onLoginSuccess, onCance
       <motion.div 
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        className="relative z-10 w-full max-w-md p-8"
+        className="relative z-10 w-full max-w-md p-6"
       >
-        <div className="bg-[#0A0A0A] border border-white/10 p-10 rounded-sm shadow-[0_0_50px_rgba(0,0,0,0.8)] relative overflow-hidden group">
+        <div className="bg-[#0A0A0A] border border-white/10 p-8 sm:p-10 rounded-sm shadow-[0_0_50px_rgba(0,0,0,0.8)] relative overflow-hidden group">
           {/* Scanning Line Animation */}
           <div className="absolute top-0 left-0 w-full h-1 bg-gold-500/50 shadow-[0_0_20px_#D4AF37] animate-[scan_3s_ease-in-out_infinite] opacity-50 pointer-events-none" />
 
-          <div className="flex flex-col items-center mb-10">
-            <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center border border-white/10 mb-6 relative">
+          <div className="flex flex-col items-center mb-8">
+            <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center border border-white/10 mb-5 relative">
                <Lock className="text-white/40" size={24} />
                <div className="absolute inset-0 border border-t-gold-500 rounded-full animate-spin duration-[3s]" />
             </div>
-            <h1 className="text-2xl text-white font-bold tracking-[0.3em] mb-2 text-center">DEUZ CORP</h1>
-            <p className="text-[10px] text-white/30 uppercase tracking-[0.4em]">Restricted Access Area</p>
+            <h1 className="text-2xl text-white font-bold tracking-[0.3em] mb-1.5 text-center">DEUZ CORP</h1>
+            <p className="text-[10px] text-white/30 uppercase tracking-[0.4em]">Restricted Executive Terminal</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="space-y-2">
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div className="space-y-1.5">
               <label className="text-[10px] uppercase tracking-widest text-gold-500 block">Operator ID</label>
               <input 
                 type="email" 
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-black border border-white/20 p-4 text-white text-xs tracking-wider outline-none focus:border-gold-500 transition-colors placeholder:text-white/10"
-                placeholder="system@deuz.co"
-                autoFocus
+                className="w-full bg-black border border-white/20 p-3.5 text-white text-xs tracking-wider outline-none focus:border-gold-500 transition-colors placeholder:text-white/10"
+                placeholder="unk410066@gmail.com"
+                required
               />
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <label className="text-[10px] uppercase tracking-widest text-gold-500 block">Passkey</label>
               <input 
                 type="password" 
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-black border border-white/20 p-4 text-white text-xs tracking-wider outline-none focus:border-gold-500 transition-colors placeholder:text-white/10"
+                className="w-full bg-black border border-white/20 p-3.5 text-white text-xs tracking-wider outline-none focus:border-gold-500 transition-colors placeholder:text-white/10"
                 placeholder="••••••••••••"
+                required
               />
             </div>
 
             {error && (
-              <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-3 text-red-500 bg-red-950/20 p-3 border border-red-900/30">
-                <AlertTriangle size={14} />
+              <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-3 text-red-400 bg-red-950/30 p-3 border border-red-900/40">
+                <AlertTriangle size={14} className="shrink-0" />
                 <span className="text-[10px] uppercase tracking-widest font-bold">{error}</span>
               </motion.div>
             )}
@@ -102,27 +103,35 @@ const AdminLoginPage: React.FC<AdminLoginPageProps> = ({ onLoginSuccess, onCance
               className="w-full bg-white text-black py-4 uppercase tracking-[0.2em] text-xs font-bold hover:bg-gold-500 hover:text-white transition-all duration-300 flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed group"
             >
               {loading ? (
-                <span className="animate-pulse">Authenticating...</span>
+                <span className="animate-pulse">Authenticating Operator...</span>
               ) : (
                 <>
-                  <Fingerprint size={16} /> Authenticate
+                  <Fingerprint size={16} /> Authenticate Session
                 </>
               )}
             </button>
           </form>
 
-          <div className="mt-8 pt-6 border-t border-white/5 text-center space-y-4">
+          <div className="mt-6 pt-5 border-t border-white/5 text-center space-y-3">
+            <button 
+              type="button"
+              onClick={() => {
+                setEmail('unk410066@gmail.com');
+                setPassword('Admin@12345');
+                setError('');
+              }}
+              className="text-[10px] text-gold-500/70 hover:text-gold-500 uppercase tracking-widest transition-colors block w-full py-1"
+            >
+              Reset to Executive Credentials
+            </button>
             <button onClick={onCancel} className="text-[10px] text-white/30 uppercase tracking-widest hover:text-white transition-colors block w-full">
               Abort Sequence / Return Home
             </button>
-            <a href="/admin/setup" className="text-[8px] text-white/10 uppercase tracking-widest hover:text-gold-500 transition-colors inline-block font-sans">
-              // Initialize Core
-            </a>
           </div>
         </div>
         
         <div className="text-center mt-6 text-[9px] text-white/20 uppercase tracking-widest font-mono">
-          System ID: 0x8F2A • Encryption: AES-256 • IP: Logged
+          System ID: DEUZ-CORE • Encryption: AES-256 • IP: Logged
         </div>
       </motion.div>
     </div>

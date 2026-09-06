@@ -71,6 +71,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
   const [products, setProducts] = useState<any[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [logs, setLogs] = useState<any[]>([]);
+  const [authLogs, setAuthLogs] = useState<any[]>([]);
+  const [systemLogs, setSystemLogs] = useState<any[]>([]);
+  const [logStreamFilter, setLogStreamFilter] = useState<'all' | 'auth' | 'system' | 'audit'>('all');
+  const [logSearchQuery, setLogSearchQuery] = useState('');
   const [settings, setSettings] = useState<any>(null);
   
   // UI State
@@ -140,13 +144,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
       const userPromise = isAdmin ? db.getUsers() : Promise.resolve([]);
       const settPromise = isAdmin ? db.getSystemSettings() : Promise.resolve(null);
       const logPromise = isAdmin ? db.getAuditLogs() : Promise.resolve([]);
+      const authLogPromise = isAdmin ? db.getAuthLogs() : Promise.resolve([]);
+      const sysLogPromise = isAdmin ? db.getSystemLogs() : Promise.resolve([]);
 
-      const [ordData, prodData, userData, settingsData, logData] = await Promise.allSettled([
+      const [ordData, prodData, userData, settingsData, logData, authLogData, sysLogData] = await Promise.allSettled([
         ordPromise,
         prodPromise,
         userPromise,
         settPromise,
-        logPromise
+        logPromise,
+        authLogPromise,
+        sysLogPromise
       ]);
 
       if (ordData.status === 'rejected') {
@@ -159,11 +167,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
           const safeUsers = userData.status === 'fulfilled' && Array.isArray(userData.value) ? userData.value : [];
           const safeSettings = settingsData.status === 'fulfilled' ? settingsData.value : null;
           const safeLogs = logData.status === 'fulfilled' && Array.isArray(logData.value) ? logData.value : [];
+          const safeAuthLogs = authLogData.status === 'fulfilled' && Array.isArray(authLogData.value) ? authLogData.value : [];
+          const safeSysLogs = sysLogData.status === 'fulfilled' && Array.isArray(sysLogData.value) ? sysLogData.value : [];
 
           setOrders(safeOrders);
           setProducts(safeProducts);
           setUsers(safeUsers);
           setLogs(safeLogs);
+          setAuthLogs(safeAuthLogs);
+          setSystemLogs(safeSysLogs);
           if (safeSettings) {
               setSettings((prev: any) => {
                   if (prev) return prev;
@@ -455,7 +467,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
         u.fullName || 'N/A',
         u.email || 'N/A',
         u.role || 'user',
-        new Date(u.createdAt).toLocaleDateString()
+        (u as any).createdAt ? new Date((u as any).createdAt).toLocaleDateString() : (u.joinedDate || 'N/A')
       ]);
 
       autoTable(doc, {
@@ -1018,53 +1030,270 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
             </div>
          )}
 
-         {/* --- AUDIT LOG TAB --- */}
-         {activeTab === 'audit' && (
+         {/* --- AUDIT & LOG STREAM TAB --- */}
+         {activeTab === 'audit' && (() => {
+             const normalizedAuth = authLogs.map(item => ({
+                 ...item,
+                 _stream: 'auth',
+                 _action: (item.event || item.action || 'AUTH_EVENT').toUpperCase(),
+                 _user: item.email || item.userId || 'Guest',
+                 _status: item.status || 'success',
+                 _details: {
+                     event: item.event,
+                     provider: item.provider,
+                     role: item.role,
+                     status: item.status,
+                     failureReason: item.failureReason,
+                     ip: item.ip,
+                     userAgent: item.userAgent
+                 }
+             }));
+
+             const normalizedSys = systemLogs.map(item => ({
+                 ...item,
+                 _stream: 'system',
+                 _action: (item.action || item.category || 'SYSTEM_LOG').toUpperCase(),
+                 _user: item.userEmail || item.userId || 'System',
+                 _status: item.level || 'info',
+                 _details: {
+                     message: item.message,
+                     level: item.level,
+                     category: item.category,
+                     ip: item.ip,
+                     userAgent: item.userAgent,
+                     metadata: item.metadata
+                 }
+             }));
+
+             const normalizedAudit = logs.map(item => ({
+                 ...item,
+                 _stream: 'audit',
+                 _action: item.action || 'ADMIN_ACTION',
+                 _user: item.performedBy?.fullName || item.performedBy?.email || 'Administrator',
+                 _status: 'info',
+                 _details: item.details
+             }));
+
+             let combinedList = [];
+             if (logStreamFilter === 'all') {
+                 combinedList = [...normalizedAuth, ...normalizedSys, ...normalizedAudit];
+             } else if (logStreamFilter === 'auth') {
+                 combinedList = normalizedAuth;
+             } else if (logStreamFilter === 'system') {
+                 combinedList = normalizedSys;
+             } else {
+                 combinedList = normalizedAudit;
+             }
+
+             combinedList.sort((a, b) => {
+                 const tA = new Date(a.timestamp || (a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0)).getTime();
+                 const tB = new Date(b.timestamp || (b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0)).getTime();
+                 return tB - tA;
+             });
+
+             const filteredList = logSearchQuery.trim() === '' 
+                 ? combinedList 
+                 : combinedList.filter(item => {
+                     const q = logSearchQuery.toLowerCase();
+                     const strAction = (item._action || '').toLowerCase();
+                     const strUser = (item._user || '').toLowerCase();
+                     const strDetails = JSON.stringify(item._details || {}).toLowerCase();
+                     const strIp = (item.ip || '').toLowerCase();
+                     return strAction.includes(q) || strUser.includes(q) || strDetails.includes(q) || strIp.includes(q);
+                 });
+
+             return (
              <div className="space-y-6">
-                 <div className="bg-[#0A0A0A] border border-white/10 overflow-hidden p-6 font-mono">
-                     <div className="mb-6 flex items-center gap-2 text-gold-500 uppercase tracking-widest border-b border-white/10 pb-4">
-                         <Terminal size={16} /> System Event Stream
-                         {logs.length > 0 && <span className="text-[10px] text-white/30 ml-auto">{logs.length} Events</span>}
+                 {/* Firebase Console Reference Guide Card */}
+                 <div className="bg-[#0A0A0A] border border-white/10 p-6">
+                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/10 pb-4 mb-4">
+                         <div>
+                             <div className="flex items-center gap-2 text-gold-500 font-mono text-sm uppercase tracking-widest">
+                                 <Database size={16} /> Firebase Console Collections & Sync Status
+                             </div>
+                             <p className="text-white/40 text-xs mt-1">
+                                 All authentication records, login events, and operational logs are stored in Firebase Firestore and Authentication.
+                             </p>
+                         </div>
+                         <a 
+                             href="https://console.firebase.google.com" 
+                             target="_blank" 
+                             rel="noreferrer" 
+                             className="inline-flex items-center gap-2 px-3 py-2 bg-white/5 border border-white/10 hover:border-gold-500 text-xs text-white uppercase tracking-wider transition-colors shrink-0"
+                         >
+                             <ExternalLink size={12} className="text-gold-500" />
+                             <span>Open Firebase Console</span>
+                         </a>
                      </div>
-                     <div className="space-y-0.5">
-                         {logs.length === 0 ? (
-                             <div className="text-white/30 text-center py-10 flex flex-col items-center gap-2">
-                                 <Activity className="animate-pulse" />
-                                 <span className="text-xs uppercase tracking-widest">No activity recorded</span>
+
+                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                         <div className="bg-black/60 border border-white/5 p-3 font-mono text-xs">
+                             <span className="text-white/40 text-[10px] uppercase block tracking-widest">Collection</span>
+                             <span className="text-purple-400 font-bold block mt-1">auth_logs</span>
+                             <span className="text-white/40 text-[10px] mt-0.5 block">{authLogs.length} Authentication Records</span>
+                         </div>
+                         <div className="bg-black/60 border border-white/5 p-3 font-mono text-xs">
+                             <span className="text-white/40 text-[10px] uppercase block tracking-widest">Collection</span>
+                             <span className="text-blue-400 font-bold block mt-1">logs</span>
+                             <span className="text-white/40 text-[10px] mt-0.5 block">{systemLogs.length} System Stream Events</span>
+                         </div>
+                         <div className="bg-black/60 border border-white/5 p-3 font-mono text-xs">
+                             <span className="text-white/40 text-[10px] uppercase block tracking-widest">Collection</span>
+                             <span className="text-gold-500 font-bold block mt-1">audit_logs</span>
+                             <span className="text-white/40 text-[10px] mt-0.5 block">{logs.length} Executive Audits</span>
+                         </div>
+                         <div className="bg-black/60 border border-white/5 p-3 font-mono text-xs">
+                             <span className="text-white/40 text-[10px] uppercase block tracking-widest">Collection</span>
+                             <span className="text-green-400 font-bold block mt-1">users</span>
+                             <span className="text-white/40 text-[10px] mt-0.5 block">{users.length} Registered Identities</span>
+                         </div>
+                     </div>
+                 </div>
+
+                 {/* Log Stream Viewer */}
+                 <div className="bg-[#0A0A0A] border border-white/10 overflow-hidden p-6 font-mono">
+                     <div className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-4">
+                         {/* Stream Filter Pills */}
+                         <div className="flex flex-wrap items-center gap-2">
+                             <button 
+                                 onClick={() => setLogStreamFilter('all')}
+                                 className={`px-3 py-1 text-xs uppercase tracking-wider border transition-colors ${
+                                     logStreamFilter === 'all' 
+                                         ? 'border-gold-500 bg-gold-500/10 text-gold-500 font-bold' 
+                                         : 'border-white/10 text-white/50 hover:text-white'
+                                 }`}
+                             >
+                                 All Streams ({authLogs.length + systemLogs.length + logs.length})
+                             </button>
+                             <button 
+                                 onClick={() => setLogStreamFilter('auth')}
+                                 className={`px-3 py-1 text-xs uppercase tracking-wider border transition-colors ${
+                                     logStreamFilter === 'auth' 
+                                         ? 'border-purple-500 bg-purple-500/10 text-purple-400 font-bold' 
+                                         : 'border-white/10 text-white/50 hover:text-white'
+                                 }`}
+                             >
+                                 Auth Logs ({authLogs.length})
+                             </button>
+                             <button 
+                                 onClick={() => setLogStreamFilter('system')}
+                                 className={`px-3 py-1 text-xs uppercase tracking-wider border transition-colors ${
+                                     logStreamFilter === 'system' 
+                                         ? 'border-blue-500 bg-blue-500/10 text-blue-400 font-bold' 
+                                         : 'border-white/10 text-white/50 hover:text-white'
+                                 }`}
+                             >
+                                 System Logs ({systemLogs.length})
+                             </button>
+                             <button 
+                                 onClick={() => setLogStreamFilter('audit')}
+                                 className={`px-3 py-1 text-xs uppercase tracking-wider border transition-colors ${
+                                     logStreamFilter === 'audit' 
+                                         ? 'border-gold-500 bg-gold-500/10 text-gold-500 font-bold' 
+                                         : 'border-white/10 text-white/50 hover:text-white'
+                                 }`}
+                             >
+                                 Audit Trail ({logs.length})
+                             </button>
+                         </div>
+
+                         {/* Search & Refresh */}
+                         <div className="flex items-center gap-3 w-full md:w-auto">
+                             <div className="relative flex-1 md:w-64">
+                                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" />
+                                 <input 
+                                     type="text"
+                                     placeholder="Filter events, emails, IPs..."
+                                     value={logSearchQuery}
+                                     onChange={(e) => setLogSearchQuery(e.target.value)}
+                                     className="w-full bg-black/60 border border-white/10 pl-9 pr-3 py-1.5 text-xs text-white placeholder-white/30 focus:border-gold-500 outline-none"
+                                 />
+                             </div>
+                             <button 
+                                 onClick={() => fetchData()}
+                                 className="flex items-center gap-2 px-3 py-1.5 bg-white/5 border border-white/10 hover:border-gold-500 text-xs text-white uppercase tracking-wider transition-colors shrink-0"
+                             >
+                                 <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
+                                 <span>Sync</span>
+                             </button>
+                         </div>
+                     </div>
+
+                     {/* Stream Rows */}
+                     <div className="space-y-1">
+                         {filteredList.length === 0 ? (
+                             <div className="text-white/30 text-center py-12 flex flex-col items-center gap-2">
+                                 <Activity className="animate-pulse text-gold-500/50" size={24} />
+                                 <span className="text-xs uppercase tracking-widest">No matching logs found in Firestore</span>
                              </div>
                          ) : (
-                             logs.map((log, idx) => (
-                                 <div key={idx} className="flex flex-col md:flex-row gap-2 md:gap-4 p-3 hover:bg-white/[0.03] transition-colors border-l-2 border-transparent hover:border-gold-500/50 group text-xs">
-                                     <div className="flex items-center gap-3 w-full md:w-48 shrink-0 text-white/30">
+                             filteredList.map((log: any, idx: number) => {
+                                 const isFailure = log._status === 'failed' || log._status === 'warn' || log._status === 'error';
+                                 const isSuccess = log._status === 'success';
+
+                                 return (
+                                 <div 
+                                     key={idx} 
+                                     className="flex flex-col md:flex-row gap-2 md:gap-4 p-3 hover:bg-white/[0.03] transition-colors border-l-2 group text-xs"
+                                     style={{
+                                         borderLeftColor: log._stream === 'auth' ? '#a855f7' : log._stream === 'system' ? '#3b82f6' : '#d4af37'
+                                     }}
+                                 >
+                                     {/* Timestamp */}
+                                     <div className="flex items-center gap-2 w-full md:w-44 shrink-0 text-white/30">
                                          <Clock size={10} className="hidden md:block" />
-                                         {new Date(log.timestamp).toLocaleString()}
+                                         {(() => {
+                                             if (!log.timestamp) return 'Just now';
+                                             if (typeof (log.timestamp as any)?.toDate === 'function') {
+                                                 return (log.timestamp as any).toDate().toLocaleString();
+                                             }
+                                             if ((log.timestamp as any)?.seconds) {
+                                                 return new Date((log.timestamp as any).seconds * 1000).toLocaleString();
+                                             }
+                                             const d = new Date(log.timestamp);
+                                             return isNaN(d.getTime()) ? String(log.timestamp) : d.toLocaleString();
+                                         })()}
                                      </div>
-                                     <div className="flex items-center gap-2 w-full md:w-48 shrink-0">
-                                         <span className={`uppercase font-bold tracking-wider ${
-                                             (typeof log.action === 'string' && (log.action.includes('DELETE') || log.action.includes('CANCEL'))) ? 'text-red-500' :
-                                             (typeof log.action === 'string' && (log.action.includes('CREATE') || log.action.includes('SUCCESS'))) ? 'text-green-500' :
-                                             'text-gold-500'
+
+                                     {/* Stream Tag */}
+                                     <div className="w-full md:w-24 shrink-0">
+                                         <span className={`text-[9px] uppercase px-1.5 py-0.5 border font-mono tracking-wider ${
+                                             log._stream === 'auth' ? 'border-purple-500/40 text-purple-400 bg-purple-500/10' :
+                                             log._stream === 'system' ? 'border-blue-500/40 text-blue-400 bg-blue-500/10' :
+                                             'border-gold-500/40 text-gold-500 bg-gold-500/10'
                                          }`}>
-                                             {log.action || 'UNKNOWN ACTION'}
+                                             {log._stream.toUpperCase()}
                                          </span>
                                      </div>
-                                     <div className="w-full md:w-48 shrink-0 flex items-center gap-2 text-white/60">
-                                         <UserCheck size={10} />
-                                         {log.performedBy?.fullName || 'System'}
+
+                                     {/* Action / Event */}
+                                     <div className="flex items-center gap-2 w-full md:w-48 shrink-0">
+                                         <span className={`uppercase font-bold tracking-wider truncate ${
+                                             isFailure ? 'text-red-400' : isSuccess ? 'text-emerald-400' : 'text-gold-500'
+                                         }`}>
+                                             {log._action}
+                                         </span>
                                      </div>
-                                     <div className="w-full md:w-40 shrink-0 text-white/40 truncate">
-                                         {log.targetResource} <span className="opacity-50">{log.targetId ? `ID:${log.targetId.slice(-4)}` : ''}</span>
+
+                                     {/* Identity */}
+                                     <div className="w-full md:w-48 shrink-0 flex items-center gap-2 text-white/70 truncate">
+                                         <UserCheck size={11} className="text-white/40 shrink-0" />
+                                         <span className="truncate">{log._user}</span>
                                      </div>
+
+                                     {/* Details */}
                                      <div className="flex-1 min-w-0">
-                                         {renderLogDetails(log.details)}
+                                         {renderLogDetails(log._details)}
                                      </div>
                                  </div>
-                             ))
+                             );
+                             })
                          )}
                      </div>
                  </div>
              </div>
-         )}
+             );
+         })()}
 
          {activeTab === 'settings' && settings && (
              <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">

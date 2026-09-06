@@ -27,6 +27,7 @@ const ConciergeCheckoutModal: React.FC<ConciergeCheckoutModalProps> = ({
   onInteractionStart
 }) => {
   const [selectedChannel, setSelectedChannel] = useState<'instagram' | 'whatsapp' | 'email' | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const handleCopyCode = () => {
     navigator.clipboard.writeText(orderCode);

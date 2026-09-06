@@ -1,5 +1,8 @@
 {
   "name": "DEUZ & CO",
   "description": "A premium international clothing brand crafted for those who move with purpose and presence. Blending cinematic aesthetics with luxury streetwear, every piece is designed with precision, bold storytelling, and elevated craftsmanship. Experience fashion that feels powerful, timeless, and globally inspired.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

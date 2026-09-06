@@ -6,23 +6,11 @@ import helmet from 'helmet';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
-import { connectDB } from './config/db.js';
-import { seedAdmin } from './utils/seeder.js';
 import { notFound, errorHandler } from './middleware/errorMiddleware.js';
-import { globalLimiter, authLimiter } from './middleware/rateLimiters.js';
-
+import { globalLimiter } from './middleware/rateLimiters.js';
 import authRoutes from './routes/authRoutes.js';
-import productRoutes from './routes/productRoutes.js';
-import orderRoutes from './routes/orderRoutes.js';
-import cartRoutes from './routes/cartRoutes.js';
-import adminRoutes from './routes/adminRoutes.js';
 
 dotenv.config();
-
-// Connect to MongoDB
-connectDB().then(() => {
-  seedAdmin();
-});
 
 async function startServer() {
   const app = express();
@@ -46,13 +34,19 @@ async function startServer() {
       next();
   });
 
-  // Routes
+  // Health and System Info
   app.use('/api', globalLimiter);
-  app.use('/api/auth', authLimiter, authRoutes);
-  app.use('/api/orders', orderRoutes);
-  app.use('/api/products', productRoutes);
-  app.use('/api/cart', cartRoutes);
-  app.use('/api/admin', adminRoutes);
+  app.get('/api/health', (req, res) => {
+    res.json({
+      status: 'ok',
+      service: 'DEUZ & CO Backend',
+      dataLayer: 'Firebase Firestore & Firebase Authentication',
+      timestamp: new Date().toISOString()
+    });
+  });
+
+  // Authentication API Routes
+  app.use('/api/auth', authRoutes);
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
