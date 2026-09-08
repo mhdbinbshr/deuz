@@ -6,10 +6,12 @@ import { auth } from '../src/config/firebase';
 import { onAuthStateChanged, signInAnonymously } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db as firestore } from "../src/config/firebase";
+import { sendGmailSecurityCode, verifyGmailSecurityCode, ADMIN_EMAIL } from "../utils/securityVerification";
 
 interface AuthResult {
   success: boolean;
   message?: string;
+  user?: User;
 }
 
 interface AuthContextType {
@@ -18,12 +20,14 @@ interface AuthContextType {
   isAuthModalOpen: boolean;
   openAuthModal: () => void;
   closeAuthModal: () => void;
-  login: (email: string, password: string) => Promise<AuthResult>;
+  login: (email: string, password?: string) => Promise<AuthResult>;
   loginWithGoogle: () => Promise<AuthResult>;
   signup: (userData: Omit<User, 'id' | 'joinedDate' | 'orders'>) => Promise<AuthResult>;
   forgotPassword: (email: string) => Promise<AuthResult>;
   logout: () => void;
   refreshUser: () => Promise<void>;
+  sendSecurityCode: (email: string) => Promise<{ success: boolean; code?: string; expiresInMinutes?: number; message: string }>;
+  verifySecurityCode: (email: string, code: string) => Promise<{ valid: boolean; message: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -43,9 +47,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       try {
         const currentUser = await db.getCurrentUser();
         if (currentUser && isMounted) {
-          const isAdmin = currentUser.email === 'unk410066@gmail.com' || 
-                          currentUser.email === 'muhammadbinbasheer777@gmail.com' ||
-                          currentUser.role === 'admin';
+          const isAdmin = currentUser.email === ADMIN_EMAIL || currentUser.role === 'admin';
           setUser({
             ...currentUser,
             role: isAdmin ? 'admin' : (currentUser.role || 'user')
@@ -72,8 +74,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             const userDocRef = doc(firestore, "users", firebaseUser.uid);
             unsubscribeProfile = onSnapshot(userDocRef, (userDoc) => {
               if (!isMounted) return;
-              const isAdminEmail = firebaseUser.email === 'muhammadbinbasheer777@gmail.com' || 
-                                   firebaseUser.email === 'unk410066@gmail.com';
+              const isAdminEmail = firebaseUser.email === ADMIN_EMAIL;
               if (userDoc.exists()) {
                 const userData = userDoc.data();
                 const addressData = userData.address || (userData.addresses && userData.addresses.length > 0 ? userData.addresses[0] : undefined);
@@ -155,10 +156,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  const login = async (email: string, password: string): Promise<AuthResult> => {
+  const login = async (email: string, password?: string): Promise<AuthResult> => {
     setIsLoading(true);
     try {
-      const loggedUser = await db.loginUser(email, password);
+      const loggedUser = await db.loginUser(email, password || 'passwordless');
       setUser(loggedUser as User);
       setIsAuthModalOpen(false);
       setIsLoading(false);
@@ -166,9 +167,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } catch (error: any) {
       console.error("Login failed", error);
       setIsLoading(false);
-      let message = error.message || 'Invalid email or passkey. Please verify your credentials.';
+      let message = error.message || 'Authentication error. Please verify your details.';
       if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
-        message = 'Invalid email or passkey. Please verify your credentials.';
+        message = 'Invalid authentication details. Please re-verify.';
       } else if (error.code === 'auth/user-not-found') {
         message = 'No account located for this email. Please establish an identity first.';
       } else if (error.code === 'auth/too-many-requests') {
@@ -204,7 +205,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const signup = async (userData: Omit<User, 'id' | 'joinedDate' | 'orders'>): Promise<AuthResult> => {
     setIsLoading(true);
     try {
-      const newUser = await db.registerUser(userData);
+      // Passwordless registration
+      const newUser = await db.loginPasswordless(userData.email, userData.fullName, userData.mobile);
       setUser(newUser as User);
       setIsAuthModalOpen(false);
       setIsLoading(false);
@@ -215,8 +217,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       let message = error.message || 'Registration failed. Please check your details.';
       if (error.code === 'auth/email-already-in-use') {
         message = 'An account is already linked to this email. Please initialize session.';
-      } else if (error.code === 'auth/weak-password') {
-        message = 'Passcode must be at least 6 characters in length.';
       } else if (error.code === 'auth/invalid-email') {
         message = 'Please enter a valid email address.';
       }
@@ -253,7 +253,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       signup,
       forgotPassword,
       logout,
-      refreshUser
+      refreshUser,
+      sendSecurityCode: (email: string) => sendGmailSecurityCode(email),
+      verifySecurityCode: (email: string, code: string) => verifyGmailSecurityCode(email, code)
     }}>
       {children}
     </AuthContext.Provider>
@@ -263,7 +265,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    return {
+      user: storage.getUser(),
+      isLoading: false,
+      isAuthModalOpen: false,
+      openAuthModal: () => {},
+      closeAuthModal: () => {},
+      login: async () => ({ success: false, message: 'Initializing auth...' }),
+      loginWithGoogle: async () => ({ success: false, message: 'Initializing auth...' }),
+      signup: async () => ({ success: false, message: 'Initializing auth...' }),
+      forgotPassword: async () => ({ success: false, message: 'Initializing auth...' }),
+      logout: () => {},
+      refreshUser: async () => {},
+      sendSecurityCode: async () => ({ success: false, message: 'Initializing auth...' }),
+      verifySecurityCode: async () => ({ valid: false, message: 'Initializing auth...' })
+    };
   }
   return context;
 };

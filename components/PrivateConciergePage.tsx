@@ -1,0 +1,889 @@
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  X, 
+  ArrowLeft, 
+  ArrowRight, 
+  Calendar, 
+  Clock, 
+  Compass, 
+  Mail, 
+  ShieldCheck, 
+  Sparkles, 
+  CheckCircle2, 
+  Copy, 
+  Check, 
+  PhoneCall, 
+  Globe, 
+  Search, 
+  Send,
+  MessageSquare,
+  Lock,
+  ExternalLink
+} from 'lucide-react';
+import { db } from '../utils/db';
+import { useAuth } from '../context/AuthContext';
+
+interface PrivateConciergePageProps {
+  onClose: () => void;
+}
+
+const CONSULTATION_TYPES = [
+  {
+    id: 'salon',
+    title: 'Private Salon Fitting',
+    subtitle: 'Exclusive atelier fitting & singular tailoring session',
+    badge: 'In-Person Salon',
+    duration: '90 Minutes'
+  },
+  {
+    id: 'bespoke',
+    title: 'Bespoke Curatorial Commission',
+    subtitle: 'Direct consultation with the Maison Creative Direction',
+    badge: 'Signature Atelier',
+    duration: '120 Minutes'
+  },
+  {
+    id: 'acquisition',
+    title: 'Archive & Vault Acquisition',
+    subtitle: 'Private acquisition review of museum & vault artifacts',
+    badge: 'Museum Reserve',
+    duration: '60 Minutes'
+  },
+  {
+    id: 'virtual',
+    title: 'Encrypted Virtual Salon',
+    subtitle: 'Ultra-high-definition private digital salon worldwide',
+    badge: 'Encrypted Tele-Salon',
+    duration: '45 Minutes'
+  }
+];
+
+const ATELIER_CITIES = [
+  { 
+    city: 'Paris', 
+    zone: 'Europe/Paris', 
+    label: 'Place Vendôme', 
+    address: '18 Place Vendôme, 75001 Paris',
+    openHours: '10:00 — 19:00 CET' 
+  },
+  { 
+    city: 'London', 
+    zone: 'Europe/London', 
+    label: 'Mayfair', 
+    address: '24 Old Bond Street, Mayfair, London',
+    openHours: '10:00 — 18:30 GMT' 
+  },
+  { 
+    city: 'New York', 
+    zone: 'America/New_York', 
+    label: 'Madison Avenue', 
+    address: '740 Madison Ave, New York, NY',
+    openHours: '10:00 — 19:00 EST' 
+  },
+  { 
+    city: 'Tokyo', 
+    zone: 'Asia/Tokyo', 
+    label: 'Ginza', 
+    address: '6-10-1 Ginza, Chuo City, Tokyo',
+    openHours: '11:00 — 20:00 JST' 
+  }
+];
+
+export const PrivateConciergePage: React.FC<PrivateConciergePageProps> = ({ onClose }) => {
+  const { user } = useAuth();
+  
+  // State
+  const [selectedType, setSelectedType] = useState('salon');
+  const [selectedCity, setSelectedCity] = useState('Paris');
+  const [copiedEmail, setCopiedEmail] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeTab, setActiveTab] = useState<'appointment' | 'inquiry' | 'lookup'>('appointment');
+  
+  // Appointment Form State
+  const [formData, setFormData] = useState({
+    name: user?.fullName || '',
+    email: user?.email || '',
+    phone: user?.mobile || '',
+    datePreference: '',
+    notes: ''
+  });
+
+  // Submitted Appointment Dossier
+  const [submittedDossier, setSubmittedDossier] = useState<{
+    code: string;
+    name: string;
+    type: string;
+    location: string;
+    date: string;
+  } | null>(null);
+
+  // Quick Instant Inquiry
+  const [inquiryData, setInquiryData] = useState({
+    name: user?.fullName || '',
+    email: user?.email || '',
+    subject: 'High Fashion Archival Ingestion',
+    message: ''
+  });
+  const [inquirySent, setInquirySent] = useState(false);
+
+  // Lookup Tool
+  const [lookupCode, setLookupCode] = useState('');
+  const [lookupResult, setLookupResult] = useState<any | null>(null);
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [lookupError, setLookupError] = useState('');
+
+  // World times with live ticking seconds
+  const [cityTimes, setCityTimes] = useState<{ [key: string]: string }>({});
+
+  useEffect(() => {
+    const updateTimes = () => {
+      const times: { [key: string]: string } = {};
+      ATELIER_CITIES.forEach(({ city, zone }) => {
+        try {
+          times[city] = new Intl.DateTimeFormat('en-GB', {
+            timeZone: zone,
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+          }).format(new Date());
+        } catch {
+          times[city] = '--:--:--';
+        }
+      });
+      setCityTimes(times);
+    };
+
+    updateTimes();
+    const interval = setInterval(updateTimes, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Prepopulate if user changes
+  useEffect(() => {
+    if (user) {
+      setFormData(prev => ({
+        ...prev,
+        name: prev.name || user.fullName || '',
+        email: prev.email || user.email || '',
+        phone: prev.phone || user.mobile || ''
+      }));
+      setInquiryData(prev => ({
+        ...prev,
+        name: prev.name || user.fullName || '',
+        email: prev.email || user.email || ''
+      }));
+    }
+  }, [user]);
+
+  const handleCopyEmail = () => {
+    navigator.clipboard.writeText('deuzandco@gmail.com');
+    setCopiedEmail(true);
+    setTimeout(() => setCopiedEmail(false), 2500);
+  };
+
+  const handleAppointmentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+
+    const typeObj = CONSULTATION_TYPES.find(t => t.id === selectedType);
+    const cityObj = ATELIER_CITIES.find(c => c.city === selectedCity);
+    const generatedCode = `CNCG-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    try {
+      await db.submitAppointment({
+        code: generatedCode,
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        consultationType: typeObj?.title || selectedType,
+        location: `${cityObj?.city} — ${cityObj?.label}`,
+        datePreference: formData.datePreference,
+        notes: formData.notes,
+        status: 'PENDING'
+      });
+
+      setSubmittedDossier({
+        code: generatedCode,
+        name: formData.name,
+        type: typeObj?.title || selectedType,
+        location: `${cityObj?.city} — ${cityObj?.label}`,
+        date: formData.datePreference || 'Immediate Scheduling'
+      });
+    } catch (err: any) {
+      console.error('Failed to submit appointment to Firestore:', err);
+      // Fallback local display
+      setSubmittedDossier({
+        code: generatedCode,
+        name: formData.name,
+        type: typeObj?.title || selectedType,
+        location: `${cityObj?.city} — ${cityObj?.label}`,
+        date: formData.datePreference || 'Immediate Scheduling'
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleInquirySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      await db.logAuditEvent('CONCIERGE_INQUIRY_TRANSMITTED', 'concierge', 'desk', {
+        name: inquiryData.name,
+        email: inquiryData.email,
+        subject: inquiryData.subject,
+        message: inquiryData.message
+      });
+      setInquirySent(true);
+      // Trigger mailto fallback
+      const sub = encodeURIComponent(`[Concierge Desk] ${inquiryData.subject} - ${inquiryData.name}`);
+      const body = encodeURIComponent(
+        `CLIENT: ${inquiryData.name}\nEMAIL: ${inquiryData.email}\n\nMESSAGE:\n${inquiryData.message}`
+      );
+      window.open(`mailto:deuzandco@gmail.com?subject=${sub}&body=${body}`, '_blank');
+    } catch (err) {
+      setInquirySent(true);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleLookupSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!lookupCode.trim()) return;
+    setLookupLoading(true);
+    setLookupError('');
+    setLookupResult(null);
+
+    try {
+      const found = await db.getAppointmentByCode(lookupCode.trim());
+      if (found) {
+        setLookupResult(found);
+      } else {
+        setLookupError(`No registered consultation dossier located under code "${lookupCode.trim().toUpperCase()}".`);
+      }
+    } catch (e: any) {
+      setLookupError('Network verification issue. Please contact the desk directly.');
+    } finally {
+      setLookupLoading(false);
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+      className="fixed inset-0 z-[120] bg-[#030303] text-[#f2efe9] overflow-y-auto font-sans select-none"
+      style={{
+        scrollbarWidth: 'thin',
+        scrollbarColor: 'rgba(212,175,55,0.3) #030303'
+      }}
+    >
+      {/* Ambient Cinema Lighting & Noise */}
+      <div className="fixed inset-0 pointer-events-none z-0">
+        <div 
+          className="absolute inset-0 opacity-[0.04] mix-blend-overlay"
+          style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`
+          }} 
+        />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1200px] h-[600px] bg-[radial-gradient(ellipse_at_top,rgba(212,175,55,0.08)_0%,rgba(160,120,40,0.02)_50%,transparent_80%)] blur-[100px]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_30%,rgba(0,0,0,0.95)_100%)]" />
+      </div>
+
+      {/* Top Header */}
+      <header className="sticky top-0 left-0 right-0 z-50 px-6 sm:px-12 py-5 sm:py-6 flex justify-between items-center backdrop-blur-xl bg-black/60 border-b border-white/[0.06]">
+        <button
+          onClick={onClose}
+          className="flex items-center gap-3 sm:gap-4 group cursor-pointer"
+        >
+          <div className="w-10 h-10 rounded-full border border-gold-500/40 flex items-center justify-center bg-[#0a0a0a] group-hover:bg-gold-500 group-hover:border-gold-500 transition-all duration-300 shadow-[0_0_15px_rgba(212,175,55,0.1)]">
+            <ArrowLeft size={16} className="text-gold-400 group-hover:text-black transition-colors" />
+          </div>
+          <div className="text-left">
+            <span className="block text-[8px] sm:text-[9px] uppercase tracking-[0.3em] text-gold-400/70 group-hover:text-gold-400 font-mono">
+              Return to Maison
+            </span>
+            <span className="block text-xs sm:text-sm font-serif tracking-[0.2em] text-white">
+              PRIVATE CONCIERGE SUITE
+            </span>
+          </div>
+        </button>
+
+        <div className="flex items-center gap-4 sm:gap-6">
+          {user && (
+            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full border border-gold-500/30 bg-gold-500/5">
+              <span className="w-1.5 h-1.5 rounded-full bg-gold-400 animate-pulse" />
+              <span className="text-[10px] font-mono tracking-widest text-gold-300 uppercase">
+                VIP: {user.fullName.split(' ')[0]}
+              </span>
+            </div>
+          )}
+
+          <button
+            onClick={onClose}
+            className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center text-white/60 hover:text-white hover:border-white/30 transition-all"
+            aria-label="Close Concierge"
+          >
+            <X size={18} />
+          </button>
+        </div>
+      </header>
+
+      {/* Main Suite Content */}
+      <div className="relative z-10 max-w-7xl mx-auto px-6 sm:px-12 py-10 sm:py-16 space-y-16">
+        
+        {/* Hero Banner */}
+        <section className="text-center space-y-6 max-w-4xl mx-auto">
+          <div className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full border border-gold-500/30 bg-gold-500/10 text-gold-300 text-[9px] uppercase tracking-[0.3em] font-mono shadow-[0_0_25px_rgba(212,175,55,0.12)]">
+            <Sparkles size={12} className="text-gold-400 animate-spin" style={{ animationDuration: '6s' }} />
+            <span>Salon Privé & Haute Couture Services</span>
+          </div>
+
+          <h1 className="text-3xl sm:text-5xl md:text-7xl font-serif text-white tracking-[0.1em] uppercase leading-tight">
+            The Private Concierge
+          </h1>
+
+          <p className="text-sm sm:text-base text-white/60 font-light max-w-2xl mx-auto leading-relaxed">
+            By invitation and exclusive appointment. Sourcing singular archive editions, organizing private atelier fittings, and coordinating high-jewelry acquisitions across our global salons.
+          </p>
+
+          {/* Worldwide Live Atelier Clocks */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 pt-6 max-w-4xl mx-auto">
+            {ATELIER_CITIES.map(({ city, label, address }) => (
+              <div 
+                key={city}
+                className="p-4 rounded-sm border border-white/[0.07] bg-white/[0.02] backdrop-blur-md text-left transition-all hover:border-gold-500/40 hover:bg-white/[0.04]"
+              >
+                <div className="flex items-center justify-between text-gold-400 mb-1.5">
+                  <span className="text-[10px] font-mono tracking-widest uppercase">{city}</span>
+                  <span className="text-xs font-mono font-bold tracking-widest text-white">
+                    {cityTimes[city] || '--:--:--'}
+                  </span>
+                </div>
+                <p className="text-xs font-serif text-white/90 truncate">{label}</p>
+                <p className="text-[9px] font-mono text-white/40 truncate mt-0.5">{address}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Navigation Tabs for Services */}
+        <div className="flex justify-center border-b border-white/[0.08] pb-1">
+          <div className="inline-flex gap-2 sm:gap-4 p-1.5 bg-white/[0.03] border border-white/[0.08] rounded-full backdrop-blur-md">
+            <button
+              onClick={() => setActiveTab('appointment')}
+              className={`px-5 py-2 rounded-full text-xs font-mono uppercase tracking-[0.2em] transition-all cursor-pointer ${
+                activeTab === 'appointment'
+                  ? 'bg-gold-500 text-black font-bold shadow-[0_0_20px_rgba(212,175,55,0.4)]'
+                  : 'text-white/60 hover:text-white'
+              }`}
+            >
+              Book Salon Fitting
+            </button>
+            <button
+              onClick={() => setActiveTab('inquiry')}
+              className={`px-5 py-2 rounded-full text-xs font-mono uppercase tracking-[0.2em] transition-all cursor-pointer ${
+                activeTab === 'inquiry'
+                  ? 'bg-gold-500 text-black font-bold shadow-[0_0_20px_rgba(212,175,55,0.4)]'
+                  : 'text-white/60 hover:text-white'
+              }`}
+            >
+              Direct Inquiry
+            </button>
+            <button
+              onClick={() => setActiveTab('lookup')}
+              className={`px-5 py-2 rounded-full text-xs font-mono uppercase tracking-[0.2em] transition-all cursor-pointer ${
+                activeTab === 'lookup'
+                  ? 'bg-gold-500 text-black font-bold shadow-[0_0_20px_rgba(212,175,55,0.4)]'
+                  : 'text-white/60 hover:text-white'
+              }`}
+            >
+              Dossier Lookup
+            </button>
+          </div>
+        </div>
+
+        {/* Tab 1: Appointment Booking Suite */}
+        {activeTab === 'appointment' && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
+            
+            {/* Left Column: Selectors & Form */}
+            <div className="lg:col-span-8 space-y-10">
+              <AnimatePresence mode="wait">
+                {submittedDossier ? (
+                  /* Confirmation Passport Dossier */
+                  <motion.div
+                    key="confirmed"
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    className="p-8 sm:p-12 rounded-sm border-2 border-gold-500/50 bg-[#080808] text-center space-y-8 relative overflow-hidden shadow-[0_20px_80px_rgba(0,0,0,0.9)]"
+                  >
+                    {/* Filigree corner brackets */}
+                    <div className="absolute top-2 left-2 w-4 h-4 border-t-2 border-l-2 border-gold-500" />
+                    <div className="absolute top-2 right-2 w-4 h-4 border-t-2 border-r-2 border-gold-500" />
+                    <div className="absolute bottom-2 left-2 w-4 h-4 border-b-2 border-l-2 border-gold-500" />
+                    <div className="absolute bottom-2 right-2 w-4 h-4 border-b-2 border-r-2 border-gold-500" />
+
+                    <div className="w-16 h-16 rounded-full border-2 border-gold-500/60 bg-gold-500/10 mx-auto flex items-center justify-center text-gold-400 shadow-[0_0_30px_rgba(212,175,55,0.2)]">
+                      <CheckCircle2 size={32} />
+                    </div>
+
+                    <div className="space-y-2">
+                      <span className="text-[10px] font-mono uppercase tracking-[0.35em] text-gold-400">
+                        Official Reservation Confirmed & Logged
+                      </span>
+                      <h2 className="text-3xl sm:text-4xl font-serif text-white tracking-widest uppercase">
+                        Salon Appointment Dossier
+                      </h2>
+                      <p className="text-xs sm:text-sm text-white/60 font-light max-w-md mx-auto">
+                        Your private salon consultation has been registered with the Head Concierge desk.
+                      </p>
+                    </div>
+
+                    {/* Passport Card */}
+                    <div className="max-w-md mx-auto bg-black border border-gold-500/30 p-6 rounded-sm text-left space-y-4 shadow-xl">
+                      <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                        <span className="text-[10px] font-mono uppercase tracking-widest text-white/40">Dossier Reference</span>
+                        <span className="text-sm font-mono font-bold tracking-widest text-gold-400">{submittedDossier.code}</span>
+                      </div>
+                      <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                        <span className="text-[10px] font-mono uppercase tracking-widest text-white/40">Client Operative</span>
+                        <span className="text-xs font-serif text-white">{submittedDossier.name}</span>
+                      </div>
+                      <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                        <span className="text-[10px] font-mono uppercase tracking-widest text-white/40">Consultation Nature</span>
+                        <span className="text-xs font-serif text-gold-300">{submittedDossier.type}</span>
+                      </div>
+                      <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                        <span className="text-[10px] font-mono uppercase tracking-widest text-white/40">Location</span>
+                        <span className="text-xs font-mono text-white/80">{submittedDossier.location}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] font-mono uppercase tracking-widest text-white/40">Schedule Preference</span>
+                        <span className="text-xs font-mono text-white">{submittedDossier.date}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row gap-4 justify-center max-w-md mx-auto pt-4">
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(submittedDossier.code);
+                          alert(`Dossier reference ${submittedDossier.code} copied to clipboard.`);
+                        }}
+                        className="flex-1 py-3 px-6 border border-gold-500/40 text-gold-300 hover:bg-gold-500/10 text-xs font-mono uppercase tracking-widest transition-all cursor-pointer"
+                      >
+                        Copy Dossier ID
+                      </button>
+                      <button
+                        onClick={() => setSubmittedDossier(null)}
+                        className="flex-1 py-3 px-6 bg-gold-500 text-black hover:bg-white text-xs font-mono uppercase font-bold tracking-widest transition-all cursor-pointer"
+                      >
+                        Schedule Another
+                      </button>
+                    </div>
+                  </motion.div>
+                ) : (
+                  /* Form View */
+                  <form onSubmit={handleAppointmentSubmit} className="space-y-10">
+                    
+                    {/* Step 1: Select Consultation Nature */}
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-3">
+                        <span className="w-6 h-6 rounded-full bg-gold-500/10 border border-gold-500/30 flex items-center justify-center text-gold-400 text-xs font-mono">1</span>
+                        <h3 className="text-sm uppercase tracking-[0.25em] font-mono text-gold-400">
+                          Select Consultation Nature
+                        </h3>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {CONSULTATION_TYPES.map((type) => (
+                          <div
+                            key={type.id}
+                            onClick={() => setSelectedType(type.id)}
+                            className={`p-5 rounded-sm border transition-all cursor-pointer text-left relative overflow-hidden ${
+                              selectedType === type.id
+                                ? 'border-gold-500 bg-gold-500/10 shadow-[0_0_30px_rgba(212,175,55,0.15)]'
+                                : 'border-white/[0.08] bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.04]'
+                            }`}
+                          >
+                            <div className="flex justify-between items-start mb-2">
+                              <span className="text-[9px] font-mono tracking-widest uppercase px-2 py-0.5 rounded bg-white/5 text-gold-400">
+                                {type.badge}
+                              </span>
+                              <span className="text-[9px] font-mono text-white/40">{type.duration}</span>
+                            </div>
+                            <h4 className="text-base font-serif text-white tracking-wide mb-1">
+                              {type.title}
+                            </h4>
+                            <p className="text-xs text-white/50 leading-relaxed">
+                              {type.subtitle}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Step 2: Select Salon Atelier City */}
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-3">
+                        <span className="w-6 h-6 rounded-full bg-gold-500/10 border border-gold-500/30 flex items-center justify-center text-gold-400 text-xs font-mono">2</span>
+                        <h3 className="text-sm uppercase tracking-[0.25em] font-mono text-gold-400">
+                          Select Atelier City
+                        </h3>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        {ATELIER_CITIES.map((c) => (
+                          <button
+                            type="button"
+                            key={c.city}
+                            onClick={() => setSelectedCity(c.city)}
+                            className={`p-4 rounded-sm border text-left transition-all cursor-pointer ${
+                              selectedCity === c.city
+                                ? 'border-gold-500 bg-gold-500/10 text-white shadow-[0_0_20px_rgba(212,175,55,0.15)]'
+                                : 'border-white/[0.08] bg-white/[0.02] text-white/60 hover:text-white hover:border-white/20'
+                            }`}
+                          >
+                            <span className="block text-xs font-serif tracking-widest uppercase font-bold">
+                              {c.city}
+                            </span>
+                            <span className="block text-[9px] font-mono text-gold-400/80 truncate mt-0.5">
+                              {c.label}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Step 3: Contact & Scheduling Dossier */}
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-3">
+                        <span className="w-6 h-6 rounded-full bg-gold-500/10 border border-gold-500/30 flex items-center justify-center text-gold-400 text-xs font-mono">3</span>
+                        <h3 className="text-sm uppercase tracking-[0.25em] font-mono text-gold-400">
+                          Client Operative Dossier
+                        </h3>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] uppercase font-mono tracking-widest text-white/50">Full Name *</label>
+                          <input
+                            required
+                            type="text"
+                            value={formData.name}
+                            onChange={e => setFormData({ ...formData, name: e.target.value })}
+                            placeholder="Lord / Lady / Title & Name"
+                            className="w-full bg-black/80 border border-white/10 p-3.5 text-sm text-white focus:border-gold-500 outline-none transition-colors"
+                          />
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] uppercase font-mono tracking-widest text-white/50">Confidential Email *</label>
+                          <input
+                            required
+                            type="email"
+                            value={formData.email}
+                            onChange={e => setFormData({ ...formData, email: e.target.value })}
+                            placeholder="operative@domain.com"
+                            className="w-full bg-black/80 border border-white/10 p-3.5 text-sm text-white focus:border-gold-500 outline-none transition-colors"
+                          />
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] uppercase font-mono tracking-widest text-white/50">Direct Phone / Signal</label>
+                          <input
+                            type="tel"
+                            value={formData.phone}
+                            onChange={e => setFormData({ ...formData, phone: e.target.value })}
+                            placeholder="+1 (555) 000-0000"
+                            className="w-full bg-black/80 border border-white/10 p-3.5 text-sm text-white focus:border-gold-500 outline-none transition-colors"
+                          />
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] uppercase font-mono tracking-widest text-white/50">Preferred Date & Window</label>
+                          <input
+                            type="text"
+                            value={formData.datePreference}
+                            onChange={e => setFormData({ ...formData, datePreference: e.target.value })}
+                            placeholder="e.g. Oct 24, Afternoon or Flexible"
+                            className="w-full bg-black/80 border border-white/10 p-3.5 text-sm text-white focus:border-gold-500 outline-none transition-colors"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5 pt-2">
+                        <label className="text-[10px] uppercase font-mono tracking-widest text-white/50">
+                          Tailoring or Archival Ingestion Notes (Optional)
+                        </label>
+                        <textarea
+                          rows={3}
+                          value={formData.notes}
+                          onChange={e => setFormData({ ...formData, notes: e.target.value })}
+                          placeholder="Specific museum pieces of interest, custom sizing specifications, or security requirements..."
+                          className="w-full bg-black/80 border border-white/10 p-3.5 text-sm text-white focus:border-gold-500 outline-none transition-colors"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Submit Button */}
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="w-full py-5 bg-gold-500 hover:bg-white text-black font-mono font-bold text-xs uppercase tracking-[0.3em] transition-all duration-300 shadow-[0_0_30px_rgba(212,175,55,0.25)] flex items-center justify-center gap-3 cursor-pointer disabled:opacity-50"
+                    >
+                      {isSubmitting ? (
+                        <span>Encrypting & Registering Dossier...</span>
+                      ) : (
+                        <>
+                          <span>Submit Reservation to Head Concierge</span>
+                          <ArrowRight size={16} />
+                        </>
+                      )}
+                    </button>
+                  </form>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Right Column: Head Concierge Desk Info & Protocols */}
+            <div className="lg:col-span-4 space-y-8">
+              {/* Direct Desk Card */}
+              <div className="p-6 rounded-sm border border-gold-500/30 bg-gradient-to-b from-[#120f09] to-[#080808] space-y-6 shadow-xl relative overflow-hidden">
+                <div className="flex items-center justify-between">
+                  <span className="text-[9px] font-mono uppercase tracking-[0.25em] text-gold-400">
+                    Direct Line
+                  </span>
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                </div>
+
+                <div>
+                  <h3 className="text-xl font-serif text-white tracking-wide">
+                    Head Concierge Desk
+                  </h3>
+                  <p className="text-xs text-white/50 font-light mt-1">
+                    Direct private communications channel for acquisitions, vault viewings, and appointment changes.
+                  </p>
+                </div>
+
+                <div className="p-3.5 bg-black/80 border border-white/10 rounded-sm flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <Mail size={14} className="text-gold-400" />
+                    <span className="text-xs font-mono text-white/90">deuzandco@gmail.com</span>
+                  </div>
+                  <button
+                    onClick={handleCopyEmail}
+                    className="p-1.5 text-gold-400 hover:text-white transition-colors cursor-pointer"
+                    title="Copy Email"
+                  >
+                    {copiedEmail ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                  </button>
+                </div>
+
+                <div className="space-y-3 pt-2 text-[11px] text-white/60">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck size={13} className="text-gold-400 shrink-0" />
+                    <span>All consultations strictly bound by Non-Disclosure Protocol</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Clock size={13} className="text-gold-400 shrink-0" />
+                    <span>Average concierge response latency: &lt; 2 Hours</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Globe size={13} className="text-gold-400 shrink-0" />
+                    <span>Global white-glove armed courier delivery upon acquisition</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Atelier Address Guide */}
+              <div className="p-6 rounded-sm border border-white/[0.07] bg-white/[0.02] space-y-4">
+                <h4 className="text-xs uppercase font-mono tracking-[0.2em] text-gold-400">
+                  Maison Salon Addresses
+                </h4>
+                <div className="space-y-3 text-xs">
+                  {ATELIER_CITIES.map(c => (
+                    <div key={c.city} className="border-b border-white/5 pb-2.5">
+                      <div className="flex justify-between text-white font-serif">
+                        <span>{c.city} — {c.label}</span>
+                        <span className="text-[10px] font-mono text-gold-400/80">{c.openHours}</span>
+                      </div>
+                      <p className="text-[10px] font-mono text-white/40 mt-0.5">{c.address}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tab 2: Direct Inquiry */}
+        {activeTab === 'inquiry' && (
+          <div className="max-w-3xl mx-auto space-y-8">
+            <div className="text-center space-y-2">
+              <h2 className="text-2xl sm:text-3xl font-serif text-white tracking-widest uppercase">
+                Direct Dispatch to Head Concierge
+              </h2>
+              <p className="text-xs sm:text-sm text-white/60 font-light max-w-lg mx-auto">
+                Transmit an encrypted dispatch directly to our executive concierge desk for private acquisitions, press inquiries, or bespoke queries.
+              </p>
+            </div>
+
+            {inquirySent ? (
+              <div className="p-10 rounded-sm border border-gold-500/40 bg-black text-center space-y-4">
+                <CheckCircle2 size={40} className="text-gold-400 mx-auto" />
+                <h3 className="text-2xl font-serif text-white uppercase">Inquiry Transmitted</h3>
+                <p className="text-xs text-white/60 max-w-md mx-auto">
+                  Your dispatch has been registered. An encrypted confirmation has also been dispatched to your email client.
+                </p>
+                <button
+                  onClick={() => setInquirySent(false)}
+                  className="px-6 py-2.5 border border-gold-500/40 text-gold-300 text-xs font-mono uppercase tracking-widest hover:bg-gold-500/10 transition-colors"
+                >
+                  Send Another Inquiry
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleInquirySubmit} className="space-y-6 bg-white/[0.02] border border-white/[0.08] p-8 rounded-sm">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase font-mono tracking-widest text-white/50">Your Name *</label>
+                    <input
+                      required
+                      type="text"
+                      value={inquiryData.name}
+                      onChange={e => setInquiryData({ ...inquiryData, name: e.target.value })}
+                      placeholder="Title & Full Name"
+                      className="w-full bg-black/80 border border-white/10 p-3.5 text-sm text-white focus:border-gold-500 outline-none"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase font-mono tracking-widest text-white/50">Confidential Email *</label>
+                    <input
+                      required
+                      type="email"
+                      value={inquiryData.email}
+                      onChange={e => setInquiryData({ ...inquiryData, email: e.target.value })}
+                      placeholder="client@domain.com"
+                      className="w-full bg-black/80 border border-white/10 p-3.5 text-sm text-white focus:border-gold-500 outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase font-mono tracking-widest text-white/50">Subject *</label>
+                  <select
+                    value={inquiryData.subject}
+                    onChange={e => setInquiryData({ ...inquiryData, subject: e.target.value })}
+                    className="w-full bg-black border border-white/10 p-3.5 text-sm text-white focus:border-gold-500 outline-none"
+                  >
+                    <option value="High Fashion Archival Ingestion">High Fashion Archival Ingestion</option>
+                    <option value="Vault Artifact Private Purchase">Vault Artifact Private Purchase</option>
+                    <option value="Bespoke Runway Fitting">Bespoke Runway Fitting</option>
+                    <option value="VIP Editorial & Press Inquiries">VIP Editorial & Press Inquiries</option>
+                    <option value="General Concierge Assistance">General Concierge Assistance</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase font-mono tracking-widest text-white/50">Message *</label>
+                  <textarea
+                    required
+                    rows={5}
+                    value={inquiryData.message}
+                    onChange={e => setInquiryData({ ...inquiryData, message: e.target.value })}
+                    placeholder="Provide details regarding your request, desired pieces, or schedule..."
+                    className="w-full bg-black/80 border border-white/10 p-3.5 text-sm text-white focus:border-gold-500 outline-none"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full py-4 bg-gold-500 hover:bg-white text-black font-mono font-bold text-xs uppercase tracking-[0.25em] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  <Send size={14} />
+                  <span>Transmit Inquiry to deuzandco@gmail.com</span>
+                </button>
+              </form>
+            )}
+          </div>
+        )}
+
+        {/* Tab 3: Dossier Lookup */}
+        {activeTab === 'lookup' && (
+          <div className="max-w-xl mx-auto space-y-8">
+            <div className="text-center space-y-2">
+              <h2 className="text-2xl sm:text-3xl font-serif text-white tracking-widest uppercase">
+                Lookup Registered Dossier
+              </h2>
+              <p className="text-xs sm:text-sm text-white/60 font-light">
+                Verify the live status of your private salon appointment or concierge requisition code.
+              </p>
+            </div>
+
+            <form onSubmit={handleLookupSubmit} className="flex gap-2">
+              <input
+                required
+                type="text"
+                value={lookupCode}
+                onChange={e => setLookupCode(e.target.value)}
+                placeholder="e.g. CNCG-2026-8491"
+                className="flex-1 bg-black border border-white/10 p-3.5 text-sm font-mono text-white focus:border-gold-500 outline-none uppercase"
+              />
+              <button
+                type="submit"
+                disabled={lookupLoading}
+                className="px-6 py-3.5 bg-gold-500 text-black font-mono font-bold text-xs uppercase tracking-widest hover:bg-white transition-colors cursor-pointer disabled:opacity-50"
+              >
+                {lookupLoading ? 'Verifying...' : 'Lookup'}
+              </button>
+            </form>
+
+            {lookupError && (
+              <div className="p-4 bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-mono text-center">
+                {lookupError}
+              </div>
+            )}
+
+            {lookupResult && (
+              <div className="p-6 bg-black border border-gold-500/40 rounded-sm space-y-4 shadow-xl">
+                <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                  <span className="text-[10px] font-mono text-white/40 uppercase">Dossier Code</span>
+                  <span className="text-sm font-mono font-bold text-gold-400">{lookupResult.code}</span>
+                </div>
+                <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                  <span className="text-[10px] font-mono text-white/40 uppercase">Status</span>
+                  <span className="px-2.5 py-0.5 rounded text-[10px] font-mono font-bold tracking-widest bg-gold-500/20 text-gold-300 border border-gold-500/40">
+                    {lookupResult.status || 'CONFIRMED'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                  <span className="text-[10px] font-mono text-white/40 uppercase">Client</span>
+                  <span className="text-xs font-serif text-white">{lookupResult.name}</span>
+                </div>
+                <div className="flex justify-between items-center border-b border-white/10 pb-3">
+                  <span className="text-[10px] font-mono text-white/40 uppercase">Service</span>
+                  <span className="text-xs font-serif text-gold-300">{lookupResult.consultationType}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] font-mono text-white/40 uppercase">Location</span>
+                  <span className="text-xs font-mono text-white/80">{lookupResult.location}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+      </div>
+    </motion.div>
+  );
+};
+
+export default PrivateConciergePage;

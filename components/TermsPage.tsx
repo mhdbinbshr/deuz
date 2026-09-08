@@ -34,7 +34,7 @@ const TermsPage: React.FC<TermsPageProps> = ({ onClose }) => {
           <div className="w-16 h-16 mx-auto bg-gold-900/10 border border-gold-500/20 rounded-full flex items-center justify-center mb-6">
              <Scale size={24} className="text-gold-500" strokeWidth={1} />
           </div>
-          <h1 className="text-4xl md:text-5xl font-serif text-white tracking-widest mb-4">TERMS & CONDITIONS</h1>
+          <h1 className="text-2xl sm:text-3xl md:text-5xl font-serif text-white tracking-[0.1em] sm:tracking-widest mb-4">TERMS & CONDITIONS</h1>
           <div className="h-[1px] w-24 bg-gold-500 mx-auto" />
         </motion.div>
 

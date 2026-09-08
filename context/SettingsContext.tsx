@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { db } from '../utils/db';
 
-interface SiteContent {
+export interface SiteContent {
   heroTitle: string;
   heroSubtitle: string;
   ctaText: string;
@@ -16,6 +16,13 @@ interface SiteContent {
   sovereignCategory?: string;
   sovereignPrice?: string;
   sovereignStatus?: string;
+  latestDropProductId?: string;
+  latestDropTitle?: string;
+  latestDropDescription?: string;
+  latestDropImage?: string;
+  latestDropCategory?: string;
+  latestDropPrice?: string;
+  latestDropStatus?: string;
 }
 
 interface ConciergeConfig {
@@ -49,7 +56,11 @@ const DEFAULT_CONTENT: SiteContent = {
   aboutTitle: 'THE HOUSE STANDARD',
   aboutSubtitle: 'DEUZ IS THE DESIGN.',
   aboutDescription: 'DEUZ & CO is anchored in singularity. One design defines the house — structured with discipline, refined with precision, and elevated through measured evolution. We do not multiply form. We perfect it. Each release strengthens the standard.',
-  aboutImage: 'https://ik.imagekit.io/dto1zguat/1775236374031.png?updatedAt=1788674480127'
+  aboutImage: 'https://ik.imagekit.io/dto1zguat/1775236374031.png?updatedAt=1788674480127',
+  latestDropProductId: 'auto',
+  sovereignCategory: 'Apparel',
+  sovereignPrice: '₹12,000',
+  sovereignStatus: 'Active'
 };
 
 const DEFAULT_CONCIERGE: ConciergeConfig = {
@@ -97,7 +108,12 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
 export const useSettings = () => {
   const context = useContext(SettingsContext);
   if (context === undefined) {
-    throw new Error('useSettings must be used within a SettingsProvider');
+    return {
+      content: DEFAULT_CONTENT,
+      concierge: DEFAULT_CONCIERGE,
+      refreshSettings: async () => {},
+      loading: false
+    };
   }
   return context;
 };

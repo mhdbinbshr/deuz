@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from 'framer-motion';
-import { useSettings } from '../context/SettingsContext';
-import { ArrowUpRight, ChevronLeft, ChevronRight, Sparkles, Eye, RotateCw } from 'lucide-react';
+import { ArrowUpRight, Sparkles, Eye } from 'lucide-react';
+import { db } from '../utils/db';
 
 interface PortfolioProps {
   onEnterShop: () => void;
@@ -11,7 +11,6 @@ interface FormPiece {
   id: string;
   title: string;
   code: string;
-  subtitle: string;
   tag: string;
   year: string;
   imgUrl: string;
@@ -23,8 +22,7 @@ const DEFAULT_FORM_PIECES: FormPiece[] = [
   {
     id: 'sov-01',
     title: 'SOVEREIGN',
-    code: 'FORM 01 / PIECE 01',
-    subtitle: 'Sculpted Heavy French Terry Hoodie',
+    code: 'FORM 01 ∞ PIECE 01',
     tag: 'SIGNATURE SILHOUETTE',
     year: '2026',
     imgUrl: 'https://ik.imagekit.io/dto1zguat/Evolve_1.jpg',
@@ -34,8 +32,7 @@ const DEFAULT_FORM_PIECES: FormPiece[] = [
   {
     id: 'dst-02',
     title: 'DUSTBOUND',
-    code: 'FORM 01 / PIECE 02',
-    subtitle: 'Mineral Washed Custom Fleece',
+    code: 'FORM 01 ∞ PIECE 02',
     tag: 'LIMITED CAPSULE',
     year: '2026',
     imgUrl: 'https://ik.imagekit.io/dto1zguat/Dustbound_1.jpg?updatedAt=1775277953541',
@@ -45,8 +42,7 @@ const DEFAULT_FORM_PIECES: FormPiece[] = [
   {
     id: 'eth-03',
     title: 'ETERNAL HORIZON',
-    code: 'FORM 01 / PIECE 03',
-    subtitle: 'Double-Faced Bonded Wool Silhouette',
+    code: 'FORM 01 ∞ PIECE 03',
     tag: 'ARCHITECTURAL OUTERWEAR',
     year: '2026',
     imgUrl: 'https://ik.imagekit.io/dto1zguat/EternalHorizon_1.jpg?updatedAt=1775278022400',
@@ -56,8 +52,7 @@ const DEFAULT_FORM_PIECES: FormPiece[] = [
   {
     id: 'evl-04',
     title: 'EVOLVE TEE',
-    code: 'FORM 01 / PIECE 04',
-    subtitle: 'Mercerized Combed Heavy Cotton',
+    code: 'FORM 01 ∞ PIECE 04',
     tag: 'FOUNDATIONAL PIECE',
     year: '2026',
     imgUrl: 'https://ik.imagekit.io/dto1zguat/Evolve_4.jpg?updatedAt=1775278133983',
@@ -67,8 +62,7 @@ const DEFAULT_FORM_PIECES: FormPiece[] = [
   {
     id: 'eth-05',
     title: 'ETERNAL MONOLITH',
-    code: 'FORM 01 / PIECE 05',
-    subtitle: 'Singular Architectural Pattern Overcoat',
+    code: 'FORM 01 ∞ PIECE 05',
     tag: 'STUDIO ARCHIVE',
     year: '2026',
     imgUrl: 'https://ik.imagekit.io/dto1zguat/EternalHorizon_2.jpg?updatedAt=1775278048419',
@@ -78,32 +72,56 @@ const DEFAULT_FORM_PIECES: FormPiece[] = [
 ];
 
 const Portfolio: React.FC<PortfolioProps> = ({ onEnterShop }) => {
-  const { content } = useSettings();
+  const [liveProducts, setLiveProducts] = useState<any[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
-  const [isAutoOrbit, setIsAutoOrbit] = useState(true);
+  const [isPaused, setIsPaused] = useState(false);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const stageRef = useRef<HTMLDivElement>(null);
 
-  // Normalize form pieces list with custom settings if present
+  // Live Firestore subscription: Real-time synchronization with collection
+  // When admin adds new product, updates, or transfers to archive, it reflects here immediately
+  useEffect(() => {
+    const unsubscribe = db.subscribeProducts((prods) => {
+      if (prods && Array.isArray(prods)) {
+        setLiveProducts(prods);
+      }
+    });
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, []);
+
+  // Map products: active collection items only (exclude archived items)
   const pieces: FormPiece[] = React.useMemo(() => {
-    if (content.scrollImages && content.scrollImages.length > 0) {
-      return content.scrollImages.map((url, idx) => {
-        const fallback = DEFAULT_FORM_PIECES[idx % DEFAULT_FORM_PIECES.length];
-        return {
-          id: `custom-piece-${idx}`,
-          title: fallback.title,
-          code: `FORM 01 / 0${idx + 1}`,
-          subtitle: fallback.subtitle,
-          tag: fallback.tag,
-          year: fallback.year,
-          imgUrl: url,
-          material: fallback.material,
-          weight: fallback.weight
-        };
-      });
+    if (liveProducts && liveProducts.length > 0) {
+      const activeProducts = liveProducts.filter((p: any) => !p.isArchived);
+      if (activeProducts.length > 0) {
+        return activeProducts.map((p: any, idx: number) => {
+          const cleanTitle = p.title
+            ? p.title.replace(/^DEUZ\s*(FORM\s*\d+\s*)?[—–-]\s*/i, '').trim()
+            : `PIECE 0${idx + 1}`;
+          return {
+            id: p._id || p.id || `live-piece-${idx}`,
+            title: cleanTitle || p.title || 'EXCLUSIVE CUT',
+            code: p.houseCode || `FORM 01 ∞ 0${idx + 1}`,
+            tag: p.imageTag || 'EXCLUSIVE CUT',
+            year: '2026',
+            imgUrl: p.image || (p.gallery && p.gallery.length > 0 ? p.gallery[0] : 'https://ik.imagekit.io/dto1zguat/Evolve_1.jpg'),
+            material: p.details?.Fabric || 'ORGANIC SUPIMA COTTON',
+            weight: p.details?.Silhouette || p.details?.Cut || ''
+          };
+        });
+      }
     }
     return DEFAULT_FORM_PIECES;
-  }, [content.scrollImages]);
+  }, [liveProducts]);
+
+  // Ensure activeIndex is always within valid range when collection updates
+  useEffect(() => {
+    if (activeIndex >= pieces.length && pieces.length > 0) {
+      setActiveIndex(0);
+    }
+  }, [pieces.length, activeIndex]);
 
   // Motion values for real-time 3D cursor perspective
   const mouseX = useMotionValue(0);
@@ -116,7 +134,6 @@ const Portfolio: React.FC<PortfolioProps> = ({ onEnterShop }) => {
   // Map mouse coordinate to 3D rotation angles
   const rotateX = useTransform(springY, [-0.5, 0.5], [16, -16]);
   const rotateY = useTransform(springX, [-0.5, 0.5], [-22, 22]);
-  const translateZLayer = useTransform(springX, [-0.5, 0.5], [-15, 15]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (!stageRef.current) return;
@@ -141,14 +158,14 @@ const Portfolio: React.FC<PortfolioProps> = ({ onEnterShop }) => {
     setActiveIndex((prev) => (prev - 1 + pieces.length) % pieces.length);
   }, [pieces.length]);
 
-  // Auto-orbit cycling when active
+  // Auto-play: Automatically advance through the images of DEUZ FORM 01
   useEffect(() => {
-    if (!isAutoOrbit) return;
-    const timer = setInterval(() => {
-      nextPiece();
-    }, 6000);
-    return () => clearInterval(timer);
-  }, [isAutoOrbit, nextPiece]);
+    if (isPaused || pieces.length <= 1) return;
+    const interval = setInterval(() => {
+      setActiveIndex((prev) => (prev + 1) % pieces.length);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [isPaused, pieces.length, activeIndex]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -199,9 +216,9 @@ const Portfolio: React.FC<PortfolioProps> = ({ onEnterShop }) => {
                 className="text-[9px] md:text-[10px] font-mono tracking-[0.35em] uppercase text-gold-400 font-medium flex items-center gap-1.5"
               >
                 <Sparkles size={10} className="text-gold-400 animate-pulse" />
-                HOUSE ARCHIVE // FORM 01
+                HOUSE ARCHIVE ∞ FORM 01
               </motion.span>
-              <span className="text-white/20 font-mono text-[9px]">// [2026.EDITION]</span>
+              <span className="text-white/20 font-mono text-[9px]">∞ EXCLUSIVE CUT</span>
             </motion.div>
 
             {/* Small Sized Extra-Styled Title */}
@@ -219,89 +236,62 @@ const Portfolio: React.FC<PortfolioProps> = ({ onEnterShop }) => {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.8, delay: 0.2 }}
-                className="hidden sm:inline-block text-[9px] font-mono tracking-[0.3em] uppercase text-white/40 px-2 py-0.5 border border-white/10 bg-white/[0.02]"
+                className="inline-block text-[9px] font-mono tracking-[0.3em] uppercase text-white/40 px-2 py-0.5 border border-white/10 bg-white/[0.02]"
               >
-                PERMANENT COLLECTION
+                ONE OF ONE
               </motion.span>
             </div>
 
-            {/* Small Styled Sub-text */}
+            {/* Sub-text */}
             <motion.p 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.8, delay: 0.25 }}
               className="text-white/40 text-[10px] md:text-[11px] font-mono tracking-[0.2em] uppercase mt-1.5 font-light max-w-lg"
             >
-              Dimensional silhouettes in permanent levitation. Pure sculpted form, free of boundary.
+              CREATED ONCE. NEVER REPRODUCED.
             </motion.p>
           </div>
 
           <div className="flex items-center gap-3">
-            {/* 3D Auto-Orbit Toggle Button - Small & Extra Styled */}
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => setIsAutoOrbit(!isAutoOrbit)}
-              className={`group flex items-center gap-2 px-3 py-1.5 text-[9px] font-mono tracking-[0.25em] uppercase transition-all duration-300 ${
-                isAutoOrbit
-                  ? 'text-gold-300 bg-gold-500/10 border-b border-gold-400 shadow-[0_0_15px_rgba(212,175,55,0.15)]'
-                  : 'text-white/40 hover:text-white border-b border-white/10 hover:border-white/30 bg-black/20'
-              }`}
-              title="Toggle continuous 3D perspective rotation"
-            >
-              <RotateCw 
-                size={11} 
-                className={`transition-transform duration-500 ${isAutoOrbit ? 'animate-spin text-gold-400' : 'group-hover:rotate-45'}`} 
-                style={{ animationDuration: '7s' }} 
-              />
-              <span>{isAutoOrbit ? 'ORBIT • ON' : 'ORBIT • PAUSED'}</span>
-            </motion.button>
-
-            {/* Direct Shop Entry - Extra Styled */}
+            {/* Direct House Entry */}
             <motion.button
               whileHover={{ x: 2 }}
               onClick={onEnterShop}
-              className="group flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-mono tracking-[0.25em] uppercase text-white/60 hover:text-gold-300 transition-colors border-b border-white/15 hover:border-gold-400/80 bg-white/[0.02]"
+              className="group flex items-center gap-1.5 px-3.5 py-1.5 text-[9px] font-mono tracking-[0.25em] uppercase text-white/60 hover:text-gold-300 transition-colors border-b border-white/15 hover:border-gold-400/80 bg-white/[0.02]"
             >
-              <span>ENTER SHOP</span>
+              <span>ENTER HOUSE</span>
               <ArrowUpRight size={12} className="text-gold-400 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
             </motion.button>
           </div>
         </div>
       </div>
 
-      {/* 3D Interactive Exhibition Stage (Without page-scroll locking) */}
+      {/* 3D Interactive Exhibition Stage */}
       <div 
         ref={stageRef}
         onMouseMove={handleMouseMove}
-        onMouseLeave={handleMouseLeave}
-        onTouchStart={(e) => setTouchStartX(e.touches[0].clientX)}
-        onTouchEnd={(e) => {
-          if (touchStartX === null) return;
-          const diff = touchStartX - e.changedTouches[0].clientX;
-          if (diff > 40) nextPiece();
-          if (diff < -40) prevPiece();
-          setTouchStartX(null);
+        onMouseEnter={() => setIsPaused(true)}
+        onMouseLeave={() => {
+          handleMouseLeave();
+          setIsPaused(false);
         }}
-        className="relative z-10 w-full max-w-7xl mx-auto h-[540px] md:h-[680px] flex items-center justify-center cursor-grab active:cursor-grabbing"
+        onTouchStart={(e) => {
+          setIsPaused(true);
+          setTouchStartX(e.touches[0].clientX);
+        }}
+        onTouchEnd={(e) => {
+          if (touchStartX !== null) {
+            const diff = touchStartX - e.changedTouches[0].clientX;
+            if (diff > 40) nextPiece();
+            if (diff < -40) prevPiece();
+            setTouchStartX(null);
+          }
+          setIsPaused(false);
+        }}
+        className="relative z-10 w-full max-w-7xl mx-auto h-[520px] md:h-[660px] flex items-center justify-center cursor-grab active:cursor-grabbing"
         style={{ perspective: 1200 }}
       >
-        {/* Navigation Arrow Controls (Sides) */}
-        <button
-          onClick={prevPiece}
-          aria-label="Previous Piece"
-          className="absolute left-4 md:left-8 z-30 w-12 h-12 flex items-center justify-center text-white/40 hover:text-gold-400 transition-all duration-300 hover:scale-110"
-        >
-          <ChevronLeft size={36} strokeWidth={1.2} />
-        </button>
-        <button
-          onClick={nextPiece}
-          aria-label="Next Piece"
-          className="absolute right-4 md:right-8 z-30 w-12 h-12 flex items-center justify-center text-white/40 hover:text-gold-400 transition-all duration-300 hover:scale-110"
-        >
-          <ChevronRight size={36} strokeWidth={1.2} />
-        </button>
-
         {/* 3D Rotational Stage Anchor */}
         <motion.div
           style={{
@@ -311,60 +301,60 @@ const Portfolio: React.FC<PortfolioProps> = ({ onEnterShop }) => {
           }}
           className="relative w-full h-full flex items-center justify-center"
         >
-          {/* LEFT RECESSED PIECE (3D Ghost Preview with Soft Edge Fade) */}
+          {/* LEFT RECESSED PIECE (3D Ghost Preview with Soft Edge Fade for ALL Screens) */}
           <div
             onClick={prevPiece}
-            className="hidden lg:flex absolute left-[5%] xl:left-[8%] top-1/2 -translate-y-1/2 w-[340px] h-[460px] cursor-pointer items-center justify-center transition-all duration-700 select-none group"
+            className="flex absolute -left-8 sm:left-[1%] md:left-[3%] lg:left-[6%] xl:left-[8%] top-1/2 -translate-y-1/2 w-[160px] sm:w-[220px] md:w-[280px] lg:w-[340px] h-[260px] sm:h-[340px] md:h-[400px] lg:h-[460px] cursor-pointer items-center justify-center transition-all duration-700 select-none group z-10"
             style={{
               transform: 'translateZ(-140px) rotateY(32deg)',
               transformStyle: 'preserve-3d',
             }}
           >
-            <div className="relative w-full h-full flex items-center justify-center opacity-30 group-hover:opacity-60 transition-opacity duration-500">
+            <div className="relative w-full h-full flex items-center justify-center opacity-35 group-hover:opacity-65 transition-opacity duration-500">
               <img
-                src={pieces[prevPieceIndex].imgUrl}
-                alt={pieces[prevPieceIndex].title}
+                src={pieces[prevPieceIndex]?.imgUrl}
+                alt={pieces[prevPieceIndex]?.title}
                 className="max-w-full max-h-full object-contain pointer-events-none filter grayscale contrast-125"
                 style={{
                   WebkitMaskImage: 'radial-gradient(ellipse 70% 70% at 50% 50%, black 30%, transparent 85%)',
                   maskImage: 'radial-gradient(ellipse 70% 70% at 50% 50%, black 30%, transparent 85%)',
                 }}
               />
-              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-center whitespace-nowrap opacity-0 group-hover:opacity-100 transition-all duration-300 transform group-hover:-translate-y-1">
-                <span className="text-[8px] font-mono tracking-[0.35em] text-gold-400 uppercase block mb-0.5">
-                  // {pieces[prevPieceIndex].code}
+              <div className="absolute bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 text-center whitespace-nowrap opacity-70 sm:opacity-0 group-hover:opacity-100 transition-all duration-300 transform group-hover:-translate-y-1">
+                <span className="text-[7px] sm:text-[8px] font-mono tracking-[0.35em] text-gold-400 uppercase block mb-0.5">
+                  ∞ {pieces[prevPieceIndex]?.code}
                 </span>
-                <p className="text-[9px] font-serif tracking-[0.25em] text-white/80 uppercase">
+                <p className="text-[8px] sm:text-[9px] font-serif tracking-[0.25em] text-white/80 uppercase">
                   PREVIOUS PIECE
                 </p>
               </div>
             </div>
           </div>
 
-          {/* RIGHT RECESSED PIECE (3D Ghost Preview with Soft Edge Fade) */}
+          {/* RIGHT RECESSED PIECE (3D Ghost Preview with Soft Edge Fade for ALL Screens) */}
           <div
             onClick={nextPiece}
-            className="hidden lg:flex absolute right-[5%] xl:right-[8%] top-1/2 -translate-y-1/2 w-[340px] h-[460px] cursor-pointer items-center justify-center transition-all duration-700 select-none group"
+            className="flex absolute -right-8 sm:right-[1%] md:right-[3%] lg:right-[6%] xl:right-[8%] top-1/2 -translate-y-1/2 w-[160px] sm:w-[220px] md:w-[280px] lg:w-[340px] h-[260px] sm:h-[340px] md:h-[400px] lg:h-[460px] cursor-pointer items-center justify-center transition-all duration-700 select-none group z-10"
             style={{
               transform: 'translateZ(-140px) rotateY(-32deg)',
               transformStyle: 'preserve-3d',
             }}
           >
-            <div className="relative w-full h-full flex items-center justify-center opacity-30 group-hover:opacity-60 transition-opacity duration-500">
+            <div className="relative w-full h-full flex items-center justify-center opacity-35 group-hover:opacity-65 transition-opacity duration-500">
               <img
-                src={pieces[nextPieceIndex].imgUrl}
-                alt={pieces[nextPieceIndex].title}
+                src={pieces[nextPieceIndex]?.imgUrl}
+                alt={pieces[nextPieceIndex]?.title}
                 className="max-w-full max-h-full object-contain pointer-events-none filter grayscale contrast-125"
                 style={{
                   WebkitMaskImage: 'radial-gradient(ellipse 70% 70% at 50% 50%, black 30%, transparent 85%)',
                   maskImage: 'radial-gradient(ellipse 70% 70% at 50% 50%, black 30%, transparent 85%)',
                 }}
               />
-              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-center whitespace-nowrap opacity-0 group-hover:opacity-100 transition-all duration-300 transform group-hover:-translate-y-1">
-                <span className="text-[8px] font-mono tracking-[0.35em] text-gold-400 uppercase block mb-0.5">
-                  // {pieces[nextPieceIndex].code}
+              <div className="absolute bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 text-center whitespace-nowrap opacity-70 sm:opacity-0 group-hover:opacity-100 transition-all duration-300 transform group-hover:-translate-y-1">
+                <span className="text-[7px] sm:text-[8px] font-mono tracking-[0.35em] text-gold-400 uppercase block mb-0.5">
+                  ∞ {pieces[nextPieceIndex]?.code}
                 </span>
-                <p className="text-[9px] font-serif tracking-[0.25em] text-white/80 uppercase">
+                <p className="text-[8px] sm:text-[9px] font-serif tracking-[0.25em] text-white/80 uppercase">
                   NEXT PIECE
                 </p>
               </div>
@@ -382,7 +372,7 @@ const Portfolio: React.FC<PortfolioProps> = ({ onEnterShop }) => {
               style={{
                 transformStyle: 'preserve-3d',
               }}
-              className="relative w-[92vw] sm:w-[540px] md:w-[640px] h-[480px] md:h-[580px] flex flex-col items-center justify-center"
+              className="relative w-[92vw] sm:w-[540px] md:w-[640px] h-[480px] md:h-[580px] flex flex-col items-center justify-center z-20"
             >
               {/* Backlight Volumetric Depth Glow (Zero solid border) */}
               <motion.div
@@ -412,7 +402,7 @@ const Portfolio: React.FC<PortfolioProps> = ({ onEnterShop }) => {
                 style={{
                   transformStyle: 'preserve-3d',
                 }}
-                className="relative w-full h-[360px] md:h-[440px] flex items-center justify-center"
+                className="relative w-full h-[360px] md:h-[440px] flex items-center justify-center cursor-pointer"
                 onClick={onEnterShop}
               >
                 {/* The Unboxed Image with Gradient Feather Mask (No solid borders) */}
@@ -442,7 +432,7 @@ const Portfolio: React.FC<PortfolioProps> = ({ onEnterShop }) => {
                   />
                 </div>
 
-                {/* Floating 3D Metadata Hologram Badge - Small, Extra Styled & Animated */}
+                {/* Floating 3D Metadata Hologram Badge */}
                 <motion.div
                   style={{
                     transform: 'translateZ(65px)',
@@ -459,19 +449,19 @@ const Portfolio: React.FC<PortfolioProps> = ({ onEnterShop }) => {
                   className="absolute top-2 right-4 md:right-8 flex items-center gap-2 px-2.5 py-1 bg-black/60 backdrop-blur-md border-b border-gold-400/40 text-[8px] md:text-[9px] font-mono tracking-[0.3em] text-gold-300 uppercase shadow-2xl pointer-events-none"
                 >
                   <span className="w-1 h-1 rounded-full bg-gold-400 animate-ping" />
-                  <span className="text-white/30">//</span>
+                  <span className="text-white/30 font-sans">∞</span>
                   <span>{activePiece.code}</span>
                 </motion.div>
               </motion.div>
 
-              {/* Unboxed 3D Focal Information Card - Small Sized, Extra Styled & Animated */}
+              {/* Unboxed 3D Focal Information Card */}
               <motion.div
                 style={{
                   transform: 'translateZ(50px)',
                 }}
                 className="mt-1 text-center max-w-lg px-4"
               >
-                {/* Animated Small Tag & Weight Eyebrow */}
+                {/* Tag */}
                 <motion.div 
                   initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -480,15 +470,11 @@ const Portfolio: React.FC<PortfolioProps> = ({ onEnterShop }) => {
                 >
                   <span className="text-[9px] font-mono tracking-[0.35em] uppercase text-gold-400 flex items-center gap-1.5 font-medium">
                     <Sparkles size={10} className="text-gold-400 animate-pulse" />
-                    [{activePiece.tag}]
-                  </span>
-                  <span className="text-white/20 font-mono text-[9px]">•</span>
-                  <span className="text-[8px] md:text-[9px] font-mono tracking-[0.25em] text-white/50 uppercase">
-                    {activePiece.weight}
+                    {activePiece.tag}
                   </span>
                 </motion.div>
 
-                {/* Small Sized Extra-Styled Title with Animated Letter Spacing & Reveal */}
+                {/* Edition Name without / */}
                 <motion.div
                   initial={{ opacity: 0, y: 8, letterSpacing: '0.15em' }}
                   animate={{ opacity: 1, y: 0, letterSpacing: '0.3em' }}
@@ -496,9 +482,7 @@ const Portfolio: React.FC<PortfolioProps> = ({ onEnterShop }) => {
                   className="relative inline-block my-1"
                 >
                   <h3 className="text-base sm:text-lg md:text-xl font-serif text-white tracking-[0.3em] uppercase font-light">
-                    <span className="text-white/30 font-mono text-xs mr-2 font-normal">/</span>
                     {activePiece.title}
-                    <span className="text-white/30 font-mono text-xs ml-2 font-normal">/</span>
                   </h3>
                   {/* Subtle golden underline animation */}
                   <motion.div 
@@ -509,26 +493,11 @@ const Portfolio: React.FC<PortfolioProps> = ({ onEnterShop }) => {
                   />
                 </motion.div>
 
-                {/* Small Sized Architectural Specifications Strip */}
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ duration: 0.6, delay: 0.3 }}
-                  className="mt-1 flex flex-col items-center gap-1"
-                >
-                  <p className="text-[10px] md:text-[11px] text-white/60 font-light tracking-[0.2em] uppercase font-mono">
-                    {activePiece.subtitle}
-                  </p>
-                  <p className="text-[9px] text-gold-400/80 font-mono tracking-[0.25em] uppercase">
-                    FABRIC // {activePiece.material}
-                  </p>
-                </motion.div>
-
-                {/* Small Sized Action Button with Animated Interactions */}
+                {/* Action Button */}
                 <motion.div 
                   initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: 0.4 }}
+                  transition={{ duration: 0.5, delay: 0.35 }}
                   className="mt-3 flex items-center justify-center"
                 >
                   <motion.button
@@ -546,54 +515,6 @@ const Portfolio: React.FC<PortfolioProps> = ({ onEnterShop }) => {
             </motion.div>
           </AnimatePresence>
         </motion.div>
-      </div>
-
-      {/* Piece Selector Ribbon & Pagination Dials (Small Size, Extra Styled & Animated) */}
-      <div className="relative z-10 max-w-4xl mx-auto mt-4 md:mt-6 px-6">
-        <div className="flex items-center justify-center gap-1.5 md:gap-2.5 flex-wrap">
-          {pieces.map((piece, idx) => {
-            const isActive = idx === activeIndex;
-            return (
-              <motion.button
-                key={piece.id}
-                whileHover={{ y: -1 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setActiveIndex(idx)}
-                className={`group relative px-2.5 md:px-3 py-1.5 text-left transition-all duration-300 ${
-                  isActive ? 'opacity-100' : 'opacity-40 hover:opacity-80'
-                }`}
-              >
-                <div className="flex items-center gap-1.5">
-                  <span className={`text-[9px] font-mono tracking-[0.2em] ${isActive ? 'text-gold-400 font-bold' : 'text-white/50'}`}>
-                    0{idx + 1}
-                  </span>
-                  <span className={`text-[10px] md:text-[11px] font-serif tracking-[0.2em] uppercase transition-colors ${isActive ? 'text-white' : 'text-white/60 group-hover:text-white/80'}`}>
-                    {piece.title}
-                  </span>
-                </div>
-                {/* Animated Indicator Line */}
-                <div className="relative mt-1 h-[2px] w-full bg-white/[0.06] overflow-hidden">
-                  {isActive && (
-                    <motion.div 
-                      layoutId="activeForm01Tab"
-                      className="absolute inset-0 bg-gradient-to-r from-gold-400 via-amber-300 to-gold-400"
-                      transition={{ type: "spring", stiffness: 350, damping: 30 }}
-                    />
-                  )}
-                </div>
-              </motion.button>
-            );
-          })}
-        </div>
-
-        {/* Small Animated Helper Hint */}
-        <motion.p 
-          animate={{ opacity: [0.2, 0.4, 0.2] }}
-          transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-          className="text-center text-[8px] md:text-[9px] font-mono tracking-[0.3em] text-white/30 uppercase mt-4 block md:hidden"
-        >
-          [ SWIPE OR DRAG TO ROTATE 3D PIECES ]
-        </motion.p>
       </div>
     </section>
   );

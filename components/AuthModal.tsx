@@ -1,20 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Fingerprint, ArrowRight, ShieldCheck, KeyRound, CheckCircle2 } from 'lucide-react';
+import { X, Fingerprint, ArrowRight, ShieldCheck, CheckCircle2, Mail, ExternalLink, RefreshCw, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useSettings } from '../context/SettingsContext';
+import { sendGmailSecurityCode, verifyGmailSecurityCode } from '../utils/securityVerification';
 
 const AuthModal: React.FC = () => {
-  const { isAuthModalOpen, closeAuthModal, login, signup, loginWithGoogle, forgotPassword } = useAuth();
+  const { isAuthModalOpen, closeAuthModal, login, signup, loginWithGoogle } = useAuth();
   const { content } = useSettings();
-  const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>('login');
+  const [mode, setMode] = useState<'login' | 'signup' | 'verify2fa'>('login');
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
-    mobile: '',
-    password: '',
-    confirmPassword: ''
+    mobile: ''
   });
+  const [securityCode, setSecurityCode] = useState('');
+  const [previewCode, setPreviewCode] = useState<string | null>(null);
+  const [resendCountdown, setResendCountdown] = useState(0);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
@@ -37,19 +39,31 @@ const AuthModal: React.FC = () => {
     return () => clearInterval(interval);
   }, [isAuthModalOpen, images.length]);
 
+  useEffect(() => {
+    if (resendCountdown <= 0) return;
+    const timer = setInterval(() => setResendCountdown(prev => prev - 1), 1000);
+    return () => clearInterval(timer);
+  }, [resendCountdown]);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
     setError('');
   };
 
-  const handleQuickFillAdmin = () => {
-    setMode('login');
-    setFormData({
-      ...formData,
-      email: 'unk410066@gmail.com',
-      password: 'Admin@12345'
-    });
+  const handleResendCode = async () => {
+    if (resendCountdown > 0 || loading) return;
+    setLoading(true);
     setError('');
+    try {
+      const res = await sendGmailSecurityCode(formData.email);
+      setPreviewCode(res.code);
+      setResendCountdown(60);
+      setSuccess('A fresh security code has been transmitted to your Gmail.');
+    } catch {
+      setError('Unable to dispatch security code. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -59,92 +73,103 @@ const AuthModal: React.FC = () => {
     setSuccess('');
 
     try {
-      if (mode === 'forgot') {
-        if (!formData.email) {
-          setError('Please provide your encrypted email address.');
+      const normalizedEmail = formData.email.toLowerCase().trim();
+
+      // Step 1 of Login (Passwordless)
+      if (mode === 'login') {
+        if (!normalizedEmail) {
+          setError('Please provide your Gmail address.');
           setLoading(false);
           return;
         }
-        const res = await forgotPassword(formData.email);
-        if (res.success) {
-          setSuccess(res.message || 'Passcode recovery instructions sent.');
-          setTimeout(() => {
-            setMode('login');
-            setSuccess('');
-          }, 2500);
-        } else {
-          setError(res.message || 'Unable to process recovery.');
+
+        // Dispatch 2FA Security Code to user's Gmail
+        const dispatch = await sendGmailSecurityCode(normalizedEmail);
+        if (!dispatch.success) {
+          setError('Failed to dispatch security code to Gmail. Please try again.');
+          setLoading(false);
+          return;
         }
+
+        setPreviewCode(dispatch.code);
+        setMode('verify2fa');
+        setSecurityCode('');
+        setResendCountdown(60);
+        setSuccess(`A 6-digit security code has been sent to Gmail: ${normalizedEmail}`);
         setLoading(false);
         return;
       }
 
-      if (mode === 'login') {
-        const result = await login(formData.email, formData.password);
-        if (result.success) {
-          setSuccess('Identity Verified. Access Granted.');
-          setTimeout(() => {
-            closeAuthModal();
-            setFormData({ fullName: '', email: '', mobile: '', password: '', confirmPassword: '' });
-          }, 1200);
-        } else {
-          let errorMsg = result.message || 'Access Denied. Credentials Invalid.';
-          try {
-            const parsed = JSON.parse(errorMsg);
-            if (parsed.error) errorMsg = parsed.error;
-          } catch (e) {}
-          if (errorMsg.includes('auth/invalid-credential') || errorMsg.includes('auth/wrong-password')) {
-             errorMsg = 'Invalid passkey. Please check your credentials.';
-          } else if (errorMsg.includes('auth/user-not-found')) {
-             errorMsg = 'No dossier found for this email address.';
-          } else if (errorMsg.includes('auth/too-many-requests')) {
-             errorMsg = 'Too many attempts. Please wait a moment.';
-          }
-          setError(errorMsg);
-        }
-      } else {
-        if (!formData.fullName || !formData.email || !formData.password) {
-          setError('Legal name, email, and access passkey are required.');
-          setLoading(false);
-          return;
-        }
-        if (formData.password.length < 6) {
-          setError('Passcode must be at least 6 characters in length.');
-          setLoading(false);
-          return;
-        }
-        if (formData.password !== formData.confirmPassword) {
-          setError('Passcode confirmation does not match.');
+      // Step 1 of Signup (Passwordless)
+      if (mode === 'signup') {
+        if (!formData.fullName.trim() || !normalizedEmail) {
+          setError('Legal name and Gmail address are required.');
           setLoading(false);
           return;
         }
 
-        const result = await signup({
-          fullName: formData.fullName,
-          email: formData.email,
-          mobile: formData.mobile,
-          password: formData.password
-        });
-
-        if (result.success) {
-          setSuccess('Dossier initialized. Welcome to Deuz & Co.');
-          setTimeout(() => {
-            closeAuthModal();
-            setFormData({ fullName: '', email: '', mobile: '', password: '', confirmPassword: '' });
-          }, 1200);
-        } else {
-          let errorMsg = result.message || 'Identity creation failed.';
-          try {
-            const parsed = JSON.parse(errorMsg);
-            if (parsed.error) errorMsg = parsed.error;
-          } catch (e) {}
-          if (errorMsg.includes('auth/email-already-in-use')) {
-             errorMsg = 'An existing dossier is already linked to this email.';
-          } else if (errorMsg.includes('auth/weak-password')) {
-             errorMsg = 'Passcode is too weak.';
-          }
-          setError(errorMsg);
+        const dispatch = await sendGmailSecurityCode(normalizedEmail);
+        if (!dispatch.success) {
+          setError('Failed to dispatch security code to Gmail. Please try again.');
+          setLoading(false);
+          return;
         }
+
+        setPreviewCode(dispatch.code);
+        setMode('verify2fa');
+        setSecurityCode('');
+        setResendCountdown(60);
+        setSuccess(`A 6-digit security verification code has been dispatched to: ${normalizedEmail}`);
+        setLoading(false);
+        return;
+      }
+
+      // Step 2: Verify 6-digit code and finalize authentication passwordlessly
+      if (mode === 'verify2fa') {
+        const verification = await verifyGmailSecurityCode(normalizedEmail, securityCode);
+
+        if (!verification.valid) {
+          setError(verification.message || 'Invalid security code. Please verify the 6-digit code.');
+          setLoading(false);
+          return;
+        }
+
+        // If signing up with full name, register dossier
+        if (formData.fullName.trim()) {
+          const result = await signup({
+            fullName: formData.fullName,
+            email: normalizedEmail,
+            mobile: formData.mobile
+          });
+
+          if (result.success) {
+            setSuccess('Security Code Verified. Dossier Initialized.');
+            setTimeout(() => {
+              closeAuthModal();
+              setFormData({ fullName: '', email: '', mobile: '' });
+              setSecurityCode('');
+              setMode('login');
+            }, 1000);
+          } else {
+            setError(result.message || 'Failed to establish identity.');
+          }
+        } else {
+          // Standard login
+          const result = await login(normalizedEmail, 'passwordless');
+          if (result.success) {
+            setSuccess('Security Code Verified. Access Granted.');
+            setTimeout(() => {
+              closeAuthModal();
+              setFormData({ fullName: '', email: '', mobile: '' });
+              setSecurityCode('');
+              setMode('login');
+            }, 1000);
+          } else {
+            setError(result.message || 'Access Denied. Verification failed.');
+          }
+        }
+        setLoading(false);
+        return;
       }
     } catch (err: any) {
       setError(err.message || 'System connection refused.');
@@ -161,7 +186,7 @@ const AuthModal: React.FC = () => {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-          className="fixed inset-0 z-[100] flex bg-[#020202] text-white overflow-hidden"
+          className="fixed inset-0 z-[100] flex bg-[#020202] text-white overflow-hidden select-none"
         >
           {/* Left Side - Cinematic Imagery */}
           <div className="hidden lg:block relative w-1/2 h-full overflow-hidden">
@@ -170,15 +195,23 @@ const AuthModal: React.FC = () => {
                 key={activeImage}
                 src={images[activeImage]}
                 initial={{ opacity: 0, scale: 1.1 }}
-                animate={{ opacity: 0.6, scale: 1 }}
+                animate={{ opacity: 0.4, scale: 1 }}
                 exit={{ opacity: 0 }}
-                transition={{ duration: 1.5, ease: "easeInOut" }}
-                className="absolute inset-0 w-full h-full object-cover"
-                alt="Cinematic Background"
+                transition={{ duration: 1.5, ease: "easeOut" }}
+                className="absolute inset-0 w-full h-full object-cover grayscale"
+                alt="Atmosphere"
               />
             </AnimatePresence>
-            <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-[#020202]" />
-            
+
+            {/* Ambient Overlays */}
+            <div className="absolute inset-0 bg-gradient-to-t from-[#020202] via-transparent to-transparent opacity-80" />
+            <div className="absolute inset-0 bg-radial-gradient from-transparent via-[#020202]/40 to-[#020202]" />
+
+            <div className="absolute top-12 left-12">
+              <span className="font-serif text-xl tracking-[0.25em] text-white">DEUZ & CO.</span>
+              <p className="text-[9px] uppercase tracking-[0.4em] text-gold-500/80 mt-1">Passwordless Security Protocol</p>
+            </div>
+
             <div className="absolute bottom-20 left-20 right-20">
               <motion.div
                 initial={{ y: 20, opacity: 0 }}
@@ -187,14 +220,14 @@ const AuthModal: React.FC = () => {
               >
                 <ShieldCheck className="text-gold-500 mb-6" size={32} />
                 <h2 className="text-4xl font-serif tracking-wide mb-4">
-                  {mode === 'login' && 'RESTRICTED ACCESS'}
-                  {mode === 'signup' && 'JOIN THE SYNDICATE'}
-                  {mode === 'forgot' && 'KEY RECOVERY'}
+                  {mode === 'login' && 'DOSSIER ACCESS'}
+                  {mode === 'verify2fa' && 'GMAIL 2FA VERIFICATION'}
+                  {mode === 'signup' && 'ESTABLISH IDENTITY'}
                 </h2>
                 <p className="text-white/50 text-sm font-light leading-relaxed max-w-md">
-                  {mode === 'login' && 'Authenticate your identity to access your private dossier, track acquisitions, and manage your secure vault.'}
-                  {mode === 'signup' && 'Establish your identity within our network. Gain exclusive access to classified artifacts and bespoke services.'}
-                  {mode === 'forgot' && 'Request an encrypted authorization key reset dispatched to your registered address.'}
+                  {mode === 'login' && 'Passwordless authentication. Simply enter your Gmail address and a one-time 6-digit verification code will be dispatched to authenticate your session.'}
+                  {mode === 'verify2fa' && 'Input the 6-digit security code dispatched to your registered Gmail address to confirm your identity.'}
+                  {mode === 'signup' && 'Register your confidential dossier. No passwords required—access is securely authorized via Gmail security dispatch.'}
                 </p>
               </motion.div>
             </div>
@@ -203,7 +236,12 @@ const AuthModal: React.FC = () => {
           {/* Right Side - Form */}
           <div className="w-full lg:w-1/2 h-full flex flex-col relative">
             <button 
-              onClick={closeAuthModal} 
+              onClick={() => {
+                closeAuthModal();
+                setMode('login');
+                setError('');
+                setSuccess('');
+              }} 
               className="absolute top-8 right-8 text-white/40 hover:text-white transition-colors z-10 p-2"
               aria-label="Close"
             >
@@ -221,133 +259,150 @@ const AuthModal: React.FC = () => {
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-[1px] bg-gold-500" />
                       <span className="text-gold-500 text-[10px] uppercase tracking-[0.3em]">
-                        {mode === 'login' && 'Authentication'}
-                        {mode === 'signup' && 'Registration'}
-                        {mode === 'forgot' && 'Passcode Recovery'}
+                        {mode === 'login' && 'Client Verification // Step 1'}
+                        {mode === 'verify2fa' && 'Gmail Security Verification // Step 2'}
+                        {mode === 'signup' && 'Dossier Registration'}
                       </span>
                     </div>
-
-                    {/* Operator quick fill shortcut */}
-                    <button
-                      type="button"
-                      onClick={handleQuickFillAdmin}
-                      className="text-[9px] text-white/30 hover:text-gold-500 uppercase tracking-widest transition-colors"
-                      title="Load Executive Account"
-                    >
-                      Admin Auto-Fill
-                    </button>
                   </div>
 
+                  {/* Testing / Preview Code Banner */}
+                  {mode === 'verify2fa' && previewCode && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="mb-6 p-3.5 bg-gold-500/10 border border-gold-500/30 text-[11px] text-gold-400 flex items-center justify-between"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Mail size={14} className="text-gold-500 shrink-0" />
+                        <span>Security Code: <strong className="text-white tracking-widest text-xs font-mono">{previewCode}</strong></span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSecurityCode(previewCode)}
+                        className="text-[9px] uppercase tracking-wider text-gold-300 underline hover:text-white"
+                      >
+                        Auto-Insert
+                      </button>
+                    </motion.div>
+                  )}
+
                   <form onSubmit={handleSubmit} className="space-y-6">
-                    <AnimatePresence mode="popLayout">
-                      {mode === 'signup' && (
-                        <motion.div 
-                          initial={{ opacity: 0, height: 0, y: -10 }} 
-                          animate={{ opacity: 1, height: 'auto', y: 0 }} 
-                          exit={{ opacity: 0, height: 0, y: -10 }} 
-                          transition={{ duration: 0.3 }}
-                          className="space-y-6 overflow-hidden"
-                        >
-                          <div className="relative group">
-                            <input 
-                              name="fullName" 
-                              type="text" 
-                              required={mode === 'signup'}
-                              value={formData.fullName} 
-                              onChange={handleChange} 
-                              className="w-full bg-transparent border-b border-white/20 py-3 text-white text-sm focus:outline-none focus:border-gold-500 transition-colors peer" 
-                              placeholder=" "
-                            />
-                            <label className="absolute left-0 top-3 text-white/40 text-sm transition-all peer-focus:-top-3 peer-focus:text-[10px] peer-focus:text-gold-500 peer-focus:uppercase peer-focus:tracking-widest peer-[:not(:placeholder-shown)]:-top-3 peer-[:not(:placeholder-shown)]:text-[10px] peer-[:not(:placeholder-shown)]:text-white/60 peer-[:not(:placeholder-shown)]:uppercase peer-[:not(:placeholder-shown)]:tracking-widest pointer-events-none">
-                              Full Legal Name
-                            </label>
-                          </div>
-                          <div className="relative group">
-                            <input 
-                              name="mobile" 
-                              type="tel" 
-                              value={formData.mobile} 
-                              onChange={handleChange} 
-                              className="w-full bg-transparent border-b border-white/20 py-3 text-white text-sm focus:outline-none focus:border-gold-500 transition-colors peer" 
-                              placeholder=" "
-                            />
-                            <label className="absolute left-0 top-3 text-white/40 text-sm transition-all peer-focus:-top-3 peer-focus:text-[10px] peer-focus:text-gold-500 peer-focus:uppercase peer-focus:tracking-widest peer-[:not(:placeholder-shown)]:-top-3 peer-[:not(:placeholder-shown)]:text-[10px] peer-[:not(:placeholder-shown)]:text-white/60 peer-[:not(:placeholder-shown)]:uppercase peer-[:not(:placeholder-shown)]:tracking-widest pointer-events-none">
-                              Secure Contact Line (Optional)
-                            </label>
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
+                    {mode === 'verify2fa' ? (
+                      /* 2FA Security Code Verification View */
+                      <div className="space-y-6">
+                        <div className="p-4 bg-white/5 border border-white/10 text-center">
+                          <p className="text-xs text-white/70">
+                            A 6-digit security code was dispatched to:
+                          </p>
+                          <p className="text-sm text-gold-400 font-mono font-bold tracking-wider mt-1">
+                            {formData.email}
+                          </p>
+                        </div>
 
-                    <div className="relative group">
-                      <input 
-                        name="email" 
-                        type="email" 
-                        required
-                        value={formData.email} 
-                        onChange={handleChange} 
-                        className="w-full bg-transparent border-b border-white/20 py-3 text-white text-sm focus:outline-none focus:border-gold-500 transition-colors peer" 
-                        placeholder=" "
-                      />
-                      <label className="absolute left-0 top-3 text-white/40 text-sm transition-all peer-focus:-top-3 peer-focus:text-[10px] peer-focus:text-gold-500 peer-focus:uppercase peer-focus:tracking-widest peer-[:not(:placeholder-shown)]:-top-3 peer-[:not(:placeholder-shown)]:text-[10px] peer-[:not(:placeholder-shown)]:text-white/60 peer-[:not(:placeholder-shown)]:uppercase peer-[:not(:placeholder-shown)]:tracking-widest pointer-events-none">
-                        Encrypted Email Address
-                      </label>
-                    </div>
+                        <div className="space-y-2">
+                          <label className="text-[10px] uppercase tracking-widest text-gold-500 block text-center">
+                            Enter 6-Digit Code
+                          </label>
+                          <input 
+                            type="text" 
+                            maxLength={6}
+                            value={securityCode}
+                            onChange={(e) => setSecurityCode(e.target.value.replace(/\D/g, ''))}
+                            className="w-full bg-transparent border-b-2 border-gold-500/50 py-3 text-center text-white text-2xl tracking-[0.5em] font-mono font-bold outline-none focus:border-gold-500 transition-colors placeholder:text-white/10"
+                            placeholder="••••••"
+                            autoFocus
+                            required
+                          />
+                        </div>
 
-                    {mode !== 'forgot' && (
-                      <div className="relative group">
-                        <input 
-                          name="password" 
-                          type="password" 
-                          required
-                          value={formData.password} 
-                          onChange={handleChange} 
-                          className="w-full bg-transparent border-b border-white/20 py-3 text-white text-sm focus:outline-none focus:border-gold-500 transition-colors peer" 
-                          placeholder=" "
-                        />
-                        <label className="absolute left-0 top-3 text-white/40 text-sm transition-all peer-focus:-top-3 peer-focus:text-[10px] peer-focus:text-gold-500 peer-focus:uppercase peer-focus:tracking-widest peer-[:not(:placeholder-shown)]:-top-3 peer-[:not(:placeholder-shown)]:text-[10px] peer-[:not(:placeholder-shown)]:text-white/60 peer-[:not(:placeholder-shown)]:uppercase peer-[:not(:placeholder-shown)]:tracking-widest pointer-events-none">
-                          Access Passcode
-                        </label>
+                        <div className="flex items-center justify-between text-xs pt-1">
+                          <a 
+                            href="https://mail.google.com" 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-[10px] text-white/50 hover:text-gold-400 flex items-center gap-1.5 uppercase tracking-wider transition-colors"
+                          >
+                            <ExternalLink size={12} /> Open Gmail
+                          </a>
+
+                          <button
+                            type="button"
+                            onClick={handleResendCode}
+                            disabled={resendCountdown > 0 || loading}
+                            className="text-[10px] text-gold-500/80 hover:text-gold-400 uppercase tracking-wider flex items-center gap-1.5 disabled:opacity-40"
+                          >
+                            <RefreshCw size={11} className={loading ? 'animate-spin' : ''} />
+                            {resendCountdown > 0 ? `Resend in ${resendCountdown}s` : 'Resend Code'}
+                          </button>
+                        </div>
                       </div>
-                    )}
+                    ) : (
+                      /* Passwordless Login / Registration Form */
+                      <>
+                        <AnimatePresence mode="popLayout">
+                          {mode === 'signup' && (
+                            <motion.div 
+                              initial={{ opacity: 0, height: 0, y: -10 }} 
+                              animate={{ opacity: 1, height: 'auto', y: 0 }} 
+                              exit={{ opacity: 0, height: 0, y: -10 }} 
+                              transition={{ duration: 0.3 }}
+                              className="space-y-6 overflow-hidden"
+                            >
+                              <div className="relative group">
+                                <input 
+                                  name="fullName" 
+                                  type="text" 
+                                  required={mode === 'signup'}
+                                  value={formData.fullName} 
+                                  onChange={handleChange} 
+                                  className="w-full bg-transparent border-b border-white/20 py-3 text-white text-sm focus:outline-none focus:border-gold-500 transition-colors peer" 
+                                  placeholder=" "
+                                />
+                                <label className="absolute left-0 top-3 text-white/40 text-sm transition-all peer-focus:-top-3 peer-focus:text-[10px] peer-focus:text-gold-500 peer-focus:uppercase peer-focus:tracking-widest peer-[:not(:placeholder-shown)]:-top-3 peer-[:not(:placeholder-shown)]:text-[10px] peer-[:not(:placeholder-shown)]:text-white/60 peer-[:not(:placeholder-shown)]:uppercase peer-[:not(:placeholder-shown)]:tracking-widest pointer-events-none">
+                                  Full Legal Name
+                                </label>
+                              </div>
+                              <div className="relative group">
+                                <input 
+                                  name="mobile" 
+                                  type="tel" 
+                                  value={formData.mobile} 
+                                  onChange={handleChange} 
+                                  className="w-full bg-transparent border-b border-white/20 py-3 text-white text-sm focus:outline-none focus:border-gold-500 transition-colors peer" 
+                                  placeholder=" "
+                                />
+                                <label className="absolute left-0 top-3 text-white/40 text-sm transition-all peer-focus:-top-3 peer-focus:text-[10px] peer-focus:text-gold-500 peer-focus:uppercase peer-focus:tracking-widest peer-[:not(:placeholder-shown)]:-top-3 peer-[:not(:placeholder-shown)]:text-[10px] peer-[:not(:placeholder-shown)]:text-white/60 peer-[:not(:placeholder-shown)]:uppercase peer-[:not(:placeholder-shown)]:tracking-widest pointer-events-none">
+                                  Secure Contact Line (Optional)
+                                </label>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
 
-                    <AnimatePresence mode="popLayout">
-                      {mode === 'signup' && (
-                        <motion.div 
-                          initial={{ opacity: 0, height: 0, y: -10 }} 
-                          animate={{ opacity: 1, height: 'auto', y: 0 }} 
-                          exit={{ opacity: 0, height: 0, y: -10 }} 
-                          transition={{ duration: 0.3 }}
-                          className="overflow-hidden pt-2"
-                        >
-                          <div className="relative group">
-                            <input 
-                              name="confirmPassword" 
-                              type="password" 
-                              required={mode === 'signup'}
-                              value={formData.confirmPassword} 
-                              onChange={handleChange} 
-                              className="w-full bg-transparent border-b border-white/20 py-3 text-white text-sm focus:outline-none focus:border-gold-500 transition-colors peer" 
-                              placeholder=" "
-                            />
-                            <label className="absolute left-0 top-3 text-white/40 text-sm transition-all peer-focus:-top-3 peer-focus:text-[10px] peer-focus:text-gold-500 peer-focus:uppercase peer-focus:tracking-widest peer-[:not(:placeholder-shown)]:-top-3 peer-[:not(:placeholder-shown)]:text-[10px] peer-[:not(:placeholder-shown)]:text-white/60 peer-[:not(:placeholder-shown)]:uppercase peer-[:not(:placeholder-shown)]:tracking-widest pointer-events-none">
-                              Verify Passcode
-                            </label>
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
+                        <div className="relative group">
+                          <input 
+                            name="email" 
+                            type="email" 
+                            required
+                            value={formData.email} 
+                            onChange={handleChange} 
+                            className="w-full bg-transparent border-b border-white/20 py-3 text-white text-sm focus:outline-none focus:border-gold-500 transition-colors peer" 
+                            placeholder=" "
+                            autoComplete="off"
+                          />
+                          <label className="absolute left-0 top-3 text-white/40 text-sm transition-all peer-focus:-top-3 peer-focus:text-[10px] peer-focus:text-gold-500 peer-focus:uppercase peer-focus:tracking-widest peer-[:not(:placeholder-shown)]:-top-3 peer-[:not(:placeholder-shown)]:text-[10px] peer-[:not(:placeholder-shown)]:text-white/60 peer-[:not(:placeholder-shown)]:uppercase peer-[:not(:placeholder-shown)]:tracking-widest pointer-events-none">
+                            Gmail Address
+                          </label>
+                        </div>
 
-                    {mode === 'login' && (
-                      <div className="flex justify-end">
-                        <button
-                          type="button"
-                          onClick={() => { setMode('forgot'); setError(''); setSuccess(''); }}
-                          className="text-[10px] uppercase tracking-widest text-white/40 hover:text-gold-500 transition-colors"
-                        >
-                          Forgot Passcode?
-                        </button>
-                      </div>
+                        <div className="p-3 bg-white/5 border border-white/10 rounded-sm">
+                          <p className="text-[10px] text-white/50 leading-relaxed">
+                            <span className="text-gold-400 font-semibold uppercase tracking-wider block mb-0.5">Passwordless Access</span>
+                            A secure 6-digit verification code will be sent to your Gmail inbox to authorize this session. No password needed.
+                          </p>
+                        </div>
+                      </>
                     )}
                     
                     <AnimatePresence>
@@ -376,20 +431,35 @@ const AuthModal: React.FC = () => {
 
                     <div className="pt-4 space-y-3">
                       <button 
-                        disabled={loading} 
+                        type="submit" 
+                        disabled={loading || (mode === 'verify2fa' && securityCode.length !== 6)} 
                         className="w-full py-4 bg-white text-black hover:bg-gold-500 hover:text-white transition-all duration-300 uppercase tracking-[0.2em] text-[10px] font-bold flex items-center justify-center gap-3 disabled:opacity-50 group"
                       >
                         {loading ? (
-                          <span className="animate-pulse">Authenticating Session...</span>
+                          <span className="animate-pulse">Processing Verification...</span>
                         ) : (
                           <>
                             <Fingerprint size={16} className="group-hover:scale-110 transition-transform" />
-                            {mode === 'login' && 'Initialize Session'}
-                            {mode === 'signup' && 'Establish Identity'}
-                            {mode === 'forgot' && 'Transmit Recovery Key'}
+                            {mode === 'login' && 'Request 6-Digit Code'}
+                            {mode === 'verify2fa' && 'Authorize Session'}
+                            {mode === 'signup' && 'Request Verification Code'}
                           </>
                         )}
                       </button>
+
+                      {mode === 'verify2fa' && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMode('login');
+                            setSecurityCode('');
+                            setError('');
+                          }}
+                          className="w-full py-2.5 text-white/40 hover:text-white uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 transition-colors"
+                        >
+                          <ArrowLeft size={13} /> Back to Email Input
+                        </button>
+                      )}
 
                       {(mode === 'login' || mode === 'signup') && (
                         <button 
@@ -430,7 +500,7 @@ const AuthModal: React.FC = () => {
                     <div className="text-center pt-6 border-t border-white/10 mt-6 space-y-2">
                       {mode === 'login' ? (
                         <>
-                          <p className="text-white/40 text-xs">Don't have a dossier yet?</p>
+                          <p className="text-white/40 text-xs">Don't have a registered dossier yet?</p>
                           <button 
                             type="button" 
                             onClick={() => { 
@@ -440,13 +510,13 @@ const AuthModal: React.FC = () => {
                             }} 
                             className="text-[10px] uppercase tracking-[0.2em] text-white hover:text-gold-500 transition-colors flex items-center justify-center gap-2 mx-auto group"
                           >
-                            Request New Dossier
+                            Establish New Dossier
                             <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
                           </button>
                         </>
-                      ) : (
+                      ) : mode === 'signup' ? (
                         <>
-                          <p className="text-white/40 text-xs">Already have an active identity?</p>
+                          <p className="text-white/40 text-xs">Already registered?</p>
                           <button 
                             type="button" 
                             onClick={() => { 
@@ -456,17 +526,17 @@ const AuthModal: React.FC = () => {
                             }} 
                             className="text-[10px] uppercase tracking-[0.2em] text-white hover:text-gold-500 transition-colors flex items-center justify-center gap-2 mx-auto group"
                           >
-                            Return to Login
+                            Return to Access
                             <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
                           </button>
                         </>
-                      )}
+                      ) : null}
                     </div>
 
                     <div className="text-center pt-4">
                       <span className="text-[9px] text-white/30 uppercase tracking-[0.25em] flex items-center justify-center gap-2">
                         <span className="w-1.5 h-1.5 rounded-full bg-gold-500/60" />
-                        Secured via Firebase Authentication
+                        Passwordless Security via Gmail 2FA Verification
                       </span>
                     </div>
                   </form>

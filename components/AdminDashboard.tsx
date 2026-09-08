@@ -10,7 +10,8 @@ import {
   Save, AlertTriangle, Search, TrendingUp, LogOut, ServerOff,
   Crown, Link as LinkIcon, CheckCircle2, Copy, UserCheck, DollarSign,
   MessageCircle, Mail, Instagram, Filter, Settings, Clock, FileText, Smartphone,
-  CreditCard, ExternalLink, PenTool, Layout, Lock, Power, RefreshCw, Archive, Truck, Box, EyeOff, Check, Activity, Terminal, Database, Menu
+  CreditCard, ExternalLink, PenTool, Layout, Lock, Power, RefreshCw, Archive, Truck, Box, EyeOff, Check, Activity, Terminal, Database, Menu,
+  Calendar, Compass, Phone, Sparkles, MapPin
 } from 'lucide-react';
 import { User, OrderStatus, ORDER_STATUS_LABELS } from '../types';
 
@@ -20,7 +21,7 @@ interface ProductForm {
   price: number;
   description: string;
   category: string;
-  productType: 'APPAREL' | 'CARD';
+  productType: 'APPAREL';
   fit?: 'oversized' | 'regular';
   countInStock: number;
   isArchived: boolean;
@@ -53,11 +54,132 @@ const INITIAL_PRODUCT: ProductForm = {
   houseCode: ''
 };
 
+// Complete Images Auto-Animated Reel for Archived Products in Admin Vault
+const ArchivedProductReel: React.FC<{
+  product: any;
+  onEdit: () => void;
+  onDelete: () => void;
+  onArchiveToggle: () => void;
+}> = ({ product, onEdit, onDelete, onArchiveToggle }) => {
+  const images: string[] = [
+    product.image,
+    ...(Array.isArray(product.gallery) ? product.gallery : [])
+  ].filter((img, i, arr) => Boolean(img) && typeof img === 'string' && arr.indexOf(img) === i);
+
+  const [activeIdx, setActiveIdx] = useState(0);
+  const [isHovered, setIsHovered] = useState(false);
+
+  useEffect(() => {
+    if (images.length <= 1 || isHovered) return;
+    const timer = setInterval(() => {
+      setActiveIdx(prev => (prev + 1) % images.length);
+    }, 2800);
+    return () => clearInterval(timer);
+  }, [images.length, isHovered]);
+
+  return (
+    <div 
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      className="bg-[#0A0A0A] border border-gold-500/25 hover:border-gold-500/80 transition-all duration-500 group relative flex flex-col justify-between overflow-hidden shadow-[0_10px_30px_rgba(0,0,0,0.8)]"
+    >
+      <div className="h-56 overflow-hidden relative bg-black">
+        {images.length > 0 ? (
+          <AnimatePresence mode="wait">
+            <motion.img 
+              key={images[activeIdx]}
+              src={images[activeIdx]} 
+              alt={product.title} 
+              initial={{ opacity: 0.35, scale: 1.04 }}
+              animate={{ opacity: 0.95, scale: 1 }}
+              exit={{ opacity: 0.35, scale: 0.98 }}
+              transition={{ duration: 0.7, ease: "easeInOut" }}
+              className="w-full h-full object-cover grayscale-[20%] group-hover:grayscale-0 group-hover:scale-105 transition-all duration-700" 
+            />
+          </AnimatePresence>
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-white/20 font-mono text-xs">
+            No Artifact Imagery
+          </div>
+        )}
+
+        {/* Complete Images Auto-Scroll Pill */}
+        {images.length > 1 && (
+          <div className="absolute top-2 left-2 z-10 flex items-center gap-1.5 bg-black/80 backdrop-blur-md px-2.5 py-1 rounded-full border border-gold-500/40 text-[9px] font-mono text-gold-400 shadow-lg">
+            <Sparkles size={10} className="animate-spin text-gold-400" />
+            <span>{images.length} Images Auto-Cycling ({activeIdx + 1}/{images.length})</span>
+          </div>
+        )}
+
+        {/* Thumbnail Dots */}
+        {images.length > 1 && (
+          <div className="absolute bottom-2 right-2 z-10 flex items-center gap-1 bg-black/70 backdrop-blur-sm px-2 py-1 rounded-full">
+            {images.map((_, idx) => (
+              <button
+                key={idx}
+                onClick={() => setActiveIdx(idx)}
+                className={`w-1.5 h-1.5 rounded-full transition-all ${idx === activeIdx ? 'bg-gold-500 w-3' : 'bg-white/30 hover:bg-white/70'}`}
+                title={`Image ${idx + 1}`}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Actions Menu */}
+        <div className="absolute top-2 right-2 flex gap-1.5 z-10">
+          <button 
+            onClick={onEdit} 
+            className="p-2 bg-black/70 text-white hover:bg-gold-500 hover:text-black transition-colors backdrop-blur-sm rounded-sm"
+            title="Edit Artifact Details"
+          >
+            <Edit size={12} />
+          </button>
+          <button 
+            onClick={onDelete} 
+            className="p-2 bg-black/70 text-white hover:bg-red-500 hover:text-white transition-colors backdrop-blur-sm rounded-sm"
+            title="Purge Artifact"
+          >
+            <Trash size={12} />
+          </button>
+        </div>
+
+        {/* Unarchive / Restore Toggle */}
+        <div className="absolute bottom-2 left-2 flex gap-2 z-10">
+          <button 
+            onClick={onArchiveToggle} 
+            title={product.isArchived ? "Restore Artifact to Active Boutique" : "Archive to Museum Vault"}
+            className={`px-3 py-1.5 backdrop-blur-md text-[10px] font-mono uppercase tracking-wider flex items-center gap-1.5 rounded-sm transition-all shadow-md ${product.isArchived ? 'bg-gold-500 text-black font-bold hover:bg-white' : 'bg-white/10 text-white/70 hover:text-white'}`}
+          >
+            <Archive size={12} />
+            <span>{product.isArchived ? 'Restore to Boutique' : 'Archive'}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Card Info */}
+      <div className="p-4 border-t border-white/5 bg-gradient-to-b from-[#0e0e0e] to-[#080808]">
+        <div className="flex justify-between items-start mb-2">
+          <h3 className="text-white text-sm font-serif tracking-wide">{product.title}</h3>
+          <span className="text-gold-500 text-xs font-mono font-bold">₹{product.price?.toLocaleString('en-IN') || product.price}</span>
+        </div>
+        <div className="flex justify-between items-center text-[10px] uppercase tracking-widest text-white/50 font-mono">
+          <span>{product.category} {product.houseCode ? `∞ ${product.houseCode}` : ''}</span>
+          <span className="text-gold-400 font-bold">
+            {product.isArchived ? 'VAULT ARCHIVE' : 'SOLD OUT'}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 interface AdminDashboardProps {
     onExit: () => void;
+    onViewArchive?: () => void;
+    onViewConcierge?: () => void;
 }
 
-const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
+const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, onViewConcierge }) => {
   const { user } = useAuth();
   const { refreshSettings } = useSettings();
   const isAdmin = user?.role === 'admin';
@@ -76,6 +198,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
   const [logStreamFilter, setLogStreamFilter] = useState<'all' | 'auth' | 'system' | 'audit'>('all');
   const [logSearchQuery, setLogSearchQuery] = useState('');
   const [settings, setSettings] = useState<any>(null);
+
+  // Private Concierge Appointments State
+  const [appointments, setAppointments] = useState<any[]>([]);
+  const [appointmentFilter, setAppointmentFilter] = useState<'all' | 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED'>('all');
+  const [appointmentSearch, setAppointmentSearch] = useState('');
+  const [isSyncing, setIsSyncing] = useState(false);
   
   // UI State
   const [loading, setLoading] = useState(true);
@@ -142,15 +270,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
       const ordPromise = db.getAllOrders();
       const prodPromise = isAdmin ? db.getProducts() : Promise.resolve([]);
       const userPromise = isAdmin ? db.getUsers() : Promise.resolve([]);
+      const apptPromise = db.getAppointments();
       const settPromise = isAdmin ? db.getSystemSettings() : Promise.resolve(null);
       const logPromise = isAdmin ? db.getAuditLogs() : Promise.resolve([]);
       const authLogPromise = isAdmin ? db.getAuthLogs() : Promise.resolve([]);
       const sysLogPromise = isAdmin ? db.getSystemLogs() : Promise.resolve([]);
 
-      const [ordData, prodData, userData, settingsData, logData, authLogData, sysLogData] = await Promise.allSettled([
+      const [ordData, prodData, userData, apptData, settingsData, logData, authLogData, sysLogData] = await Promise.allSettled([
         ordPromise,
         prodPromise,
         userPromise,
+        apptPromise,
         settPromise,
         logPromise,
         authLogPromise,
@@ -165,6 +295,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
           const safeOrders = ordData.status === 'fulfilled' && Array.isArray(ordData.value) ? ordData.value : [];
           const safeProducts = prodData.status === 'fulfilled' && Array.isArray(prodData.value) ? prodData.value : [];
           const safeUsers = userData.status === 'fulfilled' && Array.isArray(userData.value) ? userData.value : [];
+          const safeAppointments = apptData.status === 'fulfilled' && Array.isArray(apptData.value) ? apptData.value : [];
           const safeSettings = settingsData.status === 'fulfilled' ? settingsData.value : null;
           const safeLogs = logData.status === 'fulfilled' && Array.isArray(logData.value) ? logData.value : [];
           const safeAuthLogs = authLogData.status === 'fulfilled' && Array.isArray(authLogData.value) ? authLogData.value : [];
@@ -173,6 +304,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
           setOrders(safeOrders);
           setProducts(safeProducts);
           setUsers(safeUsers);
+          setAppointments(safeAppointments);
           setLogs(safeLogs);
           setAuthLogs(safeAuthLogs);
           setSystemLogs(safeSysLogs);
@@ -215,9 +347,95 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 10000);
-    return () => clearInterval(interval);
+
+    // Attach real-time Firestore listeners for live synchronisation
+    const unsubProducts = db.subscribeProducts((liveProds) => {
+      if (Array.isArray(liveProds)) setProducts(liveProds);
+    });
+
+    const unsubOrders = db.subscribeOrders((liveOrders) => {
+      if (Array.isArray(liveOrders)) {
+        setOrders(liveOrders);
+        const revenue = liveOrders.reduce((acc: number, o: any) => {
+          return (o?.paymentStatus === 'Paid' && typeof o?.totalAmount === 'number') ? acc + o.totalAmount : acc;
+        }, 0);
+        const awaitingConcierge = liveOrders.filter((o: any) => o.orderStatus === 'ORDER_SECURED').length;
+        const awaitingPayment = liveOrders.filter((o: any) => o.orderStatus === 'ORDER_SECURED' && o.paymentLink).length;
+        const paidUnfulfilled = liveOrders.filter((o: any) => ['PAYMENT_AUTHORIZED', 'ORDER_VERIFIED', 'IN_PRODUCTION', 'QUALITY_ASSURED', 'READY_FOR_DISPATCH', 'DISPATCHED', 'IN_TRANSIT', 'ARRIVED_AT_HUB', 'OUT_FOR_DELIVERY'].includes(o.orderStatus)).length;
+        setStats(prev => ({
+          ...prev,
+          revenue,
+          totalOrders: liveOrders.length,
+          awaitingConcierge,
+          awaitingPayment,
+          paidUnfulfilled
+        }));
+      }
+    });
+
+    const unsubAppointments = db.subscribeAppointments((liveAppts) => {
+      if (Array.isArray(liveAppts)) setAppointments(liveAppts);
+    });
+
+    const unsubUsers = db.subscribeUsers((liveUsers) => {
+      if (Array.isArray(liveUsers)) {
+        setUsers(liveUsers);
+        setStats(prev => ({ ...prev, totalUsers: liveUsers.length }));
+      }
+    });
+
+    const interval = setInterval(fetchData, 15000);
+    return () => {
+      clearInterval(interval);
+      unsubProducts();
+      unsubOrders();
+      unsubAppointments();
+      unsubUsers();
+    };
   }, [fetchData]);
+
+  const handleManualFirebaseSync = async () => {
+    setIsSyncing(true);
+    try {
+      await fetchData();
+      showNotification("Firestore Synchronized (Real-time connection active)");
+    } catch (e: any) {
+      showNotification("Sync error: " + (e.message || "Network issue"), "error");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleUpdateAppointmentStatus = async (id: string, status: string) => {
+    setActionLoading(true);
+    try {
+      await db.updateAppointmentStatus(id, status);
+      setAppointments(prev => prev.map(a => (a._id === id || a.id === id) ? { ...a, status } : a));
+      showNotification(`Appointment Dossier status updated to ${status}`);
+    } catch (e: any) {
+      showNotification(e.message || "Failed to update appointment", 'error');
+    }
+    setActionLoading(false);
+  };
+
+  const handleDeleteAppointment = async (id: string) => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Appointment Dossier',
+      message: 'Are you sure you want to permanently purge this concierge appointment record from Firestore?',
+      onConfirm: async () => {
+        setActionLoading(true);
+        try {
+          await db.deleteAppointment(id);
+          setAppointments(prev => prev.filter(a => a._id !== id && a.id !== id));
+          showNotification('Appointment Dossier Purged');
+        } catch (e: any) {
+          showNotification(e.message || "Failed to delete appointment", 'error');
+        }
+        setActionLoading(false);
+      }
+    });
+  };
 
   // --- ACTIONS ---
 
@@ -254,15 +472,53 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
       setActionLoading(false);
   };
 
+  const handleSetLatestDrop = async (product: any) => {
+      setActionLoading(true);
+      try {
+          const prodId = product._id || product.id;
+          const currentSiteContent = settings?.siteContent || {};
+          const updatedSiteContent = {
+              ...currentSiteContent,
+              latestDropProductId: prodId,
+              latestDropTitle: product.title,
+              latestDropDescription: product.description,
+              latestDropImage: product.image,
+              latestDropCategory: product.category,
+              latestDropPrice: `₹${product.price?.toLocaleString('en-IN') || product.price}`,
+              latestDropStatus: product.countInStock > 0 ? 'Active' : 'Exhausted',
+              sovereignCategory: product.category,
+              sovereignPrice: `₹${product.price?.toLocaleString('en-IN') || product.price}`,
+              sovereignStatus: product.countInStock > 0 ? 'Active' : 'Exhausted'
+          };
+          const newSettings = {
+              ...settings,
+              siteContent: updatedSiteContent
+          };
+          setSettings(newSettings);
+
+          const cleanPayload = JSON.parse(JSON.stringify({
+              conciergeConfig: settings?.conciergeConfig || {},
+              siteContent: updatedSiteContent
+          }));
+          await db.updateSystemSettings(cleanPayload);
+          await refreshSettings();
+          showNotification(`"${product.title}" set as Collection 1 Latest Drop on Homepage`);
+      } catch (e: any) {
+          console.error("Set latest drop error:", e);
+          showNotification("Failed to set latest drop: " + (e.message || "Unknown error"), 'error');
+      }
+      setActionLoading(false);
+  };
+
   const handleStatusUpdate = async (id: string, status: string) => {
     try {
         await db.updateOrderStatus(id, status);
-        const updatedOrders = orders.map(o => o._id === id ? { ...o, orderStatus: status } : o);
+        const updatedOrders = orders.map(o => (o._id === id || o.id === id || o.conciergeCode === id) ? { ...o, orderStatus: status } : o);
         setOrders(updatedOrders);
-        if (selectedOrder && selectedOrder._id === id) {
+        if (selectedOrder && (selectedOrder._id === id || selectedOrder.id === id || selectedOrder.conciergeCode === id)) {
             setSelectedOrder({ ...selectedOrder, orderStatus: status });
         }
-        showNotification(`Order status updated to ${status}`);
+        showNotification(`Order status updated to ${ORDER_STATUS_LABELS[status as keyof typeof ORDER_STATUS_LABELS] || status}`);
     } catch (e) {
         showNotification("Failed to update status", 'error');
     }
@@ -643,6 +899,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
             {[
                 { id: 'dashboard', icon: Layout, label: 'Overview' },
                 { id: 'orders', icon: Package, label: 'Allocations' },
+                { id: 'concierge', icon: Calendar, label: 'Concierge Dossiers', badge: appointments.filter(a => a.status === 'PENDING').length },
                 { id: 'products', icon: ShoppingBag, label: 'Inventory' },
                 ...(isAdmin ? [
                     { id: 'users', icon: Users, label: 'Operatives' }, 
@@ -658,10 +915,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
                         setActiveTab(item.id as any);
                         setIsSidebarOpen(false);
                     }}
-                    className={`w-full flex items-center gap-4 px-4 py-3 rounded-sm transition-all duration-300 group ${activeTab === item.id ? 'bg-gold-500/10 text-gold-500' : 'text-white/40 hover:text-white hover:bg-white/5'}`}
+                    className={`w-full flex items-center justify-between px-4 py-3 rounded-sm transition-all duration-300 group ${activeTab === item.id ? 'bg-gold-500/10 text-gold-500' : 'text-white/40 hover:text-white hover:bg-white/5'}`}
                 >
-                    <item.icon size={18} className="group-hover:scale-110 transition-transform" />
-                    <span className="text-xs uppercase tracking-widest font-bold">{item.label}</span>
+                    <div className="flex items-center gap-3">
+                        <item.icon size={18} className="group-hover:scale-110 transition-transform" />
+                        <span className="text-xs uppercase tracking-widest font-bold">{item.label}</span>
+                    </div>
+                    {item.badge !== undefined && item.badge > 0 && (
+                        <span className="px-2 py-0.5 rounded-full bg-gold-500 text-black text-[10px] font-mono font-bold animate-pulse">
+                            {item.badge}
+                        </span>
+                    )}
                 </button>
             ))}
          </nav>
@@ -687,7 +951,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
                 </h2>
             </div>
             {/* ... Status indicators ... */}
-            <div className="flex items-center gap-4 md:gap-6">
+            <div className="flex items-center gap-3 md:gap-4">
+                <button 
+                  onClick={handleManualFirebaseSync}
+                  disabled={isSyncing}
+                  className="flex items-center gap-2 text-white/70 hover:text-gold-500 bg-white/[0.04] border border-white/10 px-3 py-1.5 rounded-sm transition-colors cursor-pointer"
+                  title="Force Live Synchronisation with Firebase Firestore"
+                >
+                  <RefreshCw size={13} className={isSyncing ? "animate-spin text-gold-500" : "text-gold-400"} />
+                  <span className="hidden sm:inline text-[9px] uppercase tracking-widest font-mono font-bold">
+                    {isSyncing ? 'Syncing...' : 'Sync Firebase'}
+                  </span>
+                </button>
                 <button 
                   onClick={generatePDFReport}
                   className="flex items-center gap-2 text-gold-500 hover:text-white transition-colors"
@@ -702,9 +977,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
                         <span className="text-[10px] uppercase tracking-widest font-bold">Offline Mode</span>
                     </div>
                 )}
-                <div className="flex items-center gap-2">
-                    <div className={`w-2 h-2 rounded-full ${isOfflineMode ? 'bg-red-500' : 'bg-green-500 animate-pulse'}`} />
-                    <span className="hidden sm:inline text-[10px] uppercase tracking-widest text-white/40">System {isOfflineMode ? 'Severed' : 'Online'}</span>
+                <div className="flex items-center gap-2" title="Firebase Firestore Live Sync Status">
+                    <div className={`w-2 h-2 rounded-full ${isOfflineMode ? 'bg-red-500' : 'bg-emerald-400 animate-pulse'}`} />
+                    <span className="hidden sm:inline text-[10px] uppercase tracking-widest text-white/50">Firestore {isOfflineMode ? 'Severed' : 'Live'}</span>
                 </div>
                 <div className="hidden md:flex items-center gap-3 border-l border-white/10 pl-6">
                     <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-xs font-bold text-white">
@@ -809,14 +1084,28 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
                                      </td>
                                      <td className="p-4 text-xs text-white">₹{order.totalAmount?.toLocaleString('en-IN') || 0}</td>
                                      <td className="p-4">
-                                         <span className={`px-2 py-1 text-[9px] uppercase tracking-widest rounded-sm border ${
-                                             order.orderStatus === 'ORDER_SECURED' ? 'border-orange-500/30 text-orange-400 bg-orange-900/10' :
-                                             order.orderStatus === 'PAYMENT_AUTHORIZED' ? 'border-green-500/30 text-green-400 bg-green-900/10' :
-                                             order.orderStatus === 'CANCELLED' ? 'border-red-500/30 text-red-400 bg-red-900/10' :
-                                             'border-white/20 text-white/60'
-                                         }`}>
-                                             {ORDER_STATUS_LABELS[order.orderStatus as keyof typeof ORDER_STATUS_LABELS] || order.orderStatus}
-                                         </span>
+                                         <div className="flex flex-col gap-1.5">
+                                             <select
+                                                 value={order.orderStatus}
+                                                 onChange={(e) => handleStatusUpdate(order._id, e.target.value)}
+                                                 className="bg-black/90 border border-white/20 text-gold-400 text-[10px] font-mono uppercase px-2 py-1 rounded-sm focus:border-gold-500 outline-none cursor-pointer hover:border-gold-500/60 transition-colors"
+                                                 title="Update Order Status"
+                                             >
+                                                 {Object.entries(ORDER_STATUS_LABELS).map(([key, label]) => (
+                                                     <option key={key} value={key} className="bg-[#111] text-white">
+                                                         {label}
+                                                     </option>
+                                                 ))}
+                                             </select>
+                                             <span className={`px-2 py-0.5 text-[8.5px] uppercase tracking-wider rounded-sm border w-fit ${
+                                                 order.orderStatus === 'ORDER_SECURED' ? 'border-orange-500/30 text-orange-400 bg-orange-900/10' :
+                                                 order.orderStatus === 'PAYMENT_AUTHORIZED' ? 'border-green-500/30 text-green-400 bg-green-900/10' :
+                                                 order.orderStatus === 'CANCELLED' ? 'border-red-500/30 text-red-400 bg-red-900/10' :
+                                                 'border-white/20 text-white/60'
+                                             }`}>
+                                                 {order.orderStatus}
+                                             </span>
+                                         </div>
                                      </td>
                                      <td className="p-4 flex items-center gap-2">
                                          <button onClick={() => handleViewOrder(order)} className="p-2 hover:bg-white/10 rounded-sm text-white/60 hover:text-white transition-colors" title="View Details">
@@ -851,6 +1140,345 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
                  </div>
              </div>
          )}
+
+         {/* --- CONCIERGE DOSSIERS & APPOINTMENTS TAB --- */}
+         {activeTab === 'concierge' && (() => {
+             const filteredAppointments = appointments.filter(appt => {
+                 if (appointmentFilter !== 'all' && appt.status !== appointmentFilter) return false;
+                 if (appointmentSearch.trim()) {
+                     const q = appointmentSearch.toLowerCase();
+                     const name = (appt.fullName || appt.name || '').toLowerCase();
+                     const email = (appt.email || '').toLowerCase();
+                     const phone = (appt.phone || appt.mobile || '').toLowerCase();
+                     const code = (appt.dossierCode || appt.code || appt.id || '').toLowerCase();
+                     const service = (appt.consultationType || appt.service || '').toLowerCase();
+                     const city = (appt.location || appt.city || '').toLowerCase();
+                     return name.includes(q) || email.includes(q) || phone.includes(q) || code.includes(q) || service.includes(q) || city.includes(q);
+                 }
+                 return true;
+             });
+
+             const pendingCount = appointments.filter(a => a.status === 'PENDING').length;
+             const confirmedCount = appointments.filter(a => a.status === 'CONFIRMED').length;
+             const completedCount = appointments.filter(a => a.status === 'COMPLETED').length;
+
+             return (
+                 <div className="space-y-6">
+                     {/* Header and Quick Stats */}
+                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-white/10 pb-6">
+                         <div>
+                             <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full border border-gold-500/30 bg-gold-500/10 text-gold-400 text-[9px] uppercase tracking-widest font-mono mb-2">
+                                 <Sparkles size={11} className="text-gold-400 animate-pulse" />
+                                 <span>Firebase Real-Time Synchronized</span>
+                             </div>
+                             <h3 className="text-2xl font-serif text-white tracking-wide">Concierge Dossiers & Salon Appointments</h3>
+                             <p className="text-white/50 text-xs font-mono mt-1">
+                               Client consultation requests, bespoke garment commissions, and private salon viewings.
+                             </p>
+                         </div>
+                         <div className="flex items-center gap-3">
+                             {onViewConcierge && (
+                                 <button
+                                     onClick={onViewConcierge}
+                                     className="flex items-center gap-2 px-4 py-2.5 bg-gold-500 hover:bg-white text-black text-xs uppercase tracking-widest font-mono font-bold transition-all rounded-sm shadow-[0_0_15px_rgba(212,175,55,0.25)] cursor-pointer"
+                                 >
+                                     <Compass size={13} /> Open Private Concierge
+                                 </button>
+                             )}
+                             <button
+                                 onClick={handleManualFirebaseSync}
+                                 disabled={isSyncing}
+                                 className="flex items-center gap-1.5 px-3 py-2.5 bg-white/5 border border-white/10 text-white/70 hover:text-white text-xs font-mono rounded-sm transition-colors cursor-pointer"
+                                 title="Sync Firestore"
+                             >
+                                 <RefreshCw size={13} className={isSyncing ? "animate-spin text-gold-500" : ""} />
+                                 <span className="hidden sm:inline">Refresh</span>
+                             </button>
+                         </div>
+                     </div>
+
+                     {/* KPI Summary Grid */}
+                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                         <div className="bg-[#0A0A0A] border border-white/10 p-4 rounded-sm">
+                             <p className="text-[10px] uppercase tracking-widest text-white/40 font-mono">Total Bookings</p>
+                             <p className="text-2xl font-serif text-white mt-1">{appointments.length}</p>
+                         </div>
+                         <div className="bg-[#0A0A0A] border border-gold-500/30 p-4 rounded-sm">
+                             <div className="flex justify-between items-center">
+                                 <p className="text-[10px] uppercase tracking-widest text-gold-400 font-mono">Pending Review</p>
+                                 {pendingCount > 0 && <span className="w-2 h-2 rounded-full bg-gold-400 animate-pulse" />}
+                             </div>
+                             <p className="text-2xl font-serif text-gold-400 mt-1">{pendingCount}</p>
+                         </div>
+                         <div className="bg-[#0A0A0A] border border-emerald-500/30 p-4 rounded-sm">
+                             <p className="text-[10px] uppercase tracking-widest text-emerald-400 font-mono">Confirmed</p>
+                             <p className="text-2xl font-serif text-emerald-400 mt-1">{confirmedCount}</p>
+                         </div>
+                         <div className="bg-[#0A0A0A] border border-sky-500/30 p-4 rounded-sm">
+                             <p className="text-[10px] uppercase tracking-widest text-sky-400 font-mono">Completed</p>
+                             <p className="text-2xl font-serif text-sky-400 mt-1">{completedCount}</p>
+                         </div>
+                     </div>
+
+                     {/* Filter and Search Bar */}
+                     <div className="flex flex-col md:flex-row gap-4 justify-between items-stretch md:items-center bg-[#070707] p-4 border border-white/10 rounded-sm">
+                         <div className="flex flex-wrap gap-2">
+                             {(['all', 'PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELLED'] as const).map((filterKey) => {
+                                 const count = filterKey === 'all' 
+                                     ? appointments.length 
+                                     : appointments.filter(a => a.status === filterKey).length;
+                                 return (
+                                     <button
+                                         key={filterKey}
+                                         onClick={() => setAppointmentFilter(filterKey)}
+                                         className={`px-3 py-1.5 text-[10px] uppercase tracking-widest font-mono rounded-sm transition-all cursor-pointer flex items-center gap-1.5 ${
+                                             appointmentFilter === filterKey 
+                                                 ? 'bg-gold-500 text-black font-bold shadow-sm' 
+                                                 : 'bg-white/5 text-white/50 hover:text-white hover:bg-white/10'
+                                         }`}
+                                     >
+                                         <span>{filterKey}</span>
+                                         <span className="opacity-70">({count})</span>
+                                     </button>
+                                 );
+                             })}
+                         </div>
+
+                         <div className="relative w-full md:w-80">
+                             <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40" />
+                             <input
+                                 type="text"
+                                 value={appointmentSearch}
+                                 onChange={(e) => setAppointmentSearch(e.target.value)}
+                                 placeholder="Search client, email, dossier code..."
+                                 className="w-full bg-black/60 border border-white/10 pl-9 pr-8 py-2 text-xs text-white placeholder-white/30 focus:border-gold-500 focus:outline-none rounded-sm"
+                             />
+                             {appointmentSearch && (
+                                 <button 
+                                     onClick={() => setAppointmentSearch('')}
+                                     className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white"
+                                 >
+                                     <X size={12} />
+                                 </button>
+                             )}
+                         </div>
+                     </div>
+
+                     {/* Appointments List / Grid */}
+                     {filteredAppointments.length > 0 ? (
+                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                             {filteredAppointments.map((appt) => {
+                                 const apptId = appt._id || appt.id || '';
+                                 const dossierCode = appt.dossierCode || `CNCG-${apptId.slice(-6).toUpperCase()}`;
+                                 const status = appt.status || 'PENDING';
+                                 const formattedDate = appt.createdAt?.seconds 
+                                     ? new Date(appt.createdAt.seconds * 1000).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })
+                                     : (appt.createdAt ? new Date(appt.createdAt).toLocaleString() : 'Recent Booking');
+
+                                 const cleanPhone = (appt.phone || appt.mobile || '').replace(/[^0-9]/g, '');
+                                 const waLink = cleanPhone ? `https://wa.me/${cleanPhone}?text=Hello%20${encodeURIComponent(appt.fullName || '')},%20this%20is%20the%20DEUZ%20Private%20Concierge%20regarding%20your%20dossier%20${dossierCode}.` : null;
+                                 const mailLink = appt.email ? `mailto:${appt.email}?subject=DEUZ%20Private%20Concierge%20%E2%80%94%20Dossier%20${dossierCode}&body=Dear%20${encodeURIComponent(appt.fullName || 'Client')},%0A%0AWe%20have%20received%20your%20consultation%20request%20for%20${encodeURIComponent(appt.consultationType || 'our private salon services')}.%0A%0AWith%20distinction,%0ADEUZ%20Private%20Concierge` : null;
+
+                                 return (
+                                     <div 
+                                         key={apptId}
+                                         className="bg-[#090909] border border-white/10 hover:border-gold-500/40 transition-all duration-300 rounded-sm p-5 space-y-4 shadow-[0_4px_20px_rgba(0,0,0,0.5)] flex flex-col justify-between"
+                                     >
+                                         {/* Card Top: Dossier Code + Status Pill */}
+                                         <div className="flex justify-between items-start gap-3 border-b border-white/5 pb-3">
+                                             <div>
+                                                 <div className="flex items-center gap-2">
+                                                     <span className="font-mono text-xs font-bold text-gold-400 tracking-wider">
+                                                         {dossierCode}
+                                                     </span>
+                                                     <span className="text-[10px] text-white/40 font-mono">
+                                                         • {formattedDate}
+                                                     </span>
+                                                 </div>
+                                                 <h4 className="text-base font-serif text-white mt-1">
+                                                     {appt.fullName || appt.name || 'Confidential Client'}
+                                                 </h4>
+                                             </div>
+
+                                             {/* Status Badge */}
+                                             <span className={`px-2.5 py-1 rounded text-[9px] font-mono uppercase tracking-widest border flex items-center gap-1.5 shrink-0 ${
+                                                 status === 'CONFIRMED'
+                                                     ? 'bg-emerald-950/40 text-emerald-400 border-emerald-500/30'
+                                                     : status === 'COMPLETED'
+                                                     ? 'bg-sky-950/40 text-sky-400 border-sky-500/30'
+                                                     : status === 'CANCELLED'
+                                                     ? 'bg-red-950/40 text-red-400 border-red-500/30'
+                                                     : 'bg-gold-950/40 text-gold-400 border-gold-500/30 animate-pulse'
+                                             }`}>
+                                                 {status === 'CONFIRMED' && <CheckCircle2 size={11} />}
+                                                 {status === 'COMPLETED' && <Sparkles size={11} />}
+                                                 {status === 'PENDING' && <Clock size={11} />}
+                                                 {status === 'CANCELLED' && <X size={11} />}
+                                                 <span>{status}</span>
+                                             </span>
+                                         </div>
+
+                                         {/* Card Middle: Consultation Spec & Contact info */}
+                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                                             <div className="space-y-1">
+                                                 <span className="text-[10px] uppercase tracking-widest text-white/40 font-mono block">
+                                                     Service Requested
+                                                 </span>
+                                                 <p className="text-white/90 font-medium">
+                                                     {appt.consultationType || appt.service || 'Private Salon Consultation'}
+                                                 </p>
+                                             </div>
+
+                                             <div className="space-y-1">
+                                                 <span className="text-[10px] uppercase tracking-widest text-white/40 font-mono block">
+                                                     Location / Atelier
+                                                 </span>
+                                                 <p className="text-gold-400/90 font-mono flex items-center gap-1">
+                                                     <MapPin size={11} /> {appt.location || appt.city || 'Atelier Paris — Place Vendôme'}
+                                                 </p>
+                                             </div>
+
+                                             <div className="space-y-1">
+                                                 <span className="text-[10px] uppercase tracking-widest text-white/40 font-mono block">
+                                                     Preferred Time
+                                                 </span>
+                                                 <p className="text-white/80 font-mono">
+                                                     {appt.date || appt.preferredDate || 'Flexible / Priority Schedule'}
+                                                 </p>
+                                             </div>
+
+                                             <div className="space-y-1">
+                                                 <span className="text-[10px] uppercase tracking-widest text-white/40 font-mono block">
+                                                     Direct Channels
+                                                 </span>
+                                                 <div className="flex flex-wrap gap-2 pt-0.5">
+                                                     {mailLink && (
+                                                         <a
+                                                             href={mailLink}
+                                                             className="inline-flex items-center gap-1 text-[10px] font-mono text-white/70 hover:text-white bg-white/5 border border-white/10 px-2 py-1 rounded"
+                                                             title="Email Client"
+                                                         >
+                                                             <Mail size={10} /> {appt.email}
+                                                         </a>
+                                                     )}
+                                                     {appt.phone && (
+                                                         <span className="inline-flex items-center gap-1 text-[10px] font-mono text-white/70 bg-white/5 border border-white/10 px-2 py-1 rounded">
+                                                             <Phone size={10} /> {appt.phone}
+                                                         </span>
+                                                     )}
+                                                 </div>
+                                             </div>
+                                         </div>
+
+                                         {/* Notes quote block */}
+                                         {appt.notes && (
+                                             <div className="bg-black/60 border-l-2 border-gold-500 p-3 rounded-r text-xs text-white/70 font-light leading-relaxed">
+                                                 <span className="text-[9px] uppercase tracking-widest font-mono text-white/40 block mb-1">
+                                                     Client Notes & Inquiries:
+                                                 </span>
+                                                 "{appt.notes}"
+                                             </div>
+                                         )}
+
+                                         {/* Card Bottom: Action Controls */}
+                                         <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-white/5">
+                                             <div className="flex flex-wrap items-center gap-2">
+                                                 {status !== 'CONFIRMED' && (
+                                                     <button
+                                                         onClick={() => handleUpdateAppointmentStatus(apptId, 'CONFIRMED')}
+                                                         disabled={actionLoading}
+                                                         className="px-3 py-1.5 bg-emerald-500/20 border border-emerald-500/40 hover:bg-emerald-500 hover:text-black text-emerald-400 text-[10px] font-mono uppercase tracking-wider rounded transition-colors cursor-pointer"
+                                                     >
+                                                         Confirm Booking
+                                                     </button>
+                                                 )}
+
+                                                 {status === 'CONFIRMED' && (
+                                                     <button
+                                                         onClick={() => handleUpdateAppointmentStatus(apptId, 'COMPLETED')}
+                                                         disabled={actionLoading}
+                                                         className="px-3 py-1.5 bg-sky-500/20 border border-sky-500/40 hover:bg-sky-500 hover:text-black text-sky-400 text-[10px] font-mono uppercase tracking-wider rounded transition-colors cursor-pointer"
+                                                     >
+                                                         Mark Completed
+                                                     </button>
+                                                 )}
+
+                                                 {status !== 'CANCELLED' && (
+                                                      <button
+                                                         onClick={() => handleUpdateAppointmentStatus(apptId, 'CANCELLED')}
+                                                         disabled={actionLoading}
+                                                         className="px-2.5 py-1.5 text-white/40 hover:text-red-400 text-[10px] font-mono uppercase tracking-wider transition-colors cursor-pointer"
+                                                     >
+                                                         Cancel
+                                                     </button>
+                                                 )}
+
+                                                 {status === 'CANCELLED' && (
+                                                     <button
+                                                         onClick={() => handleUpdateAppointmentStatus(apptId, 'PENDING')}
+                                                         disabled={actionLoading}
+                                                         className="px-2.5 py-1.5 text-gold-400 hover:text-white text-[10px] font-mono uppercase tracking-wider transition-colors cursor-pointer"
+                                                     >
+                                                         Restore to Pending
+                                                     </button>
+                                                 )}
+                                             </div>
+
+                                             <div className="flex items-center gap-2">
+                                                 {waLink && (
+                                                     <a
+                                                         href={waLink}
+                                                         target="_blank"
+                                                         rel="noreferrer"
+                                                         className="p-2 bg-emerald-950/40 text-emerald-400 hover:bg-emerald-500 hover:text-black rounded transition-colors"
+                                                         title="Open WhatsApp Consultation"
+                                                     >
+                                                         <MessageCircle size={13} />
+                                                     </a>
+                                                 )}
+                                                 {mailLink && (
+                                                      <a
+                                                         href={mailLink}
+                                                         className="p-2 bg-white/5 text-white/70 hover:bg-white hover:text-black rounded transition-colors"
+                                                         title="Email Client"
+                                                     >
+                                                         <Mail size={13} />
+                                                     </a>
+                                                 )}
+                                                 <button
+                                                     onClick={() => handleDeleteAppointment(apptId)}
+                                                     disabled={actionLoading}
+                                                     className="p-2 text-white/30 hover:text-red-500 hover:bg-red-500/10 rounded transition-colors cursor-pointer"
+                                                     title="Purge Record from Firestore"
+                                                 >
+                                                     <Trash size={13} />
+                                                 </button>
+                                             </div>
+                                         </div>
+                                     </div>
+                                 );
+                             })}
+                         </div>
+                     ) : (
+                         <div className="py-20 text-center border border-white/10 bg-[#080808] rounded-sm">
+                             <Calendar size={36} className="mx-auto text-white/20 mb-3" />
+                             <p className="text-white/60 font-serif text-lg mb-1">No Concierge Dossiers Found</p>
+                             <p className="text-white/30 font-mono text-xs max-w-sm mx-auto mb-4">
+                               {appointmentSearch ? "No records match your search criteria." : "Client appointments and salon requests will appear here in real-time as they are submitted."}
+                             </p>
+                             {onViewConcierge && (
+                                 <button
+                                     onClick={onViewConcierge}
+                                     className="inline-flex items-center gap-2 px-4 py-2 bg-gold-500/20 border border-gold-500/40 text-gold-400 hover:bg-gold-500 hover:text-black text-xs font-mono uppercase tracking-wider rounded transition-colors cursor-pointer"
+                                 >
+                                     <Compass size={13} /> Visit Concierge Booking Page
+                                 </button>
+                             )}
+                         </div>
+                     )}
+                 </div>
+             );
+         })()}
 
          {activeTab === 'trash' && (
              <div className="space-y-6">
@@ -911,7 +1539,19 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
                              {/* ... Product Item Content ... */}
                              <div className="h-48 overflow-hidden relative">
                                  <img src={product.image} alt={product.title} className={`w-full h-full object-cover transition-all duration-500 ${product.isArchived || product.countInStock === 0 ? 'grayscale opacity-40' : 'opacity-60 group-hover:opacity-100'}`} />
-                                 <div className="absolute top-2 right-2 flex gap-2">
+                                 {(settings?.siteContent?.latestDropProductId === product._id || settings?.siteContent?.latestDropProductId === product.id) && (
+                                     <div className="absolute top-2 left-2 z-10 px-2 py-1 bg-gold-500 text-black text-[9px] font-mono font-bold uppercase tracking-wider flex items-center gap-1 shadow-lg">
+                                         <Crown size={10} /> Collection 1 Drop
+                                     </div>
+                                 )}
+                                 <div className="absolute top-2 right-2 flex gap-2 z-10">
+                                     <button 
+                                         onClick={() => handleSetLatestDrop(product)} 
+                                         title={(settings?.siteContent?.latestDropProductId === product._id || settings?.siteContent?.latestDropProductId === product.id) ? "Currently featured as Collection 1 Latest Drop on homepage" : "Set as Collection 1 Latest Drop on homepage"} 
+                                         className={`p-2 backdrop-blur-sm transition-colors ${(settings?.siteContent?.latestDropProductId === product._id || settings?.siteContent?.latestDropProductId === product.id) ? 'bg-gold-500 text-black shadow-[0_0_10px_rgba(212,175,55,0.5)]' : 'bg-black/50 text-white hover:bg-gold-500 hover:text-black'}`}
+                                     >
+                                         <Crown size={12} />
+                                     </button>
                                      <button onClick={() => handleOpenProductModal(product)} className="p-2 bg-black/50 text-white hover:bg-white hover:text-black transition-colors backdrop-blur-sm"><Edit size={12} /></button>
                                      <button onClick={() => handleDeleteProduct(product._id)} className="p-2 bg-black/50 text-white hover:bg-red-500 hover:text-white transition-colors backdrop-blur-sm"><Trash size={12} /></button>
                                  </div>
@@ -954,46 +1594,49 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
          
          {activeTab === 'archive' && (
              <div>
-                 <div className="mb-6">
-                     <h3 className="text-xl font-serif text-white mb-2">The Vault</h3>
-                     <p className="text-white/40 text-xs font-mono">Manage sealed and archived artifacts.</p>
+                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4 border-b border-white/10 pb-6">
+                     <div>
+                         <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full border border-gold-500/30 bg-gold-500/10 text-gold-400 text-[9px] uppercase tracking-widest font-mono mb-2">
+                             <Sparkles size={11} className="text-gold-400 animate-pulse" />
+                             <span>Archival Vitrine Protocol</span>
+                         </div>
+                         <h3 className="text-2xl font-serif text-white tracking-wide">The Vault & Museum Vitrines</h3>
+                         <p className="text-white/50 text-xs font-mono mt-1">
+                           Archived artifacts preserved with auto-animated image carousels. Synced with Firestore.
+                         </p>
+                     </div>
+                     <div className="flex items-center gap-3">
+                         {onViewArchive && (
+                             <button 
+                               onClick={onViewArchive} 
+                               className="flex items-center gap-2 px-4 py-2.5 bg-white/5 border border-gold-500/30 text-gold-400 hover:bg-gold-500 hover:text-black text-xs uppercase tracking-widest font-mono transition-all rounded-sm shadow-md cursor-pointer"
+                             >
+                                 <ExternalLink size={13} /> View Public Archive
+                             </button>
+                         )}
+                         <div className="px-3 py-2 bg-black/60 border border-white/10 text-[10px] font-mono text-white/60 rounded-sm">
+                           {products.filter(p => p.isArchived || p.countInStock === 0).length} Artifacts Sealed
+                         </div>
+                     </div>
                  </div>
+
                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                      {products.filter(p => p.isArchived || p.countInStock === 0).map((product) => (
-                         <div key={product._id} className="bg-[#0A0A0A] border border-gold-500/20 transition-all duration-300 group relative">
-                             <div className="h-48 overflow-hidden relative">
-                                 <img src={product.image} alt={product.title} className="w-full h-full object-cover opacity-40 grayscale group-hover:grayscale-0 group-hover:opacity-80 transition-all duration-500" />
-                                 <div className="absolute top-2 right-2 flex gap-2">
-                                     <button onClick={() => handleOpenProductModal(product)} className="p-2 bg-black/50 text-white hover:bg-white hover:text-black transition-colors backdrop-blur-sm"><Edit size={12} /></button>
-                                     <button onClick={() => handleDeleteProduct(product._id)} className="p-2 bg-black/50 text-white hover:bg-red-500 hover:text-white transition-colors backdrop-blur-sm"><Trash size={12} /></button>
-                                 </div>
-                                 <div className="absolute bottom-2 left-2 flex gap-2">
-                                     <button 
-                                        onClick={() => handleArchiveToggle(product)} 
-                                        title={product.isArchived ? "Unarchive (Make Visible)" : "Archive (Hide from Store)"}
-                                        className={`p-2 backdrop-blur-sm transition-colors ${product.isArchived ? 'bg-white/20 text-white hover:bg-white hover:text-black' : 'bg-white/5 text-white/40 hover:text-white'}`}
-                                     >
-                                         <Archive size={12} />
-                                     </button>
-                                 </div>
-                             </div>
-                             <div className="p-4">
-                                 <div className="flex justify-between items-start mb-2">
-                                     <h3 className="text-white text-sm font-serif">{product.title}</h3>
-                                     <span className="text-gold-500 text-xs">₹{product.price}</span>
-                                 </div>
-                                 <div className="flex justify-between items-center text-[10px] uppercase tracking-widest text-white/40">
-                                     <span>{product.category} {product.houseCode ? `// ${product.houseCode}` : ''}</span>
-                                     <span className="text-white/20 italic">
-                                         {product.isArchived ? 'ARCHIVED' : 'SOLD OUT'}
-                                     </span>
-                                 </div>
-                             </div>
-                         </div>
+                         <ArchivedProductReel 
+                             key={product._id || product.id}
+                             product={product}
+                             onEdit={() => handleOpenProductModal(product)}
+                             onDelete={() => handleDeleteProduct(product._id || product.id)}
+                             onArchiveToggle={() => handleArchiveToggle(product)}
+                         />
                      ))}
                      {products.filter(p => p.isArchived || p.countInStock === 0).length === 0 && (
-                         <div className="col-span-full py-12 text-center border border-white/5 bg-white/5">
-                             <p className="text-white/40 font-mono text-sm">No artifacts in the vault.</p>
+                         <div className="col-span-full py-16 text-center border border-white/10 bg-[#080808] rounded-sm">
+                             <Archive size={36} className="mx-auto text-white/20 mb-3" />
+                             <p className="text-white/60 font-serif text-lg mb-1">No Artifacts in the Vault</p>
+                             <p className="text-white/30 font-mono text-xs max-w-sm mx-auto">
+                               To archive an artifact, navigate to Inventory and click the archive button on any product.
+                             </p>
                          </div>
                      )}
                  </div>
@@ -1298,27 +1941,135 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
          {activeTab === 'settings' && settings && (
              <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
                  <div className="bg-[#0A0A0A] border border-white/10 p-8">
-                     <h3 className="text-white font-serif mb-6 flex items-center gap-2"><Crown size={18} className="text-gold-500"/> Site Content</h3>
+                     <h3 className="text-white font-serif mb-6 flex items-center gap-2"><Crown size={18} className="text-gold-500"/> Collection 1 — Latest Drop (Homepage)</h3>
                      <form onSubmit={handleSettingsUpdate} className="space-y-6">
-                         <div className="pt-4 border-t border-white/10 mt-4">
-                             <h4 className="text-gold-500 text-xs font-bold uppercase tracking-widest mb-4">Sovereign Preview</h4>
-                             <div className="space-y-4">
+                         <div>
+                             <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Featured Artifact on Homepage</label>
+                             <select 
+                                 value={settings.siteContent?.latestDropProductId || 'auto'} 
+                                 onChange={e => {
+                                     const val = e.target.value;
+                                     const selected = products.find(p => p._id === val || p.id === val);
+                                     setSettings({
+                                         ...settings,
+                                         siteContent: {
+                                             ...settings.siteContent,
+                                             latestDropProductId: val,
+                                             ...(selected ? {
+                                                 latestDropTitle: selected.title,
+                                                 latestDropDescription: selected.description,
+                                                 latestDropImage: selected.image,
+                                                 latestDropCategory: selected.category,
+                                                 latestDropPrice: `₹${selected.price?.toLocaleString('en-IN')}`,
+                                                 latestDropStatus: selected.countInStock > 0 ? 'Active' : 'Exhausted',
+                                                 sovereignCategory: selected.category,
+                                                 sovereignPrice: `₹${selected.price?.toLocaleString('en-IN')}`,
+                                                 sovereignStatus: selected.countInStock > 0 ? 'Active' : 'Exhausted'
+                                             } : {})
+                                         }
+                                     });
+                                 }}
+                                 className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none font-mono"
+                             >
+                                 <option value="auto">Auto (Most Recent Drop Added to Store)</option>
+                                 {products.filter(p => !p.isArchived).map(p => (
+                                     <option key={p._id || p.id} value={p._id || p.id}>
+                                         {p.title} — ₹{p.price?.toLocaleString('en-IN')} ({p.countInStock > 0 ? 'In Stock' : 'Sold Out'})
+                                     </option>
+                                 ))}
+                             </select>
+                             <p className="text-[10px] text-white/40 mt-1.5 font-mono">
+                                 Select which single product is spotlighted in Collection 1 on the homepage.
+                             </p>
+                         </div>
+
+                         {/* Live Preview Card */}
+                         {(() => {
+                             const activeDropId = settings.siteContent?.latestDropProductId;
+                             const selectedDrop = products.find(p => p._id === activeDropId || p.id === activeDropId) || products[0];
+                             const previewImg = settings.siteContent?.latestDropImage || selectedDrop?.image || settings.siteContent?.storeImage;
+                             const previewTitle = settings.siteContent?.latestDropTitle || selectedDrop?.title || 'DEUZ FORM 01 — SOVEREIGN';
+                             const previewPrice = settings.siteContent?.latestDropPrice || (selectedDrop ? `₹${selectedDrop.price?.toLocaleString('en-IN')}` : '₹12,000');
+                             const previewCat = settings.siteContent?.latestDropCategory || selectedDrop?.category || 'APPAREL';
+                             const previewStatus = settings.siteContent?.latestDropStatus || (selectedDrop?.countInStock > 0 ? 'Active' : 'Exhausted');
+
+                             return (
+                                 <div className="bg-black/40 border border-gold-500/20 p-4 rounded-sm flex gap-4 items-center">
+                                     {previewImg && (
+                                         <img src={previewImg} alt="Preview" className="w-16 h-20 object-cover border border-white/10 rounded-sm" />
+                                     )}
+                                     <div className="flex-1 min-w-0">
+                                         <div className="flex items-center gap-2 mb-1">
+                                             <span className="text-[9px] uppercase tracking-widest text-gold-500 font-mono font-bold">
+                                                 ACTIVE HOMEPAGE DROP
+                                             </span>
+                                             <span className={`text-[8px] font-mono px-1.5 py-0.5 rounded-sm ${previewStatus.toLowerCase() === 'active' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                                                 {previewStatus}
+                                             </span>
+                                         </div>
+                                         <h4 className="text-white text-xs font-serif truncate">{previewTitle}</h4>
+                                         <div className="text-[10px] text-white/50 font-mono mt-1 flex gap-3">
+                                             <span>{previewCat}</span>
+                                             <span className="text-gold-400">{previewPrice}</span>
+                                         </div>
+                                     </div>
+                                 </div>
+                             );
+                         })()}
+
+                         <div className="pt-4 border-t border-white/10 space-y-4">
+                             <h4 className="text-gold-500 text-xs font-bold uppercase tracking-widest">Optional Custom Overrides</h4>
+                             <div>
+                                 <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Display Title</label>
+                                 <input 
+                                     value={settings.siteContent?.latestDropTitle || ''} 
+                                     onChange={e => setSettings({...settings, siteContent: {...settings.siteContent, latestDropTitle: e.target.value}})} 
+                                     className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" 
+                                     placeholder="Leave empty to use artifact title" 
+                                 />
+                             </div>
+                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                  <div>
                                      <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Category Display</label>
-                                     <input value={settings.siteContent.sovereignCategory || ''} onChange={e => setSettings({...settings, siteContent: {...settings.siteContent, sovereignCategory: e.target.value}})} className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" placeholder="Apparel" />
+                                     <input 
+                                         value={settings.siteContent?.latestDropCategory || settings.siteContent?.sovereignCategory || ''} 
+                                         onChange={e => setSettings({...settings, siteContent: {...settings.siteContent, latestDropCategory: e.target.value, sovereignCategory: e.target.value}})} 
+                                         className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" 
+                                         placeholder="Apparel" 
+                                     />
                                  </div>
                                  <div>
                                      <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Price Display</label>
-                                     <input value={settings.siteContent.sovereignPrice || ''} onChange={e => setSettings({...settings, siteContent: {...settings.siteContent, sovereignPrice: e.target.value}})} className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" placeholder="12,000" />
+                                     <input 
+                                         value={settings.siteContent?.latestDropPrice || settings.siteContent?.sovereignPrice || ''} 
+                                         onChange={e => setSettings({...settings, siteContent: {...settings.siteContent, latestDropPrice: e.target.value, sovereignPrice: e.target.value}})} 
+                                         className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" 
+                                         placeholder="₹12,000" 
+                                     />
                                  </div>
                                  <div>
                                      <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Status Display</label>
-                                     <input value={settings.siteContent.sovereignStatus || ''} onChange={e => setSettings({...settings, siteContent: {...settings.siteContent, sovereignStatus: e.target.value}})} className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" placeholder="Active" />
+                                     <input 
+                                         value={settings.siteContent?.latestDropStatus || settings.siteContent?.sovereignStatus || ''} 
+                                         onChange={e => setSettings({...settings, siteContent: {...settings.siteContent, latestDropStatus: e.target.value, sovereignStatus: e.target.value}})} 
+                                         className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" 
+                                         placeholder="Active" 
+                                     />
                                  </div>
                              </div>
+                             <div>
+                                 <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Description / Notes</label>
+                                 <textarea 
+                                     value={settings.siteContent?.latestDropDescription || ''} 
+                                     onChange={e => setSettings({...settings, siteContent: {...settings.siteContent, latestDropDescription: e.target.value}})} 
+                                     className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none h-20" 
+                                     placeholder="Leave empty to use artifact description" 
+                                 />
+                             </div>
                          </div>
+
                          <button disabled={actionLoading} className="w-full py-3 bg-white text-black uppercase tracking-widest text-xs font-bold hover:bg-gold-500 hover:text-white transition-colors disabled:opacity-50">
-                             {actionLoading ? 'Saving...' : 'Update Content'}
+                             {actionLoading ? 'Saving...' : 'Update Homepage Collection 1 Drop'}
                          </button>
                      </form>
                  </div>
@@ -1369,15 +2120,29 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
                   <div className="flex justify-between items-start mb-8">
                       <div>
                           <h2 className="text-xl font-serif text-white tracking-widest mb-1">DOSSIER {selectedOrder.conciergeCode || selectedOrder.code}</h2>
-                          <div className="flex items-center gap-2">
-                              <span className={`text-[10px] px-2 py-0.5 border uppercase tracking-wider ${selectedOrder.orderStatus === 'PAYMENT_AUTHORIZED' ? 'border-green-500 text-green-500' : 'border-gold-500 text-gold-500'}`}>
-                                  {ORDER_STATUS_LABELS[selectedOrder.orderStatus as OrderStatus] || selectedOrder.orderStatus}
-                              </span>
-                              <span className="text-[10px] text-white/40 uppercase tracking-widest">
-                                  {selectedOrder.contactMethod === 'instagram' ? 'Instagram Direct' : 
-                                   selectedOrder.contactMethod === 'whatsapp' ? 'WhatsApp' : 
-                                   selectedOrder.contactMethod === 'email' ? 'Concierge Email' : 
-                                   'Private Concierge'}
+                          <div className="flex flex-wrap items-center gap-3 mt-2">
+                              <div className="flex items-center gap-2 bg-white/5 border border-white/10 px-2.5 py-1 rounded-sm">
+                                  <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest">STATUS:</span>
+                                  <select
+                                      value={selectedOrder.orderStatus}
+                                      onChange={(e) => handleStatusUpdate(selectedOrder._id || selectedOrder.id || selectedOrder.conciergeCode, e.target.value)}
+                                      className="bg-black border border-gold-500/40 text-gold-400 text-[11px] font-mono font-bold uppercase px-2 py-0.5 rounded outline-none cursor-pointer hover:border-gold-500"
+                                      title="Update order status and notify client in real-time"
+                                  >
+                                      {Object.entries(ORDER_STATUS_LABELS).map(([key, label]) => (
+                                          <option key={key} value={key} className="bg-[#111] text-white">
+                                              {label}
+                                          </option>
+                                      ))}
+                                  </select>
+                              </div>
+                              <span className="text-[10px] text-white/40 uppercase tracking-widest font-mono">
+                                  Channel: <strong className="text-gold-400">
+                                      {selectedOrder.contactMethod === 'instagram' ? 'Instagram Direct' : 
+                                       selectedOrder.contactMethod === 'whatsapp' ? 'WhatsApp' : 
+                                       selectedOrder.contactMethod === 'gmail' ? 'Gmail Concierge' : 
+                                       'Private Concierge'}
+                                  </strong>
                               </span>
                           </div>
                       </div>
@@ -1443,17 +2208,67 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
                       <div>
-                          <h3 className="text-xs font-bold uppercase tracking-widest text-white/40 mb-4">Client Registry</h3>
-                          <div className="space-y-2 text-sm text-white/80">
-                              <p><span className="text-white/30">Name:</span> {selectedOrder.shippingAddress?.fullName}</p>
+                          <h3 className="text-xs font-bold uppercase tracking-widest text-white/40 mb-4">Client Registry & Shipping Dossier</h3>
+                          <div className="space-y-2 text-sm text-white/80 bg-black/40 p-4 border border-white/5 rounded-sm">
+                              <p><span className="text-white/30">Client Name:</span> {selectedOrder.shippingAddress?.fullName}</p>
                               <p><span className="text-white/30">Mobile:</span> {selectedOrder.shippingAddress?.mobile}</p>
                               {selectedOrder.shippingAddress?.alternateMobile && (
                                   <p><span className="text-white/30">Alt Mobile:</span> {selectedOrder.shippingAddress?.alternateMobile}</p>
                               )}
                               <p><span className="text-white/30">Email:</span> {selectedOrder.shippingAddress?.email}</p>
-                              <p className="border-t border-white/10 pt-2 mt-2"><span className="text-white/30">Address:</span><br/>
-                              {selectedOrder.shippingAddress?.house}, {selectedOrder.shippingAddress?.street}<br/>
-                              {selectedOrder.shippingAddress?.city}, {selectedOrder.shippingAddress?.state} - {selectedOrder.shippingAddress?.pincode}</p>
+                              
+                              <div className="border-t border-white/10 pt-2 mt-2">
+                                  <span className="text-white/30 block mb-1">Destination Address:</span>
+                                  <p className="font-mono text-xs text-white/90 leading-relaxed">
+                                      {selectedOrder.shippingAddress?.house}, {selectedOrder.shippingAddress?.street}<br/>
+                                      {selectedOrder.shippingAddress?.city}, {selectedOrder.shippingAddress?.state} - {selectedOrder.shippingAddress?.pincode}
+                                  </p>
+                              </div>
+
+                              {/* Preferred Channel & Instant Direct Outreach */}
+                              <div className="border-t border-white/10 pt-3 mt-3">
+                                  <span className="text-[10px] uppercase font-mono tracking-widest text-gold-400 block mb-2">
+                                      Preferred Contact Channel: <strong className="text-white uppercase font-bold">{selectedOrder.preferredChannel || selectedOrder.contactMethod || 'private desk'}</strong>
+                                  </span>
+                                  <div className="flex flex-wrap gap-2 pt-1">
+                                      {selectedOrder.shippingAddress?.mobile && (
+                                          <a 
+                                              href={`https://wa.me/${selectedOrder.shippingAddress.mobile.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Greetings from DEUZ & CO. Concierge Desk. Regarding your acquisition dossier ${selectedOrder.orderCode || selectedOrder.conciergeCode || selectedOrder.code}.`)}`}
+                                              target="_blank"
+                                              rel="noreferrer"
+                                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-950/60 border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500 hover:text-black rounded text-[10px] font-mono uppercase tracking-wider transition-colors"
+                                          >
+                                              <MessageCircle size={12} /> WhatsApp Client
+                                          </a>
+                                      )}
+                                      {selectedOrder.shippingAddress?.email && (
+                                          <a 
+                                              href={`mailto:${selectedOrder.shippingAddress.email}?subject=${encodeURIComponent(`DEUZ & CO. Concierge Acquisition Dossier #${selectedOrder.orderCode || selectedOrder.conciergeCode || selectedOrder.code}`)}`}
+                                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-950/60 border border-sky-500/40 text-sky-400 hover:bg-sky-500 hover:text-black rounded text-[10px] font-mono uppercase tracking-wider transition-colors"
+                                          >
+                                              <Mail size={12} /> Send Gmail
+                                          </a>
+                                      )}
+                                      <a 
+                                          href="https://instagram.com/direct/inbox/"
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-pink-950/60 border border-pink-500/40 text-pink-400 hover:bg-pink-500 hover:text-black rounded text-[10px] font-mono uppercase tracking-wider transition-colors"
+                                      >
+                                          <ExternalLink size={12} /> Instagram DM
+                                      </a>
+                                  </div>
+                              </div>
+
+                              {/* Client Notes if any */}
+                              {(selectedOrder.customerNotes || selectedOrder.notes) && (
+                                  <div className="border-t border-white/10 pt-2.5 mt-2.5 text-xs text-gold-300/90 italic font-serif">
+                                      <span className="text-[9px] uppercase tracking-widest font-mono text-white/40 block not-italic">
+                                          Client Acquisition Notes:
+                                      </span>
+                                      "{selectedOrder.customerNotes || selectedOrder.notes}"
+                                  </div>
+                              )}
                           </div>
                       </div>
                       <div>
@@ -1468,8 +2283,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
                               
                               <div className="space-y-2 mb-6 border-t border-b border-white/10 py-4">
                                 <div className="flex justify-between text-xs">
-                                  <span className="text-white/40 uppercase tracking-widest">Dossier</span>
-                                  <span className="text-white font-mono">{selectedOrder.conciergeCode || selectedOrder.code}</span>
+                                  <span className="text-white/40 uppercase tracking-widest">Unique Code</span>
+                                  <span className="text-gold-400 font-mono font-bold tracking-wider">{selectedOrder.orderCode || selectedOrder.conciergeCode || selectedOrder.code}</span>
                                 </div>
                                 <div className="flex justify-between text-xs">
                                   <span className="text-white/40 uppercase tracking-widest">Date Issued</span>
@@ -1479,9 +2294,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
 
                               <div className="space-y-3 mb-6">
                                 {selectedOrder.items.map((item: any, idx: number) => (
-                                  <div key={idx} className="flex justify-between text-xs">
-                                    <span className="text-white/80">{item.title} <span className="text-white/40 ml-2">x{item.quantity}</span></span>
-                                    <span className="text-white/80 font-mono">₹{((item.price || 0) * (item.quantity || 1)).toLocaleString('en-IN')}</span>
+                                  <div key={idx} className="flex justify-between items-start text-xs border-b border-white/5 pb-2">
+                                    <div>
+                                      <span className="text-white/90 font-medium">{item.title}</span>
+                                      <div className="flex items-center gap-2 text-[10px] text-white/50 font-mono mt-0.5">
+                                          {item.selectedSize && <span>Size: [{item.selectedSize}]</span>}
+                                          {item.houseCode && <span className="text-gold-400/80">House: [{item.houseCode}]</span>}
+                                          <span>Qty: {item.quantity}</span>
+                                      </div>
+                                    </div>
+                                    <span className="text-gold-400 font-mono">₹{((item.price || 0) * (item.quantity || 1)).toLocaleString('en-IN')}</span>
                                   </div>
                                 ))}
                               </div>
@@ -1618,15 +2440,54 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
 
                       <div className="w-full sm:w-auto flex flex-col gap-2">
                           <label className="text-[10px] uppercase tracking-widest text-white/40">Update Status</label>
-                          <select
-                              value={selectedOrder.orderStatus}
-                              onChange={(e) => handleStatusUpdate(selectedOrder._id, e.target.value)}
-                              className="bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none"
-                          >
-                              {Object.entries(ORDER_STATUS_LABELS).map(([key, label]) => (
-                                  <option key={key} value={key}>{label}</option>
-                              ))}
-                          </select>
+                          <div className="flex flex-col gap-2">
+                              <select
+                                  value={selectedOrder.orderStatus}
+                                  onChange={(e) => handleStatusUpdate(selectedOrder._id, e.target.value)}
+                                  className="bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none cursor-pointer"
+                              >
+                                  {Object.entries(ORDER_STATUS_LABELS).map(([key, label]) => (
+                                      <option key={key} value={key}>{label}</option>
+                                  ))}
+                              </select>
+                              <div className="flex flex-wrap gap-1.5 pt-1">
+                                  <button
+                                      type="button"
+                                      onClick={() => handleStatusUpdate(selectedOrder._id, 'PAYMENT_AUTHORIZED')}
+                                      className="px-2 py-1 bg-green-500/10 hover:bg-green-500 hover:text-black text-green-400 border border-green-500/30 text-[9px] font-mono uppercase tracking-wider rounded transition-colors"
+                                  >
+                                      ✓ Paid
+                                  </button>
+                                  <button
+                                      type="button"
+                                      onClick={() => handleStatusUpdate(selectedOrder._id, 'IN_PRODUCTION')}
+                                      className="px-2 py-1 bg-amber-500/10 hover:bg-amber-500 hover:text-black text-amber-400 border border-amber-500/30 text-[9px] font-mono uppercase tracking-wider rounded transition-colors"
+                                  >
+                                      ⚡ In Production
+                                  </button>
+                                  <button
+                                      type="button"
+                                      onClick={() => handleStatusUpdate(selectedOrder._id, 'QUALITY_ASSURED')}
+                                      className="px-2 py-1 bg-purple-500/10 hover:bg-purple-500 hover:text-black text-purple-400 border border-purple-500/30 text-[9px] font-mono uppercase tracking-wider rounded transition-colors"
+                                  >
+                                      ★ QA Passed
+                                  </button>
+                                  <button
+                                      type="button"
+                                      onClick={() => handleStatusUpdate(selectedOrder._id, 'DISPATCHED')}
+                                      className="px-2 py-1 bg-sky-500/10 hover:bg-sky-500 hover:text-black text-sky-400 border border-sky-500/30 text-[9px] font-mono uppercase tracking-wider rounded transition-colors"
+                                  >
+                                      ✈ Dispatched
+                                  </button>
+                                  <button
+                                      type="button"
+                                      onClick={() => handleStatusUpdate(selectedOrder._id, 'DELIVERED')}
+                                      className="px-2 py-1 bg-emerald-500/10 hover:bg-emerald-500 hover:text-black text-emerald-400 border border-emerald-500/30 text-[9px] font-mono uppercase tracking-wider rounded transition-colors"
+                                  >
+                                      ✔ Delivered
+                                  </button>
+                              </div>
+                          </div>
                       </div>
                   </div>
               </div>
@@ -1796,7 +2657,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
                           >
                               <option value="active">Active (In Stock)</option>
                               <option value="exhausted">Exhausted (Out of Stock)</option>
-                              <option value="archived">Archived (Hidden)</option>
+                              <option value="archived">Hidden from Store</option>
                           </select>
                       </div>
                       {(!currentProduct.isArchived) && (

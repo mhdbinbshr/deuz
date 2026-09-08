@@ -1,34 +1,70 @@
 export const CONCIERGE_CONFIG = {
-  whatsappNumber: '919876543210', // Replace with actual number
-  instagramHandle: 'deuzandco', // Replace with actual handle
+  whatsappNumber: '918848918633', // Official WhatsApp concierge
+  instagramHandle: 'deuzandco', // Official Instagram handle
   emailAddress: 'deuzandco@gmail.com'
 };
 
-export const generateConciergeMessage = (orderCode: string, total: number, items: any[], address: any) => {
-  const itemsList = items.map(i => `  • ${i.title} (x${i.quantity}) - ₹${(i.price * i.quantity).toLocaleString('en-IN')}`).join('\n');
-  const date = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+/**
+ * Generates a unique purchase code strictly in the format DEUZ-TIME-DDMMYY
+ * Example: DEUZ-143025-070926
+ */
+export const generatePurchaseCode = (): string => {
+  const now = new Date();
+  const hh = String(now.getHours()).padStart(2, '0');
+  const mm = String(now.getMinutes()).padStart(2, '0');
+  const ss = String(now.getSeconds()).padStart(2, '0');
+  const time = `${hh}${mm}${ss}`;
   
+  const dd = String(now.getDate()).padStart(2, '0');
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const yy = String(now.getFullYear()).slice(-2);
+  const ddmmyy = `${dd}${month}${yy}`;
+  
+  return `DEUZ-${time}-${ddmmyy}`;
+};
+
+export const generateConciergeMessage = (orderCode: string, total: number, items: any[], address: any) => {
+  const itemsList = items.map((i, idx) => {
+    const houseCodeTag = i.houseCode ? ` [House Code: ${i.houseCode}]` : '';
+    const sizeTag = i.selectedSize ? ` (Size: ${i.selectedSize})` : '';
+    const qtyTag = i.quantity > 1 ? ` x${i.quantity}` : '';
+    return `  • Artifact ${idx + 1}: ${i.title}${houseCodeTag}${sizeTag}${qtyTag} — ₹${(i.price * (i.quantity || 1)).toLocaleString('en-IN')}`;
+  }).join('\n');
+  
+  const houseCodes = Array.from(new Set(items.map(i => i.houseCode).filter(Boolean))).join(', ') || 'STUDIO ARCHIVE';
+  const fullName = address?.fullName || `${address?.firstName || ''} ${address?.lastName || ''}`.trim() || 'Valued Client';
+  const fullAddress = address?.address || `${address?.house || ''} ${address?.street || ''}`.trim();
+  const cityStateZip = `${address?.city || ''}, ${address?.state || ''} ${address?.pincode ? `— ${address.pincode}` : ''}`.trim();
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  const timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
   return `
 =========================================
-          DEUZ & CO. INVOICE
+          DEUZ & CO. ATELIER
+      ACQUISITION & PAYMENT DOSSIER
 =========================================
-DOSSIER REFERENCE : ${orderCode}
-DATE ISSUED       : ${date}
+UNIQUE PURCHASE CODE : ${orderCode}
+HOUSE CODE(S)        : ${houseCodes}
+DATE & TIME          : ${dateStr} at ${timeStr}
 -----------------------------------------
-ACQUISITION DETAILS:
+ACQUISITION SUMMARY:
 ${itemsList}
 
-SUBTOTAL          : ₹${total.toLocaleString('en-IN')}
-ESTIMATED TOTAL   : ₹${total.toLocaleString('en-IN')}
+SUBTOTAL             : ₹${total.toLocaleString('en-IN')}
+INSURED FREIGHT      : COMPLIMENTARY (PAN-INDIA)
+GRAND TOTAL DUE      : ₹${total.toLocaleString('en-IN')}
 -----------------------------------------
-SHIPPING REGISTRY:
-  ${address.fullName}
-  ${address.house}, ${address.street}
-  ${address.city}, ${address.state} - ${address.pincode}
-  Contact: ${address.mobile}
+INSURED SHIPPING REGISTRY:
+  Recipient : ${fullName}
+  Address   : ${fullAddress}
+  City/State: ${cityStateZip}
+  Contact   : ${address?.mobile || 'Confidential'}
+  Email     : ${address?.email || 'Confidential'}
+  Country   : India
 =========================================
-"Not for everyone"
-Please confirm this dossier to proceed.
+"Not for everyone."
+Kindly verify this dossier to authorize private concierge payment.
 `.trim();
 };
 
@@ -38,12 +74,19 @@ export const getContactUrl = (method: string, message: string, orderCode: string
     case 'whatsapp':
       return `https://wa.me/${CONCIERGE_CONFIG.whatsappNumber}?text=${encodedMessage}`;
     case 'instagram':
-      return `https://ig.me/m/${CONCIERGE_CONFIG.instagramHandle}`; // Note: ig.me doesn't support pre-filled text well, but this is standard
+      // Direct Instagram URL - users can paste the copied dossier into the DM
+      return `https://ig.me/m/${CONCIERGE_CONFIG.instagramHandle}`;
     case 'email':
-      return `mailto:${CONCIERGE_CONFIG.emailAddress}?subject=Dossier%20${orderCode}&body=${encodedMessage}`;
+    case 'gmail':
+      // Web Gmail compose URL first, with mailto fallback handled by browser
+      return `https://mail.google.com/mail/?view=cm&fs=1&to=${CONCIERGE_CONFIG.emailAddress}&su=${encodeURIComponent(`DEUZ Purchase Order Dossier [${orderCode}]`)}&body=${encodedMessage}`;
     default:
       return null;
   }
+};
+
+export const getMailtoUrl = (message: string, orderCode: string) => {
+  return `mailto:${CONCIERGE_CONFIG.emailAddress}?subject=${encodeURIComponent(`DEUZ Purchase Order Dossier [${orderCode}]`)}&body=${encodeURIComponent(message)}`;
 };
 
 export const getInteractionDetails = () => {
@@ -54,3 +97,4 @@ export const getInteractionDetails = () => {
         language: navigator.language
     };
 };
+

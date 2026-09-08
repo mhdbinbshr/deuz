@@ -35,7 +35,7 @@ const ShippingPage: React.FC<ShippingPageProps> = ({ onClose }) => {
              <div className="absolute inset-0 border border-white/5 rounded-full animate-[spin_10s_linear_infinite]" />
              <Truck size={32} className="text-gold-500" strokeWidth={1} />
           </div>
-          <h1 className="text-4xl md:text-6xl font-serif text-white tracking-widest mb-6">SHIPPING POLICY</h1>
+          <h1 className="text-2xl sm:text-4xl md:text-6xl font-serif text-white tracking-[0.1em] sm:tracking-widest mb-4 sm:mb-6">SHIPPING POLICY</h1>
           <div className="h-[1px] w-24 bg-gold-500 mx-auto" />
         </motion.div>
 

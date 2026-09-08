@@ -23,7 +23,7 @@ export type OrderStatus =
   | 'CANCELLED';
 
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
-  ORDER_SECURED: 'Not Confirmed',
+  ORDER_SECURED: 'Order Secured',
   PAYMENT_AUTHORIZED: 'Payment Authorized',
   ORDER_VERIFIED: 'Order Verified',
   IN_PRODUCTION: 'In Production',
@@ -35,7 +35,7 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   OUT_FOR_DELIVERY: 'Out for Delivery',
   DELIVERED: 'Delivered',
   EXPERIENCE_UNLOCKED: 'Experience Unlocked',
-  CANCELLED: 'Archived'
+  CANCELLED: 'Cancelled'
 };
 
 export const ORDER_STATUS_DESCRIPTIONS: Record<OrderStatus, string> = {
@@ -51,7 +51,7 @@ export const ORDER_STATUS_DESCRIPTIONS: Record<OrderStatus, string> = {
   OUT_FOR_DELIVERY: 'On the final stretch to you.',
   DELIVERED: 'Your order has arrived.',
   EXPERIENCE_UNLOCKED: 'The story continues with you.',
-  CANCELLED: 'Order has been archived or cancelled.'
+  CANCELLED: 'This allocation has been cancelled.'
 };
 
 export const ORDER_PHASES = [
@@ -119,7 +119,7 @@ export interface CartItem {
   houseCode?: string;
 }
 
-export type WishlistItem = Omit<CartItem, 'quantity'>;
+export type WishlistItem = Omit<CartItem, 'quantity'> & { countInStock?: number };
 
 export interface Address {
   firstName: string;

@@ -5,33 +5,21 @@ import {
   Menu, X, ShoppingBag, Heart, ChevronDown, User, LogOut, LayoutDashboard, 
   Package, ArrowRight, Sparkles, Layers, ShieldCheck, ArrowUpRight, Compass, Home, MessageSquare 
 } from 'lucide-react';
-import { NavLink } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
-import { ROUTES } from '../constants/routes';
 
 interface NavbarProps {
   onOpenWishlist: () => void;
   onOpenFashionStore: () => void;
-  onOpenCardStore: () => void;
   onOpenAdmin?: () => void;
   onOpenMyOrders?: () => void;
   onOpenArchive: () => void;
   onOpenContact: () => void;
 }
 
-const links: NavLink[] = [
-  { name: 'Home', href: ROUTES.HOME },
-  { name: 'Maison', href: ROUTES.ABOUT },
-  { name: 'Store', href: '#' },
-  { name: 'Archive', href: '#' },
-  { name: 'Contact', href: '#' },
-];
-
 const Navbar: React.FC<NavbarProps> = ({ 
   onOpenWishlist, 
   onOpenFashionStore,
-  onOpenCardStore,
   onOpenAdmin,
   onOpenMyOrders,
   onOpenArchive,
@@ -39,10 +27,7 @@ const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [isStoreOpen, setIsStoreOpen] = useState(false);
-  const [mobileStoreExpanded, setMobileStoreExpanded] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
-  const [activeHover, setActiveHover] = useState<string | null>(null);
 
   const { user, openAuthModal, logout } = useAuth();
   const { cartCount, setIsCartOpen } = useCart();
@@ -80,25 +65,6 @@ const Navbar: React.FC<NavbarProps> = ({
     };
   }, [mobileMenuOpen]);
 
-  const handleStoreNavigation = (type: 'fashion' | 'card') => {
-    setMobileMenuOpen(false);
-    setIsStoreOpen(false);
-    if (type === 'fashion') onOpenFashionStore();
-    if (type === 'card') onOpenCardStore();
-  };
-
-  const handleNavLinkClick = (e: React.MouseEvent, name: string) => {
-      if (name === 'Archive') {
-          e.preventDefault();
-          setMobileMenuOpen(false);
-          onOpenArchive();
-      } else if (name === 'Contact') {
-          e.preventDefault();
-          setMobileMenuOpen(false);
-          onOpenContact();
-      }
-  };
-
   return (
     <>
       <motion.nav
@@ -126,182 +92,6 @@ const Navbar: React.FC<NavbarProps> = ({
               </span>
             </a>
           </motion.div>
-
-          {/* Desktop Navigation */}
-          <div className="hidden lg:flex items-center justify-center flex-1 px-4" onMouseLeave={() => setActiveHover(null)}>
-            <div className="flex items-center space-x-8 xl:space-x-12">
-              {links.map((link, i) => {
-                if (link.name === 'Store') {
-                   return (
-                    <div 
-                      key="store-dropdown"
-                      className="relative h-full flex items-center"
-                      onMouseEnter={() => setIsStoreOpen(true)}
-                      onMouseLeave={() => setIsStoreOpen(false)}
-                    >
-                      <button 
-                        onClick={() => handleStoreNavigation('fashion')}
-                        className="group relative flex items-center gap-1.5 text-[10px] uppercase tracking-[0.3em] font-medium text-white/60 hover:text-white transition-all duration-300 py-4 cursor-pointer"
-                      >
-                        Store
-                        <ChevronDown size={11} className={`text-gold-500/70 transition-transform duration-300 ${isStoreOpen ? 'rotate-180 text-gold-400' : ''}`} />
-                      </button>
-
-                      <AnimatePresence>
-                        {isStoreOpen && (
-                          <motion.div
-                            initial={{ opacity: 0, y: 16, rotateX: -14, scale: 0.94, filter: "blur(8px)" }}
-                            animate={{ opacity: 1, y: 0, rotateX: 0, scale: 1, filter: "blur(0px)" }}
-                            exit={{ opacity: 0, y: 10, rotateX: -10, scale: 0.96, filter: "blur(4px)" }}
-                            transition={{ type: "spring", stiffness: 380, damping: 26, mass: 0.8 }}
-                            style={{ transformPerspective: 1200, transformStyle: "preserve-3d" }}
-                            className="absolute top-full left-1/2 -translate-x-1/2 pt-2 z-50 pointer-events-auto"
-                          >
-                            {/* Main 3D Glass Mega-Dropdown Container */}
-                            <div className="relative w-[540px] bg-[#070707]/95 border border-white/10 backdrop-blur-2xl shadow-[0_30px_70px_rgba(0,0,0,0.95),0_0_50px_rgba(212,175,55,0.08)] rounded-md overflow-hidden p-5 flex gap-5">
-                              
-                              {/* Glowing Laser Scanline across top border */}
-                              <div className="absolute top-0 left-0 right-0 h-[2px] overflow-hidden pointer-events-none">
-                                <motion.div 
-                                  animate={{ x: ['-100%', '200%'] }} 
-                                  transition={{ repeat: Infinity, duration: 3.5, ease: "easeInOut" }}
-                                  className="w-1/2 h-full bg-gradient-to-r from-transparent via-gold-400 to-transparent shadow-[0_0_12px_#D4AF37]"
-                                />
-                              </div>
-
-                              {/* Ambient Top Light Beam */}
-                              <div className="absolute -top-20 left-1/2 -translate-x-1/2 w-56 h-28 bg-gold-500/10 rounded-full blur-[40px] pointer-events-none" />
-
-                              {/* Left Column: Interactive Collections */}
-                              <div className="flex-1 flex flex-col justify-between space-y-2">
-                                <div className="text-[9px] font-mono uppercase tracking-[0.3em] text-gold-500/80 mb-1 flex items-center gap-1.5">
-                                  <Sparkles size={11} className="text-gold-400 animate-pulse" />
-                                  <span>DEUZ Atelier & Curations</span>
-                                </div>
-
-                                {/* Option 1: Pret-a-Porter */}
-                                <motion.button 
-                                  whileHover={{ x: 4, scale: 1.01 }}
-                                  transition={{ duration: 0.2 }}
-                                  onClick={() => handleStoreNavigation('fashion')}
-                                  className="w-full text-left p-3 rounded bg-white/[0.02] hover:bg-gradient-to-r hover:from-gold-500/15 hover:via-white/[0.04] hover:to-transparent border border-white/5 hover:border-gold-500/30 transition-all duration-300 group flex items-start justify-between relative overflow-hidden cursor-pointer"
-                                >
-                                  <div className="flex items-start gap-3">
-                                    <div className="p-2 rounded bg-black/60 border border-white/10 text-gold-400 group-hover:border-gold-500/40 group-hover:text-gold-300 transition-colors">
-                                      <Layers size={14} />
-                                    </div>
-                                    <div>
-                                      <div className="flex items-center gap-2">
-                                        <h4 className="text-white text-xs font-serif tracking-wider group-hover:text-gold-300 transition-colors">Fashion House</h4>
-                                        <span className="text-[8px] px-1.5 py-0.2 bg-gold-500/20 text-gold-400 font-mono tracking-wider rounded">SIGNATURE</span>
-                                      </div>
-                                      <p className="text-[10px] text-white/40 tracking-wide mt-0.5 group-hover:text-white/60">Architectural silhouettes & sculpted garments</p>
-                                    </div>
-                                  </div>
-                                  <ArrowUpRight size={14} className="text-white/30 group-hover:text-gold-400 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
-                                </motion.button>
-
-                                {/* Option 2: Vault Archives */}
-                                <motion.button 
-                                  whileHover={{ x: 4, scale: 1.01 }}
-                                  transition={{ duration: 0.2 }}
-                                  onClick={() => { setIsStoreOpen(false); onOpenArchive(); }}
-                                  className="w-full text-left p-3 rounded bg-white/[0.02] hover:bg-gradient-to-r hover:from-gold-500/15 hover:via-white/[0.04] hover:to-transparent border border-white/5 hover:border-gold-500/30 transition-all duration-300 group flex items-start justify-between relative overflow-hidden cursor-pointer"
-                                >
-                                  <div className="flex items-start gap-3">
-                                    <div className="p-2 rounded bg-black/60 border border-white/10 text-white/70 group-hover:border-gold-500/40 group-hover:text-gold-300 transition-colors">
-                                      <ShieldCheck size={14} />
-                                    </div>
-                                    <div>
-                                      <div className="flex items-center gap-2">
-                                        <h4 className="text-white text-xs font-serif tracking-wider group-hover:text-gold-300 transition-colors">The Vault</h4>
-                                        <span className="text-[8px] px-1.5 py-0.2 bg-white/10 text-white/60 font-mono tracking-wider rounded">ARCHIVE</span>
-                                      </div>
-                                      <p className="text-[10px] text-white/40 tracking-wide mt-0.5 group-hover:text-white/60">Singular retired drops & recorded artifacts</p>
-                                    </div>
-                                  </div>
-                                  <ArrowUpRight size={14} className="text-white/30 group-hover:text-gold-400 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
-                                </motion.button>
-
-                                {/* Option 3: Private Concierge Bespoke */}
-                                <motion.button 
-                                  whileHover={{ x: 4, scale: 1.01 }}
-                                  transition={{ duration: 0.2 }}
-                                  onClick={() => { setIsStoreOpen(false); onOpenContact(); }}
-                                  className="w-full text-left p-3 rounded bg-white/[0.02] hover:bg-gradient-to-r hover:from-gold-500/15 hover:via-white/[0.04] hover:to-transparent border border-white/5 hover:border-gold-500/30 transition-all duration-300 group flex items-start justify-between relative overflow-hidden cursor-pointer"
-                                >
-                                  <div className="flex items-start gap-3">
-                                    <div className="p-2 rounded bg-black/60 border border-white/10 text-white/70 group-hover:border-gold-500/40 group-hover:text-gold-300 transition-colors">
-                                      <Sparkles size={14} />
-                                    </div>
-                                    <div>
-                                      <div className="flex items-center gap-2">
-                                        <h4 className="text-white text-xs font-serif tracking-wider group-hover:text-gold-300 transition-colors">Concierge Desk</h4>
-                                        <span className="text-[8px] px-1.5 py-0.2 bg-white/10 text-white/60 font-mono tracking-wider rounded">VIP</span>
-                                      </div>
-                                      <p className="text-[10px] text-white/40 tracking-wide mt-0.5 group-hover:text-white/60">Bespoke sizing, private acquisition & requests</p>
-                                    </div>
-                                  </div>
-                                  <ArrowUpRight size={14} className="text-white/30 group-hover:text-gold-400 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
-                                </motion.button>
-                              </div>
-
-                              {/* Right Column: 3D Feature Preview Card */}
-                              <motion.div 
-                                whileHover={{ scale: 1.02, rotateY: 4 }}
-                                transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                                onClick={() => handleStoreNavigation('fashion')}
-                                className="w-44 shrink-0 bg-gradient-to-b from-white/[0.06] to-black/80 border border-white/10 rounded-sm overflow-hidden p-3 flex flex-col justify-between group cursor-pointer relative"
-                              >
-                                <div className="relative h-32 w-full overflow-hidden rounded-sm bg-black/50 mb-2">
-                                  <motion.img 
-                                    src="https://ik.imagekit.io/dto1zguat/Evolve_1.jpg" 
-                                    alt="Sovereign Form"
-                                    animate={{ scale: [1, 1.04, 1] }}
-                                    transition={{ repeat: Infinity, duration: 6, ease: "easeInOut" }}
-                                    className="w-full h-full object-cover opacity-80 group-hover:opacity-100 group-hover:scale-105 transition-all duration-700"
-                                  />
-                                  <div className="absolute top-2 left-2 px-1.5 py-0.5 bg-black/80 backdrop-blur-md border border-gold-500/30 text-[8px] font-mono text-gold-400 tracking-wider">
-                                    FORM 01
-                                  </div>
-                                </div>
-                                <div>
-                                  <p className="text-[10px] font-serif text-white tracking-widest uppercase">SOVEREIGN</p>
-                                  <p className="text-[9px] text-white/40 tracking-wider mt-0.5">Heavy French Terry</p>
-                                  <div className="mt-3 flex items-center justify-between text-[9px] text-gold-400 uppercase tracking-widest font-semibold group-hover:text-gold-300">
-                                    <span>Enter Store</span>
-                                    <ArrowRight size={12} className="group-hover:translate-x-1 transition-transform" />
-                                  </div>
-                                </div>
-                              </motion.div>
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                   );
-                }
-                
-                return (
-                  <a
-                    key={link.name}
-                    href={link.href}
-                    onClick={(e) => handleNavLinkClick(e, link.name)}
-                    onMouseEnter={() => setActiveHover(link.name)}
-                    className="relative text-[10px] uppercase tracking-[0.3em] font-medium text-white/60 hover:text-white transition-colors duration-500 py-2"
-                  >
-                    {link.name}
-                    <motion.div
-                      className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-1 h-1 bg-gold-500 rounded-full"
-                      initial={{ opacity: 0, scale: 0 }}
-                      animate={{ opacity: activeHover === link.name ? 1 : 0, scale: activeHover === link.name ? 1 : 0 }}
-                      transition={{ duration: 0.3 }}
-                    />
-                  </a>
-                );
-              })}
-            </div>
-          </div>
             
           {/* Right Actions */}
           <div className="flex items-center gap-4 sm:gap-6 md:gap-8 shrink-0">
@@ -408,12 +198,24 @@ const Navbar: React.FC<NavbarProps> = ({
                     </AnimatePresence>
                  </div>
               ) : (
-                <button
-                   onClick={openAuthModal}
-                   className="hidden sm:block text-[10px] uppercase tracking-[0.25em] text-white/60 hover:text-gold-400 transition-colors duration-300 whitespace-nowrap"
-                >
-                   Login
-                </button>
+                <div className="flex items-center gap-4">
+                  {onOpenMyOrders && (
+                    <button
+                      onClick={onOpenMyOrders}
+                      className="hidden sm:flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-white/60 hover:text-gold-400 transition-colors duration-300 whitespace-nowrap cursor-pointer"
+                      title="View Confirmed Dossiers & Orders"
+                    >
+                      <Package size={14} className="text-gold-400/80" />
+                      <span>Dossiers</span>
+                    </button>
+                  )}
+                  <button
+                     onClick={openAuthModal}
+                     className="hidden sm:block text-[10px] uppercase tracking-[0.25em] text-white/60 hover:text-gold-400 transition-colors duration-300 whitespace-nowrap cursor-pointer"
+                  >
+                     Login
+                  </button>
+                </div>
               )}
             </div>
 
@@ -515,7 +317,7 @@ const Navbar: React.FC<NavbarProps> = ({
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="w-1.5 h-1.5 rounded-full bg-gold-500 animate-pulse" />
-                    <p className="text-[9px] font-mono text-gold-500 uppercase tracking-[0.3em]">DEUZ ATELIER // DIRECTORY</p>
+                    <p className="text-[9px] font-mono text-gold-500 uppercase tracking-[0.3em]">DEUZ ATELIER ∞ DIRECTORY</p>
                   </div>
                   <h3 className="text-white font-serif text-lg tracking-[0.15em] mt-0.5">HOUSE INDEX</h3>
                 </div>
@@ -610,12 +412,23 @@ const Navbar: React.FC<NavbarProps> = ({
                         <p className="text-[10px] text-white/40 tracking-wide">Initialize private dossier & track orders</p>
                       </div>
                     </div>
-                    <button
-                      onClick={() => { setMobileMenuOpen(false); openAuthModal(); }}
-                      className="px-3 py-1.5 text-[9px] uppercase font-mono tracking-widest text-gold-400 border border-gold-500/40 rounded-sm hover:bg-gold-500 hover:text-black transition-all cursor-pointer shrink-0 ml-2"
-                    >
-                      Login / Join
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0 ml-2">
+                      {onOpenMyOrders && (
+                        <button
+                          onClick={() => { setMobileMenuOpen(false); onOpenMyOrders(); }}
+                          className="px-2.5 py-1.5 text-[9px] uppercase font-mono tracking-widest text-white/70 border border-white/10 rounded-sm hover:text-gold-400 hover:border-gold-500/40 transition-all cursor-pointer flex items-center gap-1"
+                        >
+                          <Package size={11} className="text-gold-400" />
+                          <span>Dossiers</span>
+                        </button>
+                      )}
+                      <button
+                        onClick={() => { setMobileMenuOpen(false); openAuthModal(); }}
+                        className="px-3 py-1.5 text-[9px] uppercase font-mono tracking-widest text-gold-400 border border-gold-500/40 rounded-sm hover:bg-gold-500 hover:text-black transition-all cursor-pointer"
+                      >
+                        Login / Join
+                      </button>
+                    </div>
                   </motion.div>
                 )}
 
@@ -623,9 +436,9 @@ const Navbar: React.FC<NavbarProps> = ({
                 <div className="space-y-2.5 pt-1">
                   <div className="flex items-center justify-between px-1 mb-2">
                     <p className="text-[9px] font-mono text-white/40 uppercase tracking-[0.3em]">
-                      CHAMBERS // DIRECT ACCESS
+                      CHAMBERS ∞ DIRECT ACCESS
                     </p>
-                    <span className="text-[8px] font-mono text-gold-500/60 tracking-widest">7 DESTINATIONS</span>
+                    <span className="text-[8px] font-mono text-gold-500/60 tracking-widest">6 DESTINATIONS</span>
                   </div>
 
                   {/* 01: Home */}
@@ -718,7 +531,7 @@ const Navbar: React.FC<NavbarProps> = ({
                             </h4>
                             <span className="text-[8px] px-1.5 py-0.2 bg-gold-500/20 text-gold-400 font-mono tracking-wider rounded shrink-0 flex items-center gap-1">
                               <span className="w-1 h-1 rounded-full bg-gold-400 animate-ping" />
-                              STORE // LIVE
+                              STORE ∞ LIVE
                             </span>
                           </div>
                           <p className="text-[10px] text-white/40 tracking-wider mt-0.5 truncate">Pret-à-porter silhouettes & sculpted drops</p>
@@ -760,43 +573,11 @@ const Navbar: React.FC<NavbarProps> = ({
                     </div>
                   </motion.div>
 
-                  {/* 05: Card Sanctum */}
+                  {/* 05: Private Concierge */}
                   <motion.div
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.26 }}
-                    whileHover={{ x: 4, scale: 1.01 }}
-                    className="p-3 sm:p-3.5 rounded-sm border border-white/5 hover:border-gold-500/30 bg-white/[0.015] hover:bg-white/[0.04] transition-all group cursor-pointer"
-                    onClick={() => {
-                      setMobileMenuOpen(false);
-                      onOpenCardStore();
-                    }}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-7 h-7 rounded-sm bg-white/[0.03] border border-white/5 flex items-center justify-center text-white/40 group-hover:text-gold-400 group-hover:border-gold-500/30 transition-all shrink-0">
-                          <Sparkles size={13} />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[9px] font-mono text-gold-500/70">05</span>
-                            <h4 className="font-serif text-sm sm:text-base text-white group-hover:text-gold-300 transition-colors tracking-wide truncate">
-                              Card Sanctum
-                            </h4>
-                            <span className="text-[8px] px-1.5 py-0.2 bg-white/5 text-white/50 font-mono tracking-wider rounded shrink-0">COLLECTION</span>
-                          </div>
-                          <p className="text-[10px] text-white/40 tracking-wider mt-0.5 truncate">Single-edition tactile cards & 3D interactive showcase</p>
-                        </div>
-                      </div>
-                      <ArrowRight size={14} className="text-white/20 group-hover:text-gold-400 group-hover:translate-x-1 transition-all shrink-0" />
-                    </div>
-                  </motion.div>
-
-                  {/* 06: Private Concierge */}
-                  <motion.div
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.3 }}
                     whileHover={{ x: 4, scale: 1.01 }}
                     className="p-3 sm:p-3.5 rounded-sm border border-white/5 hover:border-gold-500/30 bg-white/[0.015] hover:bg-white/[0.04] transition-all group cursor-pointer"
                     onClick={() => {
@@ -811,7 +592,7 @@ const Navbar: React.FC<NavbarProps> = ({
                         </div>
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className="text-[9px] font-mono text-gold-500/70">06</span>
+                            <span className="text-[9px] font-mono text-gold-500/70">05</span>
                             <h4 className="font-serif text-sm sm:text-base text-white group-hover:text-gold-300 transition-colors tracking-wide truncate">
                               Private Concierge
                             </h4>
@@ -824,11 +605,11 @@ const Navbar: React.FC<NavbarProps> = ({
                     </div>
                   </motion.div>
 
-                  {/* 07: Saved Wishlist */}
+                  {/* 06: Saved Wishlist */}
                   <motion.div
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.34 }}
+                    transition={{ delay: 0.3 }}
                     whileHover={{ x: 4, scale: 1.01 }}
                     className="p-3 sm:p-3.5 rounded-sm border border-white/5 hover:border-red-500/30 bg-white/[0.015] hover:bg-white/[0.04] transition-all group cursor-pointer"
                     onClick={() => {

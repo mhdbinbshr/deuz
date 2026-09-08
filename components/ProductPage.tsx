@@ -1,7 +1,8 @@
 
-import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Heart, Filter, ChevronDown, Check, ShieldCheck, RefreshCw, AlertCircle, Crown, Lock, ArrowRight, ShoppingBag } from 'lucide-react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from 'framer-motion';
+import { ArrowLeft, Heart, Filter, ChevronDown, Check, ShieldCheck, RefreshCw, AlertCircle, Crown, Lock, ArrowRight, ShoppingBag, Sparkles, Eye, ArrowUpRight, Compass, Layers, Award } from 'lucide-react';
+import ProductShowcase3D from './ProductShowcase3D';
 import { CartItem, WishlistItem } from '../types';
 import { db } from '../utils/db';
 import { useCart } from '../context/CartContext';
@@ -14,9 +15,47 @@ interface ProductPageProps {
   wishlistItems: WishlistItem[];
 }
 
-const ProductCard = ({ product, onClick, itemVariants }: { product: any, onClick: () => void, itemVariants: any }) => {
+interface ProductCardProps {
+  product: any;
+  onClick: () => void;
+  itemVariants: any;
+  isWishlisted?: boolean;
+  onToggleWishlist?: (e: React.MouseEvent) => void;
+}
+
+const ProductCard: React.FC<ProductCardProps> = ({ 
+  product, 
+  onClick, 
+  itemVariants,
+  isWishlisted,
+  onToggleWishlist
+}) => {
+  const cardRef = useRef<HTMLDivElement>(null);
   const [isHovered, setIsHovered] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+  // 3D Tilt Spring Physics
+  const mouseX = useMotionValue(0);
+  const mouseY = useMotionValue(0);
+  const rotateX = useSpring(useTransform(mouseY, [-0.5, 0.5], [12, -12]), { stiffness: 220, damping: 22 });
+  const rotateY = useSpring(useTransform(mouseX, [-0.5, 0.5], [-12, 12]), { stiffness: 220, damping: 22 });
+  const glareX = useTransform(mouseX, [-0.5, 0.5], ['0%', '100%']);
+  const glareY = useTransform(mouseY, [-0.5, 0.5], ['0%', '100%']);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (!cardRef.current) return;
+    const rect = cardRef.current.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width - 0.5;
+    const y = (e.clientY - rect.top) / rect.height - 0.5;
+    mouseX.set(x);
+    mouseY.set(y);
+  }, [mouseX, mouseY]);
+
+  const handleMouseLeave = useCallback(() => {
+    mouseX.set(0);
+    mouseY.set(0);
+    setIsHovered(false);
+  }, [mouseX, mouseY]);
   
   const allImages = useMemo(() => {
     return product.gallery?.length > 0 
@@ -26,80 +65,150 @@ const ProductCard = ({ product, onClick, itemVariants }: { product: any, onClick
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
-    if (allImages.length > 1) {
+    if (allImages.length > 1 && isHovered) {
       interval = setInterval(() => {
         setCurrentImageIndex(prev => (prev + 1) % allImages.length);
-      }, 2000);
+      }, 1600);
     }
     return () => clearInterval(interval);
-  }, [allImages.length]);
+  }, [allImages.length, isHovered]);
 
   return (
     <motion.div
       layout
       variants={itemVariants}
       onClick={onClick}
-      className="group cursor-pointer flex flex-col"
+      ref={cardRef}
+      onMouseMove={handleMouseMove}
       onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      whileHover={{ y: -10 }}
-      transition={{ type: "spring", stiffness: 200, damping: 20 }}
+      onMouseLeave={handleMouseLeave}
+      className="group cursor-pointer flex flex-col perspective-[1000px]"
     >
-      <div className="w-full aspect-[3/4] overflow-hidden bg-[#0A0A0A] relative mb-6 rounded-sm">
+      <motion.div
+        style={{
+          rotateX,
+          rotateY,
+          transformStyle: "preserve-3d",
+        }}
+        whileHover={{ scale: 1.02 }}
+        transition={{ type: "spring", stiffness: 250, damping: 22 }}
+        className="w-full aspect-[3/4] overflow-hidden bg-[#0A0A0A] relative mb-5 rounded-sm border border-white/10 group-hover:border-gold-400/40 transition-colors duration-500 shadow-[0_15px_35px_rgba(0,0,0,0.6)] group-hover:shadow-[0_20px_50px_rgba(212,175,55,0.15)]"
+      >
+        {/* Images */}
         {allImages.map((img: string, idx: number) => (
           <motion.img 
             key={idx}
             layoutId={idx === 0 ? `product-image-${product.id}` : undefined}
             src={img} 
             alt={product.title} 
-            initial={idx === 0 ? { scale: 1.1, filter: 'blur(5px)' } : { opacity: 0 }}
+            initial={idx === 0 ? { scale: 1.05 } : { opacity: 0 }}
             animate={{ 
-                scale: currentImageIndex === idx ? 1 : 1.05, 
-                filter: 'blur(0px)',
+                scale: currentImageIndex === idx ? (isHovered ? 1.04 : 1) : 1.05, 
                 opacity: currentImageIndex === idx ? 1 : 0,
                 zIndex: currentImageIndex === idx ? 10 : 0
             }}
-            transition={{ duration: 0.8, ease: "easeOut" }}
-            className={`absolute inset-0 w-full h-full object-cover transition-all duration-700 ${product.inStock ? 'opacity-80 group-hover:opacity-100' : 'opacity-40 grayscale'}`} 
+            transition={{ duration: 0.7, ease: "easeOut" }}
+            className={`absolute inset-0 w-full h-full object-cover transition-all duration-700 ${product.inStock ? 'opacity-85 group-hover:opacity-100' : 'opacity-40 grayscale'}`} 
           />
         ))}
-        <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors duration-500 z-20 pointer-events-none" />
+
+        {/* Dynamic Interactive Specular Glare */}
+        <motion.div 
+          className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-35 transition-opacity duration-500 z-20"
+          style={{
+            background: `radial-gradient(circle 280px at ${glareX} ${glareY}, rgba(255,255,255,0.3), transparent 70%)`,
+            mixBlendMode: "overlay",
+          }}
+        />
+
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 group-hover:opacity-80 transition-opacity duration-500 z-20 pointer-events-none" />
+
+        {/* Corner Reticles */}
+        <div className="absolute top-2 left-2 text-gold-400/30 font-mono text-[8px] z-30 pointer-events-none">+</div>
+        <div className="absolute top-2 right-2 text-gold-400/30 font-mono text-[8px] z-30 pointer-events-none">+</div>
         
         {!product.inStock && (
           <div className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none">
-            <div className="bg-black/80 px-4 py-2 text-white text-xs uppercase tracking-widest border border-white/20 backdrop-blur-sm">
+            <div className="bg-black/85 px-4 py-2 text-white text-xs uppercase tracking-widest border border-white/20 backdrop-blur-sm">
                 Waitlist Only
             </div>
           </div>
         )}
         
-        {/* Small Badge on Grid Card */}
+        {/* Badge in 3D Space */}
         {product.imageTag && (
-            <div className="absolute top-4 left-4 bg-black/40 border border-white/10 backdrop-blur-md px-3 py-1.5 z-30 rounded-sm pointer-events-none">
-                <div className="flex items-center gap-1">
-                    <span className="text-[9px] uppercase tracking-[0.2em] text-white font-medium">{product.imageTag}</span>
-                </div>
+          <div 
+            style={{ transform: "translateZ(30px)" }}
+            className="absolute top-3.5 left-3.5 bg-black/70 border border-gold-400/25 backdrop-blur-md px-2.5 py-1 z-30 rounded-sm pointer-events-none"
+          >
+            <div className="flex items-center gap-1.5">
+              <Sparkles size={9} className="text-gold-400 animate-pulse" />
+              <span className="text-[8px] uppercase tracking-[0.25em] text-gold-300 font-mono font-medium">{product.imageTag}</span>
             </div>
+          </div>
+        )}
+
+        {/* Favourite Quick-Toggle Button */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleWishlist?.(e);
+          }}
+          className={`absolute top-3 right-3 z-40 w-8 h-8 rounded-full border backdrop-blur-md flex items-center justify-center transition-all duration-300 cursor-pointer ${
+            isWishlisted
+              ? 'bg-red-500/20 border-red-500/60 text-red-400 scale-105 opacity-100 shadow-[0_0_15px_rgba(239,68,68,0.4)]'
+              : 'bg-black/60 border-white/20 text-white/70 hover:text-red-400 hover:border-red-400/50 opacity-90 sm:opacity-0 group-hover:opacity-100'
+          }`}
+          aria-label="Save to Favourites"
+          title={isWishlisted ? "Remove from Favourites" : "Save to Favourites"}
+        >
+          <Heart size={14} fill={isWishlisted ? "currentColor" : "none"} strokeWidth={1.8} />
+        </button>
+
+        {/* Multi-angle indicator pills */}
+        {allImages.length > 1 && (
+          <div className="absolute top-3.5 right-13 flex items-center gap-1 z-30 pointer-events-none">
+            {allImages.map((_, i) => (
+              <span
+                key={i}
+                className={`w-1 h-1 rounded-full transition-all duration-300 ${
+                  currentImageIndex === i ? 'bg-gold-400 w-2.5' : 'bg-white/30'
+                }`}
+              />
+            ))}
+          </div>
         )}
 
         {product.inStock && (
-        <div className="absolute bottom-0 left-0 right-0 p-6 translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-[0.22,1,0.36,1] flex justify-between items-center bg-gradient-to-t from-black/80 via-black/40 to-transparent z-30 pointer-events-none">
-            <span className="text-[10px] uppercase tracking-[0.2em] text-white font-medium">View Artifact</span>
-        </div>
+          <div 
+            style={{ transform: "translateZ(35px)" }}
+            className="absolute bottom-0 left-0 right-0 p-4 translate-y-full group-hover:translate-y-0 transition-transform duration-400 ease-[0.22,1,0.36,1] flex justify-between items-center bg-gradient-to-t from-black via-black/80 to-transparent z-30 pointer-events-none border-t border-gold-400/20"
+          >
+            <span className="text-[9px] uppercase tracking-[0.25em] text-white font-mono flex items-center gap-1.5">
+              <Eye size={11} className="text-gold-400" />
+              Examine Artifact
+            </span>
+            <ArrowUpRight size={13} className="text-gold-400" />
+          </div>
         )}
-      </div>
+      </motion.div>
       
-      <div className="flex flex-col gap-2 px-1">
+      <div className="flex flex-col gap-1.5 px-1">
         <div className="flex justify-between items-start gap-4">
-            <motion.h3 layoutId={`product-title-${product.id}`} className="text-lg font-serif text-white leading-tight group-hover:text-gold-500 transition-colors duration-300">{product.title}</motion.h3>
-            <motion.span layoutId={`product-price-${product.id}`} className="text-sm text-white/60 font-mono">₹{product.price.toLocaleString('en-IN')}</motion.span>
+          <motion.h3 layoutId={`product-title-${product.id}`} className="text-base sm:text-lg font-serif text-white leading-snug group-hover:text-gold-300 transition-colors duration-300 tracking-wide">
+            {product.title}
+          </motion.h3>
+          <motion.span layoutId={`product-price-${product.id}`} className="text-sm text-gold-400 font-mono tracking-wider shrink-0">
+            ₹{product.price.toLocaleString('en-IN')}
+          </motion.span>
         </div>
         
-        <div className="flex flex-col gap-1 mt-1">
-            <span className="text-[10px] uppercase tracking-[0.2em] text-white/40">{product.category}</span>
-            {product.houseCode && (
-                <span className="text-[10px] uppercase tracking-[0.2em] text-gold-500/70">House Code: {product.houseCode}</span>
-            )}
+        <div className="flex items-center justify-between text-[9px] font-mono tracking-[0.2em] uppercase text-white/40 mt-0.5">
+          <span>TEES</span>
+          {product.houseCode && (
+            <span className="text-gold-400/80">[{product.houseCode}]</span>
+          )}
         </div>
       </div>
     </motion.div>
@@ -129,6 +238,7 @@ const ProductPage: React.FC<ProductPageProps> = ({
   const [selectedSize, setSelectedSize] = useState<string>('');
   const [showPolicy, setShowPolicy] = useState(false);
   const [error, setError] = useState('');
+  const [addedToVault, setAddedToVault] = useState(false);
   
   const { addToCart } = useCart();
   const { openAuthModal, user } = useAuth();
@@ -145,7 +255,7 @@ const ProductPage: React.FC<ProductPageProps> = ({
                     id: p._id,
                     title: p.title,
                     price: p.price,
-                    category: p.category,
+                    category: 'TEES',
                     image: p.image,
                     gallery: p.gallery || [],
                     description: p.description,
@@ -257,6 +367,8 @@ const ProductPage: React.FC<ProductPageProps> = ({
         selectedSize,
         maxStock
     });
+    setAddedToVault(true);
+    setTimeout(() => setAddedToVault(false), 2200);
   };
 
   const handleBuyNow = async () => {
@@ -269,15 +381,12 @@ const ProductPage: React.FC<ProductPageProps> = ({
         ? selectedProduct.sizeStock[selectedSize] 
         : selectedProduct.countInStock;
         
-    const success = await addToCart({ ...selectedProduct, selectedSize, maxStock }, false);
+    await addToCart({ ...selectedProduct, selectedSize, maxStock }, false);
     
-    if (success) {
-        if (!user) {
-            openAuthModal();
-        } else {
-            onBuyNow({ ...selectedProduct, selectedSize, maxStock });
-        }
+    if (!user) {
+        openAuthModal();
     }
+    onBuyNow({ ...selectedProduct, selectedSize, maxStock });
   };
 
   const getSizeDetails = (fit: 'oversized' | 'regular' | undefined, size: string) => {
@@ -365,177 +474,142 @@ const ProductPage: React.FC<ProductPageProps> = ({
             transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
             className="min-h-screen flex flex-col md:flex-row md:h-screen md:overflow-hidden"
           >
-            {/* Left: Product Visuals */}
-            <div className="w-full md:w-1/2 lg:w-5/12 relative bg-[#080808] flex items-center justify-center overflow-hidden shrink-0 py-12 md:py-0 md:h-full">
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-gold-900/10 via-black to-black opacity-50" />
-              <motion.div 
-                animate={{ rotate: 360 }}
-                transition={{ duration: 60, repeat: Infinity, ease: "linear" }}
-                className="absolute w-[800px] h-[800px] border border-white/5 rounded-full"
+            {/* Left: 3D Cinematic Product Visual Showcase */}
+            <div className="w-full md:w-1/2 lg:w-1/2 relative bg-[#060606] flex items-center justify-center shrink-0 pt-20 pb-8 sm:py-10 md:py-0 md:h-full border-b md:border-b-0 md:border-r border-white/10">
+              <ProductShowcase3D
+                product={selectedProduct}
+                currentImageIndex={currentImageIndex}
+                setCurrentImageIndex={setCurrentImageIndex}
               />
-              
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0, y: 40 }}
-                animate={{ scale: 1, opacity: 1, y: 0 }}
-                transition={{ duration: 1, ease: [0.22, 1, 0.36, 1], delay: 0.1 }}
-                className="relative z-10 w-3/4 sm:w-2/3 md:w-80 lg:w-96 aspect-[3/4] group perspective-[1000px] overflow-hidden rounded-sm shadow-[0_30px_60px_rgba(0,0,0,0.9)]"
-              >
-                 {(() => {
-                   const allImages = selectedProduct.gallery?.length > 0 
-                     ? [selectedProduct.image, ...selectedProduct.gallery] 
-                     : [selectedProduct.image];
-                   
-                   return (
-                     <>
-                       {allImages.map((img: string, idx: number) => (
-                         <motion.img 
-                           key={idx}
-                           src={img} 
-                           alt={`${selectedProduct.title} - Image ${idx + 1}`}
-                           layoutId={idx === 0 ? `product-image-${selectedProduct.id}` : undefined}
-                           initial={idx === 0 ? { scale: 1.1, filter: 'blur(10px)' } : { opacity: 0 }}
-                           animate={{ 
-                             scale: currentImageIndex === idx ? 1 : 1.05, 
-                             filter: 'blur(0px)',
-                             opacity: currentImageIndex === idx ? 1 : 0,
-                             zIndex: currentImageIndex === idx ? 10 : 0
-                           }}
-                           transition={{ duration: 1.5, ease: [0.16, 1, 0.3, 1] }}
-                           className={`absolute inset-0 w-full h-full object-cover ${!selectedProduct.inStock ? 'grayscale contrast-125' : ''}`}
-                         />
-                       ))}
-                       
-                       {allImages.length > 1 && (
-                         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 z-30">
-                           {allImages.map((_: any, idx: number) => (
-                             <button
-                               key={idx}
-                               onClick={(e) => {
-                                 e.stopPropagation();
-                                 setCurrentImageIndex(idx);
-                               }}
-                               className={`h-1.5 rounded-full transition-all duration-500 ${currentImageIndex === idx ? 'w-6 bg-gold-500' : 'w-1.5 bg-white/30 hover:bg-white/60'}`}
-                             />
-                           ))}
-                         </div>
-                       )}
-                     </>
-                   );
-                 })()}
-                 <div className="absolute -bottom-12 left-0 right-0 h-32 bg-gradient-to-t from-black via-transparent to-transparent z-20 pointer-events-none" />
-                 
-                 {/* Visual Badge for Exhausted */}
-                 {!selectedProduct.inStock && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-                        <div className="border border-white/20 p-6 text-center bg-black/80">
-                            <Lock size={32} className="text-white/40 mx-auto mb-2" />
-                            <p className="text-white font-serif tracking-widest text-lg">EXHAUSTED</p>
-                            <p className="text-white/40 text-[9px] uppercase tracking-[0.3em] mt-1">WAITLIST ONLY</p>
-                        </div>
-                    </div>
-                 )}
-              </motion.div>
             </div>
 
-            {/* Right: Details */}
-            <div className="w-full md:w-1/2 lg:w-7/12 flex-1 md:h-full flex flex-col justify-start px-6 md:px-12 lg:px-16 pt-8 md:pt-32 pb-12 md:pb-24 bg-[#050505] overflow-y-auto">
+            {/* Right: Atelier Dossier & Acquisition Controls */}
+            <div className="w-full md:w-1/2 lg:w-1/2 flex-1 md:h-full flex flex-col justify-start px-4 sm:px-6 md:px-10 lg:px-14 pt-6 sm:pt-10 md:pt-20 lg:pt-24 pb-16 md:pb-24 bg-[#050505] overflow-y-auto">
               <motion.div
-                initial={{ opacity: 0, x: 50 }}
+                initial={{ opacity: 0, x: 40 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.8, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
-                className="max-w-2xl w-full"
+                transition={{ duration: 0.8, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                className="max-w-2xl w-full mx-auto md:mx-0"
               >
-                 {/* --- HEADER: Release Status ONLY (Type of Wear Removed) --- */}
-                <div className="flex items-center justify-end mb-8 border-b border-white/5 pb-6">
-                  <div className="text-right">
-                    <span className="text-[9px] text-white/40 uppercase tracking-widest block mb-1">Release Status</span>
-                    <div className={`flex items-center justify-end gap-2 text-xs uppercase tracking-widest ${selectedProduct.inStock ? 'text-green-500' : 'text-red-500'}`}>
-                      {selectedProduct.inStock ? (
-                         <>
-                           <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse shadow-[0_0_5px_#22c55e]" />
-                           <span>Active</span>
-                         </>
-                      ) : (
-                         <>
-                           <AlertCircle size={14} />
-                           <span>Exhausted</span>
-                         </>
-                      )}
-                    </div>
+                {/* Header: Category & Release Status */}
+                <div className="flex items-center justify-between mb-5 pb-3.5 border-b border-white/10">
+                  <div className="flex items-center gap-2">
+                    <Compass size={13} className="text-gold-400 animate-spin-slow" />
+                    <span className="text-[10px] sm:text-xs font-mono tracking-[0.25em] text-gold-400 uppercase font-semibold">
+                      TEES
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-[9px] sm:text-[10px] font-mono uppercase tracking-widest">
+                    {selectedProduct.inStock ? (
+                      <span className="inline-flex items-center gap-1.5 text-emerald-400 bg-emerald-400/10 px-2 sm:px-2.5 py-0.5 border border-emerald-400/25 rounded-sm">
+                        <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse shadow-[0_0_6px_#22c55e]" />
+                        Active Allocation
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 text-red-400 bg-red-400/10 px-2 sm:px-2.5 py-0.5 border border-red-400/25 rounded-sm">
+                        <AlertCircle size={12} />
+                        Vault Closed
+                      </span>
+                    )}
                   </div>
                 </div>
 
-                {selectedProduct.imageTag && (
-                  <div className="inline-flex items-center gap-2 border border-gold-500/50 px-3 py-1 mb-4 bg-gold-500/10">
-                    <span className="text-[9px] text-gold-500 uppercase tracking-[0.2em] font-bold">
+                {/* Artifact House Code & Image Tag */}
+                <div className="flex items-center gap-2 mb-3">
+                  {selectedProduct.houseCode && (
+                    <div className="px-2.5 py-1 bg-white/[0.04] border border-white/15 rounded-sm text-[9px] sm:text-[10px] font-mono tracking-[0.2em] text-white/90 uppercase">
+                      {selectedProduct.houseCode}
+                    </div>
+                  )}
+                  {selectedProduct.imageTag && (
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-gold-500/10 border border-gold-400/30 rounded-sm text-[8.5px] sm:text-[9.5px] font-mono tracking-[0.2em] text-gold-300 uppercase">
+                      <Sparkles size={10} className="text-gold-400 animate-pulse" />
                       {selectedProduct.imageTag}
-                    </span>
-                  </div>
-                )}
+                    </div>
+                  )}
+                </div>
 
+                {/* Title */}
                 <motion.h1 
                   layoutId={`product-title-${selectedProduct.id}`}
-                  className="text-3xl md:text-5xl font-serif text-white mb-3 leading-tight"
+                  className="text-2xl sm:text-3xl md:text-4xl lg:text-4xl font-serif text-white mb-2 leading-tight tracking-[0.06em] uppercase font-light break-words"
                 >
                   {selectedProduct.title}
                 </motion.h1>
 
-                <div className="flex items-center gap-3 mb-6">
-                  <span className="text-[9px] text-white/30 uppercase tracking-[0.3em] font-mono">
-                    {selectedProduct.category}
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-5">
+                  <span className="text-[9.5px] sm:text-[11px] text-white/50 uppercase tracking-[0.25em] font-mono">
+                    CATEGORY: TEES
                   </span>
-                  {selectedProduct.houseCode && (
-                    <>
-                      <span className="text-white/20">•</span>
-                      <span className="text-[9px] text-gold-500/70 uppercase tracking-[0.3em] font-mono">
-                        House Code: {selectedProduct.houseCode}
-                      </span>
-                    </>
-                  )}
+                  <span className="text-white/20 hidden sm:inline">•</span>
+                  <span className="text-[9.5px] sm:text-[11px] text-gold-400/80 uppercase tracking-[0.25em] font-mono">
+                    CRAFTED AT DEUZ ATELIER
+                  </span>
                 </div>
 
-                <p className="text-sm text-white/50 font-light leading-relaxed mb-8">
+                {/* Description */}
+                <p className="text-xs sm:text-sm text-white/60 font-light leading-relaxed mb-6">
                   {selectedProduct.description}
                 </p>
 
-                <div className="flex items-end gap-4 mb-8">
-                   <motion.span 
-                    layoutId={`product-price-${selectedProduct.id}`}
-                    className="text-2xl font-serif text-white"
-                   >
-                     ₹{selectedProduct.price.toLocaleString('en-IN')}
-                   </motion.span>
-                   <span className="text-[9px] text-white/40 mb-1.5 uppercase tracking-[0.2em]">INR (Inclusive of all taxes)</span>
+                {/* Price & Taxation Indicator */}
+                <div className="p-3.5 sm:p-4 bg-white/[0.02] border border-white/10 rounded-sm mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
+                  <div>
+                    <span className="text-[8px] sm:text-[8.5px] font-mono text-white/40 uppercase tracking-[0.25em] block mb-0.5">
+                      ACQUISITION VALUE
+                    </span>
+                    <motion.span 
+                      layoutId={`product-price-${selectedProduct.id}`}
+                      className="text-xl sm:text-2xl md:text-3xl font-serif text-white tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-white via-gold-200 to-gold-400"
+                    >
+                      ₹{selectedProduct.price.toLocaleString('en-IN')}
+                    </motion.span>
+                  </div>
+                  <div className="text-left sm:text-right">
+                    <span className="text-[8px] sm:text-[8.5px] text-gold-400/90 uppercase tracking-[0.2em] font-mono block">
+                      TAXES INCLUDED (PAN-INDIA)
+                    </span>
+                    <span className="text-[7.5px] sm:text-[8px] text-white/30 uppercase tracking-widest font-mono">
+                      COMPLIMENTARY INSURED EXPRESS FREIGHT
+                    </span>
+                  </div>
                 </div>
 
-                {selectedProduct.sizes && selectedProduct.sizes.length > 0 && selectedProduct.category !== 'card' && (
-                  <div className="mb-10">
-                    <div className="flex justify-between items-center mb-4">
-                      <span className="text-xs uppercase tracking-widest text-white/40">Select Configuration</span>
-                      <span className="text-[10px] text-gold-500 uppercase tracking-widest">{selectedProduct.fit === 'oversized' ? 'Oversized Fit' : 'Standard Fit'}</span>
+                {/* Size Configuration Matrix */}
+                {selectedProduct.sizes && selectedProduct.sizes.length > 0 && (
+                  <div className="mb-6 sm:mb-8">
+                    <div className="flex justify-between items-center mb-2.5 sm:mb-3">
+                      <span className="text-[9.5px] sm:text-[10px] uppercase tracking-[0.25em] font-mono text-white/60">
+                        SILHOUETTE SIZE SELECTION
+                      </span>
+                      <span className="text-[8.5px] sm:text-[9px] text-gold-400 uppercase tracking-[0.25em] font-mono px-2 py-0.5 bg-gold-400/10 border border-gold-400/20 rounded">
+                        {selectedProduct.fit === 'oversized' ? 'Oversized Silhouette' : 'Standard Architectural Drape'}
+                      </span>
                     </div>
-                    {/* Premium Size Selector - 5 Cols for S, M, L, XL, XXL */}
-                    <div className="grid grid-cols-5 gap-2">
+
+                    {/* Premium Size Matrix */}
+                    <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
                       {selectedProduct.sizes.map((size: string) => {
                         const isSizeOutOfStock = selectedProduct.outOfStockSizes?.includes(size);
+                        const isSelected = selectedSize === size;
                         return (
                           <button
                             key={size}
                             onClick={() => { setSelectedSize(size); setError(''); }}
                             disabled={!selectedProduct.inStock || isSizeOutOfStock}
                             className={`
-                              h-12 flex items-center justify-center text-xs font-medium uppercase tracking-widest transition-all duration-300 border
-                              ${selectedSize === size 
-                                ? 'bg-white text-black border-white shadow-[0_0_20px_rgba(255,255,255,0.3)]' 
-                                : 'bg-transparent text-white/40 border-white/10 hover:border-white/40 hover:text-white'
+                              h-11 sm:h-12 flex flex-col items-center justify-center text-xs sm:text-sm font-mono font-medium uppercase tracking-widest transition-all duration-300 border rounded-sm relative overflow-hidden
+                              ${isSelected 
+                                ? 'bg-gold-400 text-black border-gold-400 font-bold shadow-[0_0_20px_rgba(212,175,55,0.4)]' 
+                                : 'bg-black/60 text-white/60 border-white/10 hover:border-gold-400/60 hover:text-white'
                               }
-                              disabled:opacity-20 disabled:cursor-not-allowed relative overflow-hidden
+                              disabled:opacity-25 disabled:cursor-not-allowed
                             `}
                           >
-                            {size}
+                            <span>{size}</span>
                             {isSizeOutOfStock && (
-                              <div className="absolute inset-0 flex items-center justify-center">
-                                <div className="w-full h-[1px] bg-red-500/50 rotate-45 absolute" />
+                              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                <div className="w-full h-[1px] bg-red-500/70 rotate-45 absolute" />
                               </div>
                             )}
                           </button>
@@ -543,120 +617,202 @@ const ProductPage: React.FC<ProductPageProps> = ({
                       })}
                     </div>
                     
+                    {/* Selected Size Dimension Tooltip */}
                     <AnimatePresence>
                       {selectedSize && (
                         <motion.div 
                           initial={{ opacity: 0, height: 0 }} 
                           animate={{ opacity: 1, height: 'auto' }} 
                           exit={{ opacity: 0, height: 0 }}
-                          className="mt-4 text-[10px] text-white/50 font-mono uppercase tracking-widest border border-white/5 p-3 bg-white/5 flex flex-col gap-2"
+                          className="mt-2.5 sm:mt-3 text-[9px] sm:text-[9.5px] text-white/60 font-mono uppercase tracking-widest border border-white/10 p-2.5 sm:p-3 bg-white/[0.03] rounded-sm flex flex-col gap-1.5"
                         >
-                          <div className="flex justify-between items-center">
-                              <span>{getSizeDetails(selectedProduct.fit, selectedSize)}</span>
-                              {selectedProduct.sizeStock && typeof selectedProduct.sizeStock[selectedSize] === 'number' && (
-                                  <span className="text-gold-500 font-bold">
-                                      {selectedProduct.sizeStock[selectedSize]} IN STOCK
-                                  </span>
-                              )}
+                          <div className="flex justify-between items-center text-gold-300">
+                            <span>MEASUREMENTS</span>
+                            {selectedProduct.sizeStock && typeof selectedProduct.sizeStock[selectedSize] === 'number' && (
+                              <span className="font-bold text-emerald-400">
+                                {selectedProduct.sizeStock[selectedSize]} PIECES RESERVED
+                              </span>
+                            )}
                           </div>
+                          <span className="text-white/80 font-mono text-[8.5px] sm:text-[9px]">
+                            {getSizeDetails(selectedProduct.fit, selectedSize)}
+                          </span>
                         </motion.div>
                       )}
                     </AnimatePresence>
 
                     {error && (
-                        <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="text-gold-500 text-xs mt-3 flex items-center gap-2">
-                            <AlertCircle size={12} />
-                            <span className="uppercase tracking-wide text-[10px] font-bold">Action Required:</span> {error}
-                        </motion.div>
+                      <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="text-gold-400 text-xs mt-2.5 sm:mt-3 flex items-center gap-2 font-mono">
+                        <AlertCircle size={13} className="text-gold-400 shrink-0" />
+                        <span className="uppercase tracking-widest text-[8.5px] sm:text-[9px] font-bold">Action Required:</span> {error}
+                      </motion.div>
                     )}
                   </div>
                 )}
 
-                <div className="flex flex-col gap-4 mb-8">
+                {/* Primary Acquisition Controls */}
+                <div className="flex flex-col gap-3 sm:gap-4 mb-6 sm:mb-8">
                   {!selectedProduct.inStock ? (
-                      <div className="w-full py-6 bg-white/5 border border-white/10 text-center flex flex-col items-center justify-center gap-2 cursor-not-allowed opacity-70">
-                          <Lock size={16} className="text-white/40" />
-                          <span className="text-white/40 text-[10px] uppercase tracking-[0.3em]">Acquisition Closed</span>
-                      </div>
+                    <div className="w-full py-5 sm:py-6 bg-black/60 border border-white/10 rounded-sm text-center flex flex-col items-center justify-center gap-2 cursor-not-allowed opacity-75">
+                      <Lock size={18} className="text-gold-400" />
+                      <span className="text-white/60 text-[9.5px] sm:text-[10px] uppercase tracking-[0.3em] font-mono">
+                        ACQUISITION PROTOCOL CLOSED • EXHAUSTED
+                      </span>
+                    </div>
                   ) : (
-                      <div className="flex gap-4 h-14">
-                        {/* Acquire Button */}
-                        <button 
-                          onClick={handleBuyNow}
-                          disabled={!selectedProduct.inStock}
-                          className="group relative flex-[2] overflow-hidden bg-white px-8 transition-all duration-500 hover:shadow-[0_0_30px_rgba(255,255,255,0.2)] disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          <div className="absolute inset-0 bg-gold-500 translate-y-full transition-transform duration-500 ease-[0.22,1,0.36,1] group-hover:translate-y-0" />
-                          <span className="relative z-10 flex items-center justify-center gap-3 text-xs font-bold uppercase tracking-[0.2em] text-black transition-colors">
-                            Acquire
-                            <ArrowRight size={16} className="transition-transform duration-300 group-hover:translate-x-1" />
-                          </span>
-                        </button>
+                    <div className="flex gap-2.5 sm:gap-4 h-13 sm:h-15">
+                      {/* Acquire Button */}
+                      <button 
+                        onClick={handleBuyNow}
+                        disabled={!selectedProduct.inStock}
+                        aria-label="Acquire Now"
+                        className="group relative flex-[2.2] overflow-hidden rounded-sm bg-gradient-to-r from-[#D4AF37] via-[#F5E6A3] to-[#AA771C] px-4 sm:px-8 border border-amber-300/80 shadow-[0_4px_25px_rgba(212,175,55,0.4)] hover:shadow-[0_0_40px_rgba(212,175,55,0.7)] hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.985] transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+                      >
+                        {/* Shimmer light sweep on hover */}
+                        <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-out bg-gradient-to-r from-transparent via-white/70 to-transparent pointer-events-none" />
+                        
+                        {/* Subtle top rim light */}
+                        <div className="absolute top-0 left-0 right-0 h-[1px] bg-white/60 pointer-events-none" />
 
-                        {/* Add to Vault Button */}
-                        <button 
-                          onClick={handleAddToCart}
-                          disabled={!selectedProduct.inStock}
-                          className="group relative flex-1 overflow-hidden border border-white/20 bg-transparent px-6 transition-all duration-500 hover:border-white disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          <div className="absolute inset-0 bg-white translate-y-full transition-transform duration-500 ease-[0.22,1,0.36,1] group-hover:translate-y-0" />
-                          <span className="relative z-10 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-white transition-colors group-hover:text-black">
-                            <ShoppingBag size={14} className="mb-0.5" />
-                            Vault
+                        <span className="relative z-10 flex items-center justify-center gap-2 sm:gap-3 text-black font-mono">
+                          <Sparkles size={14} className="text-black/80 shrink-0 hidden sm:inline-block animate-pulse" />
+                          <span className="text-[11px] sm:text-xs md:text-sm font-black uppercase tracking-[0.22em] sm:tracking-[0.26em] drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
+                            ACQUIRE NOW
                           </span>
-                        </button>
+                          <ArrowRight size={15} className="text-black stroke-[2.5] transition-transform duration-300 group-hover:translate-x-1.5 shrink-0" />
+                        </span>
+                      </button>
 
-                        {/* Wishlist Button */}
-                        <button 
-                          onClick={() => onToggleWishlist(selectedProduct)}
-                          className={`group relative flex w-14 items-center justify-center border transition-all duration-500 ${
-                            isInWishlist(selectedProduct.id)
-                              ? 'border-red-500 bg-red-500/10 text-red-500' 
-                              : 'border-white/20 bg-transparent text-white hover:border-white'
-                          }`}
-                        >
-                          <Heart 
-                            size={20} 
-                            fill={isInWishlist(selectedProduct.id) ? "currentColor" : "none"} 
-                            strokeWidth={1.5}
-                            className={`transition-transform duration-300 ${isInWishlist(selectedProduct.id) ? 'scale-110' : 'group-hover:scale-110'}`}
-                          />
-                        </button>
-                      </div>
+                      {/* Add to Vault Button */}
+                      <button 
+                        onClick={handleAddToCart}
+                        disabled={!selectedProduct.inStock}
+                        aria-label="Add to Vault"
+                        className={`group relative flex-[1.4] overflow-hidden rounded-sm px-3 sm:px-6 transition-all duration-300 border hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer ${
+                          addedToVault
+                            ? 'bg-emerald-950/80 border-emerald-400/80 text-emerald-300 shadow-[0_0_25px_rgba(16,185,129,0.35)]'
+                            : 'bg-gradient-to-b from-[#181818] via-[#0E0E0E] to-[#080808] border-gold-500/40 hover:border-gold-400 hover:shadow-[0_0_30px_rgba(212,175,55,0.25)]'
+                        }`}
+                      >
+                        {/* Ambient gold sheen overlay */}
+                        <div className="absolute inset-0 bg-gradient-to-r from-gold-500/0 via-gold-500/15 to-gold-500/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+                        
+                        <span className="relative z-10 flex items-center justify-center gap-1.5 sm:gap-2.5 text-[10px] sm:text-xs font-bold uppercase tracking-[0.16em] sm:tracking-[0.2em] font-mono">
+                          {addedToVault ? (
+                            <span className="flex items-center gap-1.5 text-emerald-300 font-black">
+                              <Check size={14} className="stroke-[3]" />
+                              IN VAULT
+                            </span>
+                          ) : (
+                            <>
+                              <ShoppingBag size={14} className="text-gold-400 transition-transform duration-300 group-hover:scale-110 mb-0.5 shrink-0" />
+                              <span className="text-white group-hover:text-gold-300 transition-colors">
+                                VAULT
+                              </span>
+                            </>
+                          )}
+                        </span>
+                      </button>
+
+                      {/* Wishlist Button */}
+                      <button 
+                        onClick={() => onToggleWishlist({
+                          id: selectedProduct.id,
+                          title: selectedProduct.title,
+                          price: selectedProduct.price,
+                          image: selectedProduct.image,
+                          category: selectedProduct.category,
+                          houseCode: selectedProduct.houseCode,
+                          countInStock: selectedProduct.countInStock
+                        })}
+                        aria-label="Save to Wishlist"
+                        title={isInWishlist(selectedProduct.id) ? "Remove from Favourites" : "Save to Favourites"}
+                        className={`group relative flex w-13 sm:w-15 items-center justify-center border rounded-sm transition-all duration-300 shrink-0 cursor-pointer hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.985] ${
+                          isInWishlist(selectedProduct.id)
+                            ? 'border-red-500 bg-red-500/20 text-red-400 shadow-[0_0_20px_rgba(239,68,68,0.4)]' 
+                            : 'border-white/20 bg-black/50 text-white hover:border-gold-400 hover:text-gold-400 hover:shadow-[0_0_20px_rgba(212,175,55,0.2)]'
+                        }`}
+                      >
+                        <Heart 
+                          size={18} 
+                          fill={isInWishlist(selectedProduct.id) ? "currentColor" : "none"} 
+                          strokeWidth={1.75}
+                          className={`transition-transform duration-300 ${isInWishlist(selectedProduct.id) ? 'scale-110' : 'group-hover:scale-110'}`}
+                        />
+                      </button>
+                    </div>
                   )}
                 </div>
 
-                <div className="border-t border-white/10 pt-4">
+                {/* Technical Specifications Dossier Card */}
+                {selectedProduct.details && (
+                  <div className="p-4 sm:p-5 bg-white/[0.02] border border-white/10 rounded-sm mb-5 sm:mb-6">
+                    <div className="flex items-center justify-between pb-2.5 sm:pb-3 border-b border-white/10 mb-3 sm:mb-4">
+                      <div className="flex items-center gap-2">
+                        <Layers size={13} className="text-gold-400" />
+                        <span className="text-[9.5px] sm:text-[10px] font-mono uppercase tracking-[0.2em] sm:tracking-[0.25em] text-white/90 font-medium">
+                          MATERIAL SPECIFICATION MATRIX
+                        </span>
+                      </div>
+                      <span className="text-[7.5px] sm:text-[8px] font-mono text-gold-400/80 px-1.5 py-0.5 bg-gold-400/10 border border-gold-400/20 rounded">
+                        SINGULAR RUN
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-x-4 sm:gap-x-6 gap-y-3 sm:gap-y-3.5">
+                      {Object.entries(selectedProduct.details).map(([key, value]) => (
+                        <div key={key} className="flex flex-col">
+                          <span className="text-gold-400/80 text-[8px] sm:text-[8.5px] uppercase tracking-[0.2em] sm:tracking-[0.25em] font-mono mb-0.5">
+                            {key}
+                          </span>
+                          <span className="text-white text-[11px] sm:text-xs font-sans tracking-wide">
+                            {value as string}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Policies & Authenticity Accordion */}
+                <div className="border-t border-white/10 pt-2">
                   <button 
                     onClick={() => setShowPolicy(!showPolicy)}
-                    className="flex justify-between items-center w-full py-4 text-left group"
+                    className="flex justify-between items-center w-full py-3.5 sm:py-4 text-left group"
                   >
-                    <span className="text-xs uppercase tracking-widest text-white/80 group-hover:text-gold-500 transition-colors">Policies & Warranty</span>
-                    <ChevronDown size={16} className={`text-white/40 transition-transform duration-500 ${showPolicy ? 'rotate-180' : ''}`} />
+                    <span className="text-[10.5px] sm:text-xs uppercase tracking-[0.18em] sm:tracking-[0.2em] font-mono text-white/80 group-hover:text-gold-400 transition-colors flex items-center gap-2">
+                      <Award size={14} className="text-gold-400 shrink-0" />
+                      AUTHENTICITY & CONCIERGE PROTOCOLS
+                    </span>
+                    <ChevronDown size={14} className={`text-white/40 transition-transform duration-500 ${showPolicy ? 'rotate-180' : ''}`} />
                   </button>
                   
                   <AnimatePresence>
                     {showPolicy && (
                       <motion.div 
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.3 }}
+                        initial={{ height: 0, opacity: 0 }} 
+                        animate={{ height: 'auto', opacity: 1 }} 
+                        exit={{ height: 0, opacity: 0 }} 
+                        transition={{ duration: 0.35 }}
                         className="overflow-hidden"
                       >
-                        <div className="pb-6 space-y-4 text-sm text-white/50 font-light">
-                          <div className="flex gap-3">
-                            <ShieldCheck className="shrink-0 text-gold-500" size={18} />
+                        <div className="pb-5 sm:pb-6 space-y-3.5 sm:space-y-4 text-[11px] sm:text-xs text-white/60 font-light border-t border-white/5 pt-3.5 sm:pt-4">
+                          <div className="flex gap-2.5 sm:gap-3">
+                            <ShieldCheck className="shrink-0 text-gold-400" size={16} />
                             <div>
-                              <strong className="text-white block mb-1">Authenticity Guaranteed</strong>
-                              Every item is verified by our master curators.
+                              <strong className="text-white block mb-0.5 font-mono text-[9.5px] sm:text-[10px] uppercase tracking-wider">
+                                Guaranteed Atelier Origin
+                              </strong>
+                              Every piece is authenticated with its distinct house code and registered in the Deuz archive.
                             </div>
                           </div>
-                          <div className="flex gap-3">
-                            <RefreshCw className="shrink-0 text-gold-500" size={18} />
+                          <div className="flex gap-2.5 sm:gap-3">
+                            <RefreshCw className="shrink-0 text-gold-400" size={16} />
                             <div>
-                              <strong className="text-white block mb-1">7-Day Return Policy</strong>
-                              Easy returns on unworn items with tags attached.
+                              <strong className="text-white block mb-0.5 font-mono text-[9.5px] sm:text-[10px] uppercase tracking-wider">
+                                7-Day Exchange & Vault Protocol
+                              </strong>
+                              Unworn artifacts with intact security tags qualify for concierge exchange or credit.
                             </div>
                           </div>
                         </div>
@@ -664,19 +820,6 @@ const ProductPage: React.FC<ProductPageProps> = ({
                     )}
                   </AnimatePresence>
                 </div>
-                
-                {selectedProduct.details && (
-                    <div className="border-t border-white/10 pt-6 mt-4">
-                       <div className="grid grid-cols-2 gap-x-8 gap-y-6">
-                          {Object.entries(selectedProduct.details).map(([key, value]) => (
-                            <div key={key}>
-                               <h4 className="text-gold-500 text-[10px] uppercase tracking-widest mb-1 opacity-70">{key}</h4>
-                               <p className="text-white text-sm font-serif">{value as string}</p>
-                            </div>
-                          ))}
-                       </div>
-                    </div>
-                )}
               </motion.div>
             </div>
           </motion.div>
@@ -698,8 +841,15 @@ const ProductPage: React.FC<ProductPageProps> = ({
                  transition={{ duration: 0.8, delay: 0.2 }}
                  className="text-center flex flex-col items-center"
                >
-                 <h1 className="text-4xl md:text-6xl font-serif text-white mb-4">The Collection</h1>
-                 <p className="text-white/40 text-sm max-w-md">Limited release artifacts. No replication protocol.</p>
+                 <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/[0.03] border border-gold-400/20 rounded-full mb-3 backdrop-blur-md">
+                   <Sparkles size={11} className="text-gold-400 animate-pulse" />
+                   <span className="text-[9px] font-mono tracking-[0.35em] text-gold-300 uppercase">
+                     LIMITED ARTIFACT VAULT
+                   </span>
+                 </div>
+                 <h1 className="text-3xl sm:text-5xl md:text-6xl font-serif text-white mb-2 sm:mb-3 tracking-[0.15em] uppercase">The Collection</h1>
+                 <p className="text-white/40 text-xs sm:text-sm max-w-md font-mono tracking-widest uppercase">Limited release artifacts. No replication protocol.</p>
+                 <div className="h-[1px] w-24 bg-gradient-to-r from-transparent via-gold-400/60 to-transparent mt-4" />
                </motion.div>
                
                <div className="flex flex-col md:flex-row justify-center md:justify-end gap-6 w-full">
@@ -768,6 +918,8 @@ const ProductPage: React.FC<ProductPageProps> = ({
                        product={product} 
                        onClick={() => handleProductSelect(product)} 
                        itemVariants={itemVariants} 
+                       isWishlisted={isInWishlist(product.id)}
+                       onToggleWishlist={() => onToggleWishlist(product)}
                      />
                    ))}
                    </AnimatePresence>

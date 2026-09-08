@@ -130,9 +130,44 @@
         "createdAt": { "type": "timestamp", "description": "Server creation timestamp" }
       },
       "required": ["event", "status", "timestamp"]
+    },
+    "SecurityVerification": {
+      "title": "SecurityVerification",
+      "description": "2FA Security verification codes dispatched for login authentication",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "description": "User Gmail address" },
+        "code": { "type": "string", "description": "6-digit numeric verification code" },
+        "createdAt": { "type": "number", "description": "Creation timestamp in epoch ms" },
+        "expiresAt": { "type": "number", "description": "Expiration timestamp in epoch ms" },
+        "verified": { "type": "boolean", "description": "Whether code has been successfully verified" }
+      },
+      "required": ["email", "code", "expiresAt"]
+    },
+    "Appointment": {
+      "title": "Appointment",
+      "description": "Private concierge and atelier consultation appointments",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string", "description": "Appointment reference code" },
+        "name": { "type": "string", "description": "Client full name" },
+        "email": { "type": "string", "description": "Client email address" },
+        "phone": { "type": "string", "description": "Client contact number" },
+        "consultationType": { "type": "string", "description": "Type of consultation" },
+        "location": { "type": "string", "description": "Atelier city or virtual" },
+        "datePreference": { "type": "string", "description": "Preferred date or timeline" },
+        "notes": { "type": "string", "description": "Custom tailoring or curatorial notes" },
+        "status": { "type": "string", "enum": ["PENDING", "CONFIRMED", "COMPLETED", "CANCELLED"], "description": "Appointment status" },
+        "createdAt": { "type": "timestamp", "description": "Creation timestamp" }
+      },
+      "required": ["code", "name", "email", "consultationType", "location", "status"]
     }
   },
   "firestore": {
+    "/appointments/{appointmentId}": {
+      "schema": { "$ref": "#/entities/Appointment" },
+      "description": "Private atelier and concierge appointment bookings"
+    },
     "/users/{userId}": {
       "schema": { "$ref": "#/entities/User" },
       "description": "User profiles"
@@ -164,6 +199,10 @@
     "/auth_logs/{logId}": {
       "schema": { "$ref": "#/entities/AuthLog" },
       "description": "Dedicated authentication event logs"
+    },
+    "/security_verifications/{verificationId}": {
+      "schema": { "$ref": "#/entities/SecurityVerification" },
+      "description": "Security verification codes for Gmail 2FA authentication"
     }
   }
 }

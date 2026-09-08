@@ -5,7 +5,6 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import Loader from './components/Loader';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
-// import CardShowcase from './components/CardShowcase'; // Hidden
 import FashionStore from './components/FashionStore';
 import About from './components/About';
 import Portfolio from './components/Portfolio';
@@ -13,13 +12,13 @@ import Contact from './components/Contact';
 import Footer from './components/Footer';
 import CustomCursor from './components/CustomCursor';
 import ProductPage from './components/ProductPage';
-import CardGamePage from './components/CardGamePage';
 import CartDrawer from './components/CartDrawer';
 import WishlistDrawer from './components/WishlistDrawer';
 import CheckoutPage from './components/CheckoutPage';
 import ConciergeInitiatedPage from './components/ConciergeInitiatedPage';
 import MyOrdersPage from './components/MyOrdersPage';
 import AuthModal from './components/AuthModal';
+import { SecurityNotificationBanner } from './components/SecurityNotificationBanner';
 import AdminDashboard from './components/AdminDashboard';
 import AdminLoginPage from './components/AdminLoginPage';
 import AdminSetupPage from './components/AdminSetupPage';
@@ -58,7 +57,6 @@ const WelcomeToast = ({ name }: { name: string }) => (
 function AppContent() {
   const [loading, setLoading] = useState(true);
   const [showProductPage, setShowProductPage] = useState(false);
-  const [showGamePage, setShowGamePage] = useState(false);
   const [showArchivePage, setShowArchivePage] = useState(false);
   const [showContactPage, setShowContactPage] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
@@ -72,6 +70,7 @@ function AppContent() {
   const [showReturns, setShowReturns] = useState(false);
   
   const [activeDossierCode, setActiveDossierCode] = useState<string | null>(null);
+  const [directCheckoutItem, setDirectCheckoutItem] = useState<any | null>(null);
   const [showWelcome, setShowWelcome] = useState(false);
 
   const [isWishlistOpen, setIsWishlistOpen] = useState(false);
@@ -80,6 +79,27 @@ function AppContent() {
   
   const { user } = useAuth();
   const { addToCart, clearCart } = useCart();
+
+  // Synchronize and load wishlist from Firebase & local storage
+  useEffect(() => {
+    const loadWishlist = async () => {
+      if (user && user.id) {
+        try {
+          const cloudWishlist = await db.getWishlist(user.id);
+          if (cloudWishlist && cloudWishlist.length > 0) {
+            setWishlistItems(cloudWishlist);
+            storage.setWishlist(cloudWishlist);
+            return;
+          }
+        } catch (e) {
+          console.warn("Could not retrieve cloud wishlist:", e);
+        }
+      }
+      const local = storage.getWishlist();
+      setWishlistItems(local);
+    };
+    loadWishlist();
+  }, [user]);
 
   useEffect(() => {
     if (user) {
@@ -114,37 +134,60 @@ function AppContent() {
   const toggleWishlist = (item: WishlistItem) => {
     setWishlistItems(prev => {
       const exists = prev.find(i => i.id === item.id);
-      if (exists) {
-        return prev.filter(i => i.id !== item.id);
+      const next = exists ? prev.filter(i => i.id !== item.id) : [...prev, item];
+      storage.setWishlist(next);
+      if (user && user.id) {
+        db.saveWishlist(user.id, next).catch(err => {
+          console.error("Failed to sync wishlist with cloud:", err);
+        });
       }
-      return [...prev, item];
+      return next;
     });
   };
 
   const moveWishlistToCart = (item: WishlistItem) => {
     addToCart(item);
-    setWishlistItems(prev => prev.filter(i => i.id !== item.id));
+    setWishlistItems(prev => {
+      const next = prev.filter(i => i.id !== item.id);
+      storage.setWishlist(next);
+      if (user && user.id) {
+        db.saveWishlist(user.id, next).catch(() => {});
+      }
+      return next;
+    });
   };
 
   const handleCheckout = () => {
+    setDirectCheckoutItem(null);
     setShowCheckout(true);
   };
 
-  const handleRegisterDossier = (details: { orderCode: string }) => {
+  const handleRegisterDossier = (details: any) => {
     clearCart();
+    setDirectCheckoutItem(null);
     setShowCheckout(false);
     if (details?.orderCode) {
+      storage.saveOrderCode(details.orderCode);
+      if (details.items && details.items.length > 0) {
+        storage.saveConfirmedOrder({
+          ...details,
+          id: details.orderId || details.orderCode,
+          code: details.orderCode,
+          conciergeCode: details.orderCode,
+          createdAt: details.createdAt || new Date().toISOString()
+        });
+      }
       setActiveDossierCode(details.orderCode);
     }
   };
 
   useEffect(() => {
-    if (!loading && !showProductPage && !showGamePage && !showCheckout && !activeDossierCode && !showAdmin && !showAdminLogin && !showAdminSetup && !showMyOrders && !showPrivacy && !showTerms && !showShipping && !showReturns && !showArchivePage && !showContactPage) {
+    if (!loading && !showProductPage && !showCheckout && !activeDossierCode && !showAdmin && !showAdminLogin && !showAdminSetup && !showMyOrders && !showPrivacy && !showTerms && !showShipping && !showReturns && !showArchivePage && !showContactPage) {
       document.body.style.overflow = 'auto';
     } else {
       document.body.style.overflow = 'hidden';
     }
-  }, [loading, showProductPage, showGamePage, showCheckout, activeDossierCode, showAdmin, showAdminLogin, showAdminSetup, showMyOrders, showPrivacy, showTerms, showShipping, showReturns, showArchivePage, showContactPage]);
+  }, [loading, showProductPage, showCheckout, activeDossierCode, showAdmin, showAdminLogin, showAdminSetup, showMyOrders, showPrivacy, showTerms, showShipping, showReturns, showArchivePage, showContactPage]);
 
   useEffect(() => {
      const handler = (e: KeyboardEvent) => {
@@ -157,7 +200,7 @@ function AppContent() {
   }, []);
 
   return (
-    <div className="relative min-h-screen bg-transparent text-white selection:bg-gold-500/30 selection:text-gold-200">
+    <div className="relative min-h-screen bg-transparent text-white select-none selection:bg-transparent selection:text-white">
       
       {/* Global Cinematic Background */}
       <PremiumBackground />
@@ -165,6 +208,7 @@ function AppContent() {
       {!loading && <CustomCursor />}
       
       <AuthModal />
+      <SecurityNotificationBanner />
 
       <AnimatePresence>
         {showWelcome && user && <WelcomeToast name={user.fullName.split(' ')[0]} />}
@@ -229,11 +273,21 @@ function AppContent() {
                 />
              ) : showAdmin ? (
                 <AdminRoute key="admin-dash" onExit={() => setShowAdmin(false)}>
-                  <AdminDashboard onExit={() => setShowAdmin(false)} />
+                  <AdminDashboard 
+                    onExit={() => setShowAdmin(false)} 
+                    onViewArchive={() => {
+                      setShowAdmin(false);
+                      setShowArchivePage(true);
+                    }}
+                    onViewConcierge={() => {
+                      setShowAdmin(false);
+                      setShowContactPage(true);
+                    }}
+                  />
                 </AdminRoute>
              ) : (
                  <>
-                 {!(showProductPage || showGamePage || showCheckout || activeDossierCode || showMyOrders || showPrivacy || showTerms || showShipping || showReturns || showArchivePage || showContactPage) && (
+                 {!(showProductPage || showCheckout || activeDossierCode || showMyOrders || showPrivacy || showTerms || showShipping || showReturns || showArchivePage || showContactPage) && (
                     <motion.main 
                       key="main-content"
                       initial={{ opacity: 0 }}
@@ -244,19 +298,16 @@ function AppContent() {
                       <Navbar 
                         onOpenWishlist={() => setIsWishlistOpen(true)}
                         onOpenFashionStore={() => setShowProductPage(true)}
-                        onOpenCardStore={() => setShowGamePage(true)}
                         onOpenAdmin={() => setShowAdmin(true)}
                         onOpenMyOrders={() => setShowMyOrders(true)}
                         onOpenArchive={() => setShowArchivePage(true)}
                         onOpenContact={() => setShowContactPage(true)}
                       />
                       <Hero />
-                      {/* CardShowcase section hidden as requested */}
-                      {/* <CardShowcase onEnterGame={() => setShowGamePage(true)} /> */}
                       <FashionStore onEnterStore={() => setShowProductPage(true)} />
                       <About />
                       <Portfolio onEnterShop={() => setShowProductPage(true)} />
-                      <Contact />
+                      <Contact onOpenConcierge={() => setShowContactPage(true)} />
                       <Footer 
                         onOpenStore={() => setShowProductPage(true)} 
                         onOpenPrivacy={() => setShowPrivacy(true)}
@@ -308,7 +359,10 @@ function AppContent() {
                       <ProductPage 
                         key="product-page"
                         onBack={() => setShowProductPage(false)} 
-                        onBuyNow={() => {
+                        onBuyNow={(item) => {
+                            if (item) {
+                              setDirectCheckoutItem(item);
+                            }
                             setShowProductPage(false);
                             setShowCheckout(true);
                         }}
@@ -316,16 +370,14 @@ function AppContent() {
                         wishlistItems={wishlistItems}
                       />
                     )}
-                    {showGamePage && (
-                      <CardGamePage 
-                        key="game-page"
-                        onBack={() => setShowGamePage(false)}
-                      />
-                    )}
                     {showCheckout && (
                       <CheckoutPage
                         key="checkout-page"
-                        onBack={() => setShowCheckout(false)}
+                        directItem={directCheckoutItem}
+                        onBack={() => {
+                          setDirectCheckoutItem(null);
+                          setShowCheckout(false);
+                        }}
                         onRegisterConciergeOrder={handleRegisterDossier}
                       />
                     )}

@@ -122,22 +122,22 @@ const Hero: React.FC = () => {
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 1, delay: 0.2, ease }}
-          className="mb-8"
+          className="mb-6 sm:mb-8"
         >
-          <span className="text-gold-400 text-[10px] md:text-xs uppercase tracking-[0.5em] font-medium border border-gold-500/20 bg-gold-900/5 px-4 py-2 rounded-full backdrop-blur-md">
+          <span className="text-gold-400 text-[9px] xs:text-[10px] md:text-xs uppercase tracking-[0.3em] xs:tracking-[0.5em] font-medium border border-gold-500/20 bg-gold-900/5 px-3 xs:px-4 py-1.5 xs:py-2 rounded-full backdrop-blur-md">
             EST•2026•KERALA
           </span>
         </motion.div>
 
         {/* Staggered Title Reveal */}
-        {/* Increased vertical padding (py-8) to fix overlap/clipping of large font */}
+        {/* Responsive vertical padding and scaling to fix overlap/clipping across all screens */}
         <motion.h1
           variants={letterContainer}
           initial="hidden"
           animate="show"
-          className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl font-serif text-white tracking-widest leading-[1.1] mix-blend-screen overflow-hidden max-w-6xl drop-shadow-2xl py-8"
+          className="text-2xl xs:text-3xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl font-serif text-white tracking-[0.08em] xs:tracking-[0.15em] sm:tracking-widest leading-[1.15] mix-blend-screen overflow-hidden max-w-6xl drop-shadow-2xl py-4 sm:py-8"
         >
-          <div className="flex justify-center flex-wrap overflow-hidden gap-x-4">
+          <div className="flex justify-center flex-wrap overflow-hidden gap-x-2 xs:gap-x-3 sm:gap-x-4">
             {titleText.split(" ").map((word, wIdx) => (
                 <span key={wIdx} className="inline-block whitespace-nowrap">
                     {Array.from(word).map((char, i) => (
@@ -150,12 +150,12 @@ const Hero: React.FC = () => {
           </div>
         </motion.h1>
 
-        {/* Increased top margin (mt-24) to create luxurious whitespace */}
+        {/* Responsive top margin to create luxurious whitespace on desktop and balanced fit on mobile */}
         <motion.p
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 1, delay: 1.4, ease }}
-          className="mt-24 max-w-lg text-sm md:text-base text-gray-400 font-light tracking-wide leading-relaxed mix-blend-plus-lighter relative z-20"
+          className="mt-8 sm:mt-16 md:mt-24 max-w-lg text-xs xs:text-sm md:text-base text-gray-400 font-light tracking-wide leading-relaxed mix-blend-plus-lighter relative z-20"
         >
           Designed to Outlast
         </motion.p>

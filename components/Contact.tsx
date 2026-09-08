@@ -1,125 +1,121 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowRight } from 'lucide-react';
+import { 
+  ArrowRight, 
+  Sparkles, 
+  Mail, 
+  Check, 
+  Copy, 
+  ShieldCheck, 
+  Compass, 
+  Clock, 
+  Globe 
+} from 'lucide-react';
 
-const Contact: React.FC = () => {
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    message: ''
-  });
+interface ContactProps {
+  onOpenConcierge?: () => void;
+}
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    setFormData({ ...formData, [e.target.id]: e.target.value });
-  };
+const ATELIER_CITIES = [
+  { city: 'Paris', label: 'Place Vendôme' },
+  { city: 'London', label: 'Mayfair' },
+  { city: 'New York', label: 'Madison Ave' },
+  { city: 'Tokyo', label: 'Ginza' }
+];
 
-  const handleRequestAccess = () => {
-    const { name, email, message } = formData;
-    const subject = encodeURIComponent(`Access Request: ${name}`);
-    const body = encodeURIComponent(`Name: ${name}\nEmail: ${email}\n\nMessage:\n${message}`);
-    
-    // Using the concierge email address
-    const targetEmail = "deuzandco@gmail.com"; 
-    
-    window.open(`mailto:${targetEmail}?subject=${subject}&body=${body}`, '_blank');
+export const Contact: React.FC<ContactProps> = ({ onOpenConcierge }) => {
+  const [copiedEmail, setCopiedEmail] = useState(false);
+
+  const handleCopyEmail = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText('deuzandco@gmail.com');
+    setCopiedEmail(true);
+    setTimeout(() => setCopiedEmail(false), 2500);
   };
 
   return (
-    <section id="contact" className="relative py-32 px-6 md:px-12 bg-transparent overflow-hidden">
-      {/* Background Glow */}
-      <div className="absolute bottom-0 left-1/4 w-[500px] h-[500px] bg-gold-600/10 rounded-full blur-[120px] pointer-events-none" />
+    <section 
+      id="contact" 
+      className="relative z-10 py-16 sm:py-24 px-4 sm:px-8 border-t border-white/[0.06] bg-[#030303] overflow-hidden"
+    >
+      {/* Subtle Ambient Glow */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[350px] bg-[radial-gradient(ellipse_at_center,rgba(212,175,55,0.06)_0%,transparent_70%)] pointer-events-none blur-[90px]" />
 
-      <div className="max-w-4xl mx-auto text-center relative z-10">
-        <motion.h2
-          initial={{ opacity: 0, y: 30 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.8 }}
-          className="text-4xl md:text-6xl font-serif text-white mb-6 tracking-widest uppercase"
-        >
-          BY APPOINTMENT ONLY.
-        </motion.h2>
+      <div className="max-w-5xl mx-auto relative z-10">
         
-        <motion.p
-           initial={{ opacity: 0 }}
-           whileInView={{ opacity: 1 }}
-           viewport={{ once: true }}
-           transition={{ delay: 0.3, duration: 0.8 }}
-           className="text-gray-400 mb-16 text-xs uppercase tracking-[0.3em]"
-        >
-          Global distribution. Limited release.
-        </motion.p>
+        {/* Compact Cinematic Concierge Frame */}
+        <div className="relative rounded-sm border border-gold-500/30 bg-gradient-to-b from-[#0c0a06] via-[#080808] to-[#040404] p-8 sm:p-12 shadow-[0_20px_60px_rgba(0,0,0,0.85)] overflow-hidden">
+          
+          {/* Classical Corner Filigree Markers */}
+          <div className="absolute top-2 left-2 w-3 h-3 border-t-2 border-l-2 border-gold-500/60" />
+          <div className="absolute top-2 right-2 w-3 h-3 border-t-2 border-r-2 border-gold-500/60" />
+          <div className="absolute bottom-2 left-2 w-3 h-3 border-b-2 border-l-2 border-gold-500/60" />
+          <div className="absolute bottom-2 right-2 w-3 h-3 border-b-2 border-r-2 border-gold-500/60" />
 
-        <motion.form
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ delay: 0.5, duration: 0.8 }}
-          className="max-w-md mx-auto space-y-8 text-left"
-          onSubmit={(e) => { e.preventDefault(); handleRequestAccess(); }}
-        >
-          <div className="group relative">
-            <input
-              type="text"
-              id="name"
-              value={formData.name}
-              onChange={handleChange}
-              className="w-full bg-transparent border-b border-white/20 py-4 text-white focus:outline-none focus:border-gold-500 transition-colors duration-300 peer"
-              placeholder=" "
-              required
-            />
-            <label 
-              htmlFor="name" 
-              className="absolute left-0 top-4 text-white/40 text-sm transition-all duration-300 pointer-events-none -z-10 peer-focus:-top-4 peer-focus:text-gold-500 peer-focus:text-xs peer-not-placeholder-shown:-top-4 peer-not-placeholder-shown:text-xs"
-            >
-              Name
-            </label>
+          <div className="flex flex-col md:flex-row items-center justify-between gap-8 md:gap-12">
+            
+            {/* Left Narrative */}
+            <div className="text-center md:text-left space-y-4 max-w-xl">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-gold-500/30 bg-gold-500/10 text-gold-400 text-[8px] sm:text-[9px] uppercase tracking-[0.3em] font-mono">
+                <Sparkles size={11} className="text-gold-400 animate-pulse" />
+                <span>Private Salon & Atelier Services</span>
+              </div>
+
+              <h2 className="text-2xl sm:text-4xl font-serif text-white tracking-[0.1em] uppercase leading-tight">
+                The Private Concierge
+              </h2>
+
+              <p className="text-xs sm:text-sm text-white/60 font-light leading-relaxed">
+                Experience bespoke tailoring, singular archive acquisitions, and private salon viewings. Tailored exclusively by appointment across our worldwide ateliers.
+              </p>
+
+              {/* Atelier Cities Pill Row */}
+              <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 pt-1 text-[9px] font-mono tracking-widest text-gold-400/80">
+                {ATELIER_CITIES.map((c, idx) => (
+                  <span key={c.city} className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-white/[0.03] border border-white/[0.06]">
+                    <span className="w-1 h-1 rounded-full bg-gold-400" />
+                    <span>{c.city} — {c.label}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* Right Action Block */}
+            <div className="flex flex-col items-center md:items-end gap-4 w-full md:w-auto shrink-0">
+              
+              {/* Primary Cinematic Redirect CTA */}
+              <button
+                onClick={onOpenConcierge}
+                className="w-full sm:w-auto px-8 py-4 bg-gold-500 hover:bg-white text-black font-mono font-bold text-xs uppercase tracking-[0.25em] transition-all duration-300 shadow-[0_0_25px_rgba(212,175,55,0.3)] flex items-center justify-center gap-3 cursor-pointer group"
+              >
+                <span>Enter Private Concierge</span>
+                <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
+              </button>
+
+              {/* Direct Confidential Desk Email */}
+              <div className="flex items-center gap-2 text-xs font-mono text-white/60 bg-black/60 border border-white/10 px-3.5 py-2 rounded-sm">
+                <Mail size={13} className="text-gold-400" />
+                <span className="text-white/80">deuzandco@gmail.com</span>
+                <button
+                  onClick={handleCopyEmail}
+                  className="ml-1 text-gold-400 hover:text-white transition-colors cursor-pointer"
+                  title="Copy Concierge Email"
+                >
+                  {copiedEmail ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2 text-[9px] font-mono text-white/40">
+                <ShieldCheck size={11} className="text-gold-400" />
+                <span>Strict Non-Disclosure Protocol</span>
+              </div>
+
+            </div>
+
           </div>
 
-          <div className="group relative">
-            <input
-              type="email"
-              id="email"
-              value={formData.email}
-              onChange={handleChange}
-              className="w-full bg-transparent border-b border-white/20 py-4 text-white focus:outline-none focus:border-gold-500 transition-colors duration-300 peer"
-              placeholder=" "
-              required
-            />
-            <label 
-              htmlFor="email" 
-              className="absolute left-0 top-4 text-white/40 text-sm transition-all duration-300 pointer-events-none -z-10 peer-focus:-top-4 peer-focus:text-gold-500 peer-focus:text-xs peer-not-placeholder-shown:-top-4 peer-not-placeholder-shown:text-xs"
-            >
-              Email
-            </label>
-          </div>
+        </div>
 
-          <div className="group relative">
-            <textarea
-              id="message"
-              value={formData.message}
-              onChange={handleChange}
-              rows={3}
-              className="w-full bg-transparent border-b border-white/20 py-4 text-white focus:outline-none focus:border-gold-500 transition-colors duration-300 peer resize-none"
-              placeholder=" "
-              required
-            />
-            <label 
-              htmlFor="message" 
-              className="absolute left-0 top-4 text-white/40 text-sm transition-all duration-300 pointer-events-none -z-10 peer-focus:-top-4 peer-focus:text-gold-500 peer-focus:text-xs peer-not-placeholder-shown:-top-4 peer-not-placeholder-shown:text-xs"
-            >
-              Message
-            </label>
-          </div>
-
-          <div className="pt-8 text-center">
-            <button type="submit" className="group relative inline-flex items-center gap-4 px-8 py-4 bg-white/5 border border-white/10 hover:bg-gold-500 hover:border-gold-500 hover:text-black transition-all duration-500 rounded-full overflow-hidden">
-              <span className="relative z-10 text-xs uppercase tracking-[0.2em] font-semibold">REQUEST ACCESS</span>
-              <ArrowRight size={16} className="relative z-10 group-hover:translate-x-1 transition-transform" />
-              <div className="absolute inset-0 bg-gold-500 translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-in-out" />
-            </button>
-          </div>
-        </motion.form>
       </div>
     </section>
   );

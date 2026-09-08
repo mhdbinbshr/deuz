@@ -58,11 +58,11 @@ const About: React.FC = () => {
     : content.aboutImage;
 
   return (
-    <section id="house-standards" className="relative py-32 bg-transparent px-6 md:px-12 overflow-hidden">
+    <section id="house-standards" className="relative py-16 sm:py-24 md:py-32 bg-transparent px-4 sm:px-6 md:px-12 overflow-hidden">
       {/* Background Ambience */}
       <div className="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-white/5 to-transparent pointer-events-none" />
       
-      <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-16 lg:gap-20 items-center relative z-10">
+      <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 sm:gap-16 lg:gap-20 items-center relative z-10">
         
         {/* Text Side (Left Column) */}
         <div className="lg:col-span-7">
@@ -72,19 +72,19 @@ const About: React.FC = () => {
             viewport={{ once: true }}
             transition={{ duration: 1 }}
           >
-            <h2 className="text-gold-400 text-xs sm:text-sm font-mono tracking-[0.35em] uppercase mb-6 flex items-center gap-3">
-              <span className="w-8 h-[1px] bg-gold-400"></span>
+            <h2 className="text-gold-400 text-[10px] xs:text-xs sm:text-sm font-mono tracking-[0.25em] xs:tracking-[0.35em] uppercase mb-4 sm:mb-6 flex items-center gap-2 sm:gap-3">
+              <span className="w-6 sm:w-8 h-[1px] bg-gold-400"></span>
               {content.aboutTitle || 'THE HOUSE STANDARD'}
             </h2>
             
             <h3 
-              className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-serif text-white leading-tight mb-8" 
+              className="text-2xl xs:text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-serif text-white leading-[1.2] mb-6 sm:mb-8" 
               dangerouslySetInnerHTML={{ 
                 __html: (content.aboutSubtitle || 'DEUZ IS THE <br /> <span className="text-white/30">DESIGN.</span>').replace('\n', '<br />') 
               }} 
             />
             
-            <p className="text-base sm:text-lg text-gray-400 font-light leading-relaxed mb-8 max-w-2xl">
+            <p className="text-sm sm:text-base md:text-lg text-gray-400 font-light leading-relaxed mb-6 sm:mb-8 max-w-2xl">
               {content.aboutDescription || 'DEUZ & CO is anchored in singularity. One design defines the house — structured with discipline, refined with precision, and elevated through measured evolution. We do not multiply form. We perfect it. Each release strengthens the standard.'}
             </p>
           </motion.div>
@@ -162,7 +162,7 @@ const About: React.FC = () => {
                 repeat: Infinity,
                 ease: "easeInOut"
               }}
-              className="relative w-full h-full rounded-xl border border-white/10 bg-gradient-to-b from-white/[0.07] via-black/60 to-black/90 backdrop-blur-md overflow-hidden p-8 flex flex-col justify-between shadow-[0_30px_70px_rgba(0,0,0,0.85)] group"
+              className="relative w-full h-full rounded-xl border border-white/10 bg-gradient-to-b from-white/[0.07] via-black/60 to-black/90 backdrop-blur-md overflow-hidden p-5 sm:p-8 flex flex-col justify-between shadow-[0_30px_70px_rgba(0,0,0,0.85)] group"
             >
               {/* Subtle Tech Grid Lines Overlay */}
               <div 

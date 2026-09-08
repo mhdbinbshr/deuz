@@ -361,7 +361,19 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 export const useCart = () => {
   const context = useContext(CartContext);
   if (context === undefined) {
-    throw new Error('useCart must be used within a CartProvider');
+    return {
+      cartItems: [],
+      isCartOpen: false,
+      cartLoading: false,
+      setIsCartOpen: () => {},
+      addToCart: async () => false,
+      removeFromCart: async () => {},
+      updateQuantity: async () => {},
+      clearCart: () => {},
+      refreshCart: async () => {},
+      cartCount: 0,
+      total: 0
+    };
   }
   return context;
 };

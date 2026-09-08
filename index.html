@@ -37,11 +37,99 @@
         -ms-overflow-style: none;
         scrollbar-width: none;
       }
+
+      /* Strict site-wide non-selectable & anti-copy enforcement */
+      *, *::before, *::after {
+        -webkit-user-select: none !important;
+        -moz-user-select: none !important;
+        -ms-user-select: none !important;
+        user-select: none !important;
+        -webkit-touch-callout: none !important;
+      }
+
+      /* Allow user typing and caret interaction exclusively in input fields & textareas */
+      input, textarea, [contenteditable="true"], select {
+        -webkit-user-select: text !important;
+        -moz-user-select: text !important;
+        -ms-user-select: text !important;
+        user-select: text !important;
+      }
+
+      /* Prevent image dragging across the application */
+      img {
+        -webkit-user-drag: none;
+        user-drag: none;
+        pointer-events: auto;
+      }
+
+      ::selection {
+        background: transparent !important;
+        color: inherit !important;
+      }
+      ::-moz-selection {
+        background: transparent !important;
+        color: inherit !important;
+      }
     </style>
+    <script>
+      (function() {
+        function isInput(el) {
+          if (!el) return false;
+          var tag = (el.tagName || '').toUpperCase();
+          return tag === 'INPUT' || tag === 'TEXTAREA' || el.isContentEditable;
+        }
+
+        // Prevent copying non-input text
+        document.addEventListener('copy', function(e) {
+          if (!isInput(document.activeElement)) {
+            e.preventDefault();
+            if (e.clipboardData) {
+              e.clipboardData.clearData();
+            }
+          }
+        }, true);
+
+        // Prevent cutting non-input text
+        document.addEventListener('cut', function(e) {
+          if (!isInput(document.activeElement)) {
+            e.preventDefault();
+          }
+        }, true);
+
+        // Prevent text selection initiation on body/content
+        document.addEventListener('selectstart', function(e) {
+          if (!isInput(e.target)) {
+            e.preventDefault();
+            return false;
+          }
+        }, true);
+
+        // Prevent dragging of imagery
+        document.addEventListener('dragstart', function(e) {
+          if (e.target && e.target.nodeName === 'IMG') {
+            e.preventDefault();
+            return false;
+          }
+        }, true);
+
+        // Block copy keyboard shortcuts on non-inputs
+        document.addEventListener('keydown', function(e) {
+          if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C')) {
+            if (!isInput(document.activeElement)) {
+              e.preventDefault();
+              return false;
+            }
+          }
+        }, true);
+      })();
+    </script>
     <script>
       tailwind.config = {
         theme: {
           extend: {
+            screens: {
+              'xs': '400px',
+            },
             fontFamily: {
               serif: ['Cinzel', 'serif'],
               sans: ['Manrope', 'sans-serif'],
@@ -66,7 +154,7 @@
       }
     </script>
 </head>
-  <body class="bg-cinema-black text-white antialiased selection:bg-gold-500 selection:text-black overflow-x-hidden">
+  <body class="bg-cinema-black text-white antialiased select-none selection:bg-transparent selection:text-white overflow-x-hidden">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
   </body>

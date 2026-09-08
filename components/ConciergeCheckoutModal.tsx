@@ -1,7 +1,12 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Instagram, MessageCircle, Mail, ArrowRight, ShieldCheck, Copy, CheckCircle2 } from 'lucide-react';
-import { getContactUrl, getInteractionDetails, CONCIERGE_CONFIG, generateConciergeMessage } from '../utils/conciergeService';
+import { X, Instagram, Mail, ArrowRight, ShieldCheck, Copy, CheckCircle2, Crown, Send, Check } from 'lucide-react';
+import { 
+  getContactUrl, 
+  getMailtoUrl, 
+  CONCIERGE_CONFIG, 
+  generateConciergeMessage 
+} from '../utils/conciergeService';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -12,7 +17,7 @@ interface ConciergeCheckoutModalProps {
   totalAmount: number;
   items: any[];
   address: any;
-  onMethodSelect: (method: 'instagram' | 'whatsapp' | 'email') => void;
+  onMethodSelect: (method: 'gmail' | 'instagram' | 'private') => void;
   onInteractionStart: (details: any) => void;
 }
 
@@ -26,28 +31,39 @@ const ConciergeCheckoutModal: React.FC<ConciergeCheckoutModalProps> = ({
   onMethodSelect,
   onInteractionStart
 }) => {
-  const [selectedChannel, setSelectedChannel] = useState<'instagram' | 'whatsapp' | 'email' | null>(null);
+  const [selectedChannel, setSelectedChannel] = useState<'gmail' | 'instagram' | 'private' | null>(null);
   const [copied, setCopied] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [privatePreference, setPrivatePreference] = useState<'whatsapp' | 'gmail' | 'instagram'>('whatsapp');
+  const [privateHandle, setPrivateHandle] = useState('');
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
 
   const handleCopyCode = () => {
     navigator.clipboard.writeText(orderCode);
     setCopied(true);
+    showToast("Unique Code copied to clipboard");
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleSelect = (method: 'instagram' | 'whatsapp' | 'email') => {
+  const handleSelect = (method: 'gmail' | 'instagram' | 'private') => {
     setSelectedChannel(method);
   };
 
-  const handleContinue = () => {
+  const compileDossier = () => {
+    return generateConciergeMessage(orderCode, totalAmount, items, address);
+  };
+
+  const handleContinue = async () => {
     if (!selectedChannel) return;
     
     // Generate Invoice PDF
     const doc = new jsPDF();
-    
-    // Cinematic styling - Pure Black
     doc.setFillColor(0, 0, 0);
-    doc.rect(0, 0, 210, 297, 'F'); // A4 size background
+    doc.rect(0, 0, 210, 297, 'F');
     
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
@@ -57,7 +73,7 @@ const ConciergeCheckoutModal: React.FC<ConciergeCheckoutModalProps> = ({
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
     doc.setTextColor(150, 150, 150);
-    doc.text('NOT FOR EVERYONE', 105, 38, { align: 'center' });
+    doc.text('NOT FOR EVERYONE — ATELIER ACQUISITION DOSSIER', 105, 38, { align: 'center' });
     
     doc.setDrawColor(50, 50, 50);
     doc.line(20, 50, 190, 50);
@@ -70,18 +86,17 @@ const ConciergeCheckoutModal: React.FC<ConciergeCheckoutModalProps> = ({
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
     doc.setTextColor(200, 200, 200);
-    doc.text(`Dossier ID: ${orderCode}`, 20, 75);
-    doc.text(`Date: ${new Date().toLocaleDateString()}`, 20, 82);
-    doc.text(`Channel: ${selectedChannel?.toUpperCase()}`, 20, 89);
+    doc.text(`Unique Code: ${orderCode}`, 20, 75);
+    doc.text(`Date: ${new Date().toLocaleDateString('en-GB')}`, 20, 82);
+    doc.text(`Channel: ${selectedChannel.toUpperCase()}`, 20, 89);
     
     doc.text('BILLED TO:', 120, 65);
     doc.setTextColor(255, 255, 255);
-    doc.text(`${address?.fullName || address?.firstName || 'Guest'}`, 120, 75);
+    doc.text(`${address?.fullName || address?.firstName || 'Client'}`, 120, 75);
     doc.setTextColor(200, 200, 200);
     doc.text(`${address?.email || ''}`, 120, 82);
     doc.text(`${address?.mobile || ''}`, 120, 89);
     
-    // Shipping Address
     doc.setFont('helvetica', 'bold');
     doc.text('SHIPPING ADDRESS:', 20, 105);
     doc.setFont('helvetica', 'normal');
@@ -89,38 +104,35 @@ const ConciergeCheckoutModal: React.FC<ConciergeCheckoutModalProps> = ({
     doc.text(`${address?.city || ''}, ${address?.state || ''} ${address?.pincode || ''}`, 20, 122);
     
     const itemData = items.map((item: any) => [
-        item.title,
-        item.selectedSize || item.size || 'STD',
-        item.quantity.toString(),
-        `₹ ${item.price.toLocaleString('en-IN')}`
+      item.title,
+      item.houseCode ? `[${item.houseCode}]` : 'ATELIER',
+      item.selectedSize || item.size || 'STD',
+      item.quantity.toString(),
+      `₹ ${item.price.toLocaleString('en-IN')}`
     ]);
     
     autoTable(doc, {
-        startY: 135,
-        head: [['ARTIFACT', 'SIZE', 'QTY', 'VALUE']],
-        body: itemData,
-        theme: 'plain',
-        styles: { 
-            fillColor: [0, 0, 0], 
-            textColor: [200, 200, 200],
-            fontSize: 10,
-            cellPadding: 6,
-            lineColor: [50, 50, 50],
-            lineWidth: 0.1
-        },
-        headStyles: { 
-            fillColor: [15, 15, 15], 
-            textColor: [255, 255, 255],
-            fontStyle: 'bold',
-            halign: 'left'
-        },
-        alternateRowStyles: {
-            fillColor: [5, 5, 5]
-        }
+      startY: 135,
+      head: [['ARTIFACT', 'HOUSE CODE', 'SIZE', 'QTY', 'VALUE']],
+      body: itemData,
+      theme: 'plain',
+      styles: { 
+        fillColor: [0, 0, 0], 
+        textColor: [200, 200, 200],
+        fontSize: 9,
+        cellPadding: 6,
+        lineColor: [50, 50, 50],
+        lineWidth: 0.1
+      },
+      headStyles: { 
+        fillColor: [15, 15, 15], 
+        textColor: [212, 175, 55],
+        fontStyle: 'bold',
+        halign: 'left'
+      }
     });
     
-    const finalY = (doc as any).lastAutoTable.finalY || 135;
-    
+    const finalY = (doc as any).lastAutoTable?.finalY || 135;
     doc.setDrawColor(50, 50, 50);
     doc.line(120, finalY + 10, 190, finalY + 10);
     
@@ -128,27 +140,40 @@ const ConciergeCheckoutModal: React.FC<ConciergeCheckoutModalProps> = ({
     doc.setFontSize(12);
     doc.setTextColor(255, 255, 255);
     doc.text('TOTAL VALUE:', 120, finalY + 20);
+    doc.setTextColor(212, 175, 55);
     doc.text(`₹ ${totalAmount.toLocaleString('en-IN')}`, 190, finalY + 20, { align: 'right' });
     
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    doc.setTextColor(100, 100, 100);
-    doc.text('Not for everyone.', 105, 280, { align: 'center' });
-    
-    doc.save(`DEUZ_Dossier_${orderCode}.pdf`);
+    doc.save(`DEUZ_${orderCode}.pdf`);
 
-    onInteractionStart(getInteractionDetails());
+    onInteractionStart({ channel: selectedChannel, orderCode });
     onMethodSelect(selectedChannel);
     
-    const message = generateConciergeMessage(orderCode, totalAmount, items, address);
-    const url = getContactUrl(selectedChannel, message, orderCode);
-    
-    if (selectedChannel === 'instagram') {
-      navigator.clipboard.writeText(message);
-    }
-    
-    if (url) {
-      window.open(url, '_blank');
+    const message = compileDossier();
+
+    if (selectedChannel === 'gmail') {
+      // 1. Gmail: auto-copy shipping address, product price, unique code, house code
+      await navigator.clipboard.writeText(message);
+      showToast("Dossier copied! Opening Gmail...");
+      const gmailUrl = getContactUrl('gmail', message, orderCode) || getMailtoUrl(message, orderCode);
+      setTimeout(() => {
+        window.open(gmailUrl, '_blank');
+        onClose();
+      }, 500);
+    } else if (selectedChannel === 'instagram') {
+      // 2. Instagram: auto-copy shipping address, product price, unique code, house code
+      await navigator.clipboard.writeText(message);
+      showToast("Dossier copied! Opening Instagram...");
+      const instaUrl = getContactUrl('instagram', message, orderCode);
+      setTimeout(() => {
+        if (instaUrl) window.open(instaUrl, '_blank');
+        onClose();
+      }, 500);
+    } else if (selectedChannel === 'private') {
+      // 3. Private: sent to admin dashboard, team will contact them
+      showToast("Dossier sent to Admin Dashboard. We will reach out shortly.");
+      setTimeout(() => {
+        onClose();
+      }, 800);
     }
   };
 
@@ -168,16 +193,20 @@ const ConciergeCheckoutModal: React.FC<ConciergeCheckoutModalProps> = ({
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="relative w-full max-w-lg max-h-[90vh] flex flex-col bg-[#0A0A0A] border border-white/10 shadow-2xl overflow-hidden"
+            className="relative w-full max-w-lg max-h-[90vh] flex flex-col bg-[#0A0A0A] border border-white/10 shadow-2xl overflow-hidden rounded-sm"
           >
             {/* Header */}
             <div className="p-6 border-b border-white/10 flex justify-between items-start bg-black shrink-0">
               <div>
                 <div className="flex items-center gap-2 mb-2">
-                  <ShieldCheck size={16} className="text-gold-500" />
-                  <span className="text-[10px] uppercase tracking-widest text-gold-500 font-bold">Allocation Secured</span>
+                  <ShieldCheck size={16} className="text-gold-400" />
+                  <span className="text-[10px] uppercase tracking-widest text-gold-400 font-bold font-mono">
+                    ALLOCATION SECURED
+                  </span>
                 </div>
-                <h2 className="text-xl font-serif text-white tracking-widest uppercase">Select Channel</h2>
+                <h2 className="text-xl font-serif text-white tracking-widest uppercase">
+                  Private Concierge Payment
+                </h2>
               </div>
               <button onClick={onClose} className="text-white/40 hover:text-white transition-colors">
                 <X size={20} />
@@ -186,114 +215,154 @@ const ConciergeCheckoutModal: React.FC<ConciergeCheckoutModalProps> = ({
 
             {/* Content */}
             <div className="p-6 space-y-6 overflow-y-auto custom-scrollbar">
-              <div className="bg-[#050505] border border-white/10 p-4 relative overflow-hidden group">
-                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-10 mix-blend-overlay pointer-events-none"></div>
-                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-gold-500/50 to-transparent opacity-50"></div>
+              
+              {/* Dossier Card */}
+              <div className="bg-[#050505] border border-white/10 p-5 relative overflow-hidden rounded-sm">
+                <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-gold-400/80 to-transparent" />
                 
                 <div className="flex justify-between items-start mb-4">
                   <div>
-                    <span className="text-[9px] uppercase tracking-widest text-gold-500 block mb-1">Dossier Reference</span>
-                    <span className="text-xl font-serif text-white tracking-widest">{orderCode}</span>
+                    <span className="text-[9px] uppercase tracking-widest text-gold-400 font-mono block mb-1">
+                      UNIQUE PURCHASE CODE
+                    </span>
+                    <span className="text-xl font-mono text-white tracking-widest font-bold">
+                      {orderCode}
+                    </span>
                   </div>
                   <button 
                     onClick={handleCopyCode}
-                    className="p-2 hover:bg-white/10 transition-colors rounded-sm text-white/60 hover:text-white"
-                    title="Copy Reference"
+                    className="p-2 hover:bg-white/10 transition-colors rounded text-white/60 hover:text-white"
+                    title="Copy Unique Code"
                   >
                     {copied ? <CheckCircle2 size={18} className="text-green-500" /> : <Copy size={18} />}
                   </button>
                 </div>
                 
-                <div className="space-y-2 mb-4 border-t border-b border-white/5 py-4">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-white/40 uppercase tracking-widest">Items</span>
-                    <span className="text-white font-mono">{items?.length || 0}</span>
+                <div className="space-y-2 mb-4 border-t border-b border-white/5 py-3">
+                  <div className="flex justify-between text-xs font-mono">
+                    <span className="text-white/40 uppercase">House Code(s)</span>
+                    <span className="text-gold-400">
+                      {items?.map(i => i.houseCode).filter(Boolean).join(', ') || 'ARC-ATELIER'}
+                    </span>
                   </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-white/40 uppercase tracking-widest">Estimated Value</span>
-                    <span className="text-gold-500 font-serif">₹{(totalAmount || 0).toLocaleString('en-IN')}</span>
-                  </div>
-                  <div className="mt-4 pt-4 border-t border-white/5">
-                    <span className="text-[9px] uppercase tracking-widest text-white/40 block mb-2">Artifacts</span>
-                    <div className="space-y-2 max-h-32 overflow-y-auto custom-scrollbar pr-2">
-                        {items?.map((item, idx) => (
-                            <div key={idx} className="flex justify-between text-xs items-center">
-                                <span className="text-white/80 truncate pr-4">{item.quantity}x {item.title}</span>
-                                <span className="text-white/40 font-mono shrink-0">{item.selectedSize || 'STD'}</span>
-                            </div>
-                        ))}
-                    </div>
+                  <div className="flex justify-between text-xs font-mono">
+                    <span className="text-white/40 uppercase">Total Valuation</span>
+                    <span className="text-white font-serif font-bold">₹{(totalAmount || 0).toLocaleString('en-IN')}</span>
                   </div>
                 </div>
 
-                <p className="text-[10px] text-white/40 uppercase tracking-widest text-center">
-                  "Not for everyone"
-                </p>
+                <div className="text-[10px] font-mono text-white/50 truncate">
+                  Ship to: {address?.fullName || `${address?.firstName || ''} ${address?.lastName || ''}`}, {address?.city || ''}
+                </div>
               </div>
 
-              <div className="bg-gold-500/10 border border-gold-500/20 p-4 text-center">
-                <p className="text-xs text-gold-500/80 leading-relaxed font-light">
-                  <strong className="text-gold-500 block mb-1 uppercase tracking-widest text-[10px]">Action Required</strong>
-                  Copy your Dossier Reference above. Select your preferred channel below and send us the reference code to complete your acquisition.
-                </p>
-              </div>
+              {/* Toast Feedback */}
+              {toastMessage && (
+                <div className="p-3 bg-gold-400 text-black text-xs font-mono font-bold flex items-center gap-2 rounded">
+                  <Check size={14} />
+                  <span>{toastMessage}</span>
+                </div>
+              )}
 
+              {/* Channel Options */}
               <div className="space-y-3">
+                {/* 1. GMAIL */}
+                <button
+                  onClick={() => handleSelect('gmail')}
+                  className={`w-full p-4 border transition-all text-left flex items-start gap-4 rounded-sm ${selectedChannel === 'gmail' ? 'border-gold-400 bg-gold-400/10' : 'border-white/10 hover:border-gold-400/60 bg-black'}`}
+                >
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${selectedChannel === 'gmail' ? 'bg-red-500/20 text-red-400' : 'bg-white/5 text-white'}`}>
+                    <Mail size={18} />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs uppercase font-mono font-bold tracking-wider text-white">
+                        1. Gmail Concierge
+                      </span>
+                      <span className="text-[9px] font-mono text-gold-400 bg-gold-400/10 px-1.5 py-0.5 rounded">
+                        AUTO-COPY
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-white/50 font-light mt-1">
+                      Redirects to Gmail with auto-copy of shipping address, price, unique code ({orderCode}), and house code.
+                    </p>
+                  </div>
+                </button>
+
+                {/* 2. INSTAGRAM */}
                 <button
                   onClick={() => handleSelect('instagram')}
-                  className={`w-full p-4 border transition-all group flex items-center justify-between ${selectedChannel === 'instagram' ? 'border-gold-500 bg-gold-500/10' : 'border-white/10 hover:border-gold-500 bg-black hover:bg-gold-500/5'}`}
+                  className={`w-full p-4 border transition-all text-left flex items-start gap-4 rounded-sm ${selectedChannel === 'instagram' ? 'border-pink-500 bg-pink-500/10' : 'border-white/10 hover:border-pink-500/60 bg-black'}`}
                 >
-                  <div className="flex items-center gap-4">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${selectedChannel === 'instagram' ? 'bg-gold-500/20 text-gold-500' : 'bg-white/5 text-white group-hover:bg-gold-500/20 group-hover:text-gold-500'}`}>
-                      <Instagram size={18} />
-                    </div>
-                    <div className="text-left">
-                      <span className="block text-sm text-white uppercase tracking-widest font-bold mb-0.5">Instagram Direct</span>
-                      <span className="block text-[10px] text-white/40 font-mono">@{CONCIERGE_CONFIG.instagramHandle}</span>
-                    </div>
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${selectedChannel === 'instagram' ? 'bg-pink-500/20 text-pink-400' : 'bg-white/5 text-white'}`}>
+                    <Instagram size={18} />
                   </div>
-                  {selectedChannel === 'instagram' ? <CheckCircle2 size={16} className="text-gold-500" /> : <ArrowRight size={16} className="text-white/20 group-hover:text-gold-500 group-hover:translate-x-1 transition-all" />}
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs uppercase font-mono font-bold tracking-wider text-white">
+                        2. Instagram Direct (@{CONCIERGE_CONFIG.instagramHandle})
+                      </span>
+                      <span className="text-[9px] font-mono text-pink-400 bg-pink-400/10 px-1.5 py-0.5 rounded">
+                        AUTO-COPY
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-white/50 font-light mt-1">
+                      Redirects to Instagram DM with auto-copy of shipping address, price, unique code, and house code.
+                    </p>
+                  </div>
                 </button>
 
+                {/* 3. PRIVATE */}
                 <button
-                  onClick={() => handleSelect('whatsapp')}
-                  className={`w-full p-4 border transition-all group flex items-center justify-between ${selectedChannel === 'whatsapp' ? 'border-green-500 bg-green-500/10' : 'border-white/10 hover:border-green-500 bg-black hover:bg-green-500/5'}`}
+                  onClick={() => handleSelect('private')}
+                  className={`w-full p-4 border transition-all text-left flex items-start gap-4 rounded-sm ${selectedChannel === 'private' ? 'border-gold-400 bg-gold-400/10' : 'border-white/10 hover:border-gold-400/60 bg-black'}`}
                 >
-                  <div className="flex items-center gap-4">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${selectedChannel === 'whatsapp' ? 'bg-green-500/20 text-green-500' : 'bg-white/5 text-white group-hover:bg-green-500/20 group-hover:text-green-500'}`}>
-                      <MessageCircle size={18} />
-                    </div>
-                    <div className="text-left">
-                      <span className="block text-sm text-white uppercase tracking-widest font-bold mb-0.5">WhatsApp Secure</span>
-                      <span className="block text-[10px] text-white/40 font-mono">+{CONCIERGE_CONFIG.whatsappNumber}</span>
-                    </div>
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${selectedChannel === 'private' ? 'bg-gold-400/20 text-gold-400' : 'bg-white/5 text-white'}`}>
+                    <Crown size={18} />
                   </div>
-                  {selectedChannel === 'whatsapp' ? <CheckCircle2 size={16} className="text-green-500" /> : <ArrowRight size={16} className="text-white/20 group-hover:text-green-500 group-hover:translate-x-1 transition-all" />}
-                </button>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs uppercase font-mono font-bold tracking-wider text-white">
+                        3. Private Executive Desk
+                      </span>
+                      <span className="text-[9px] font-mono text-emerald-400 bg-emerald-400/10 px-1.5 py-0.5 rounded">
+                        ADMIN DASHBOARD
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-white/50 font-light mt-1">
+                      Details sent to Admin Dashboard. Our team will contact you through WhatsApp, Gmail, or Instagram.
+                    </p>
 
-                <button
-                  onClick={() => handleSelect('email')}
-                  className={`w-full p-4 border transition-all group flex items-center justify-between ${selectedChannel === 'email' ? 'border-white bg-white/10' : 'border-white/10 hover:border-white bg-black hover:bg-white/5'}`}
-                >
-                  <div className="flex items-center gap-4">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${selectedChannel === 'email' ? 'bg-white/20 text-white' : 'bg-white/5 text-white group-hover:bg-white/20'}`}>
-                      <Mail size={18} />
-                    </div>
-                    <div className="text-left">
-                      <span className="block text-sm text-white uppercase tracking-widest font-bold mb-0.5">Encrypted Email</span>
-                      <span className="block text-[10px] text-white/40 font-mono">{CONCIERGE_CONFIG.emailAddress}</span>
-                    </div>
+                    {selectedChannel === 'private' && (
+                      <div className="mt-3 pt-3 border-t border-white/10" onClick={e => e.stopPropagation()}>
+                        <span className="text-[9px] font-mono uppercase text-white/60 block mb-1.5">
+                          How should our team reach you?
+                        </span>
+                        <div className="flex gap-2">
+                          {(['whatsapp', 'gmail', 'instagram'] as const).map(ch => (
+                            <button
+                              key={ch}
+                              type="button"
+                              onClick={() => setPrivatePreference(ch)}
+                              className={`px-2.5 py-1 text-[10px] font-mono uppercase rounded border ${privatePreference === ch ? 'bg-gold-400 text-black border-gold-400 font-bold' : 'border-white/10 text-white/50'}`}
+                            >
+                              {ch}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  {selectedChannel === 'email' ? <CheckCircle2 size={16} className="text-white" /> : <ArrowRight size={16} className="text-white/20 group-hover:text-white group-hover:translate-x-1 transition-all" />}
                 </button>
               </div>
               
               <button
                 onClick={handleContinue}
                 disabled={!selectedChannel}
-                className="w-full py-4 bg-gold-500 text-black font-serif uppercase tracking-[0.2em] text-xs font-bold hover:bg-white transition-all duration-500 disabled:opacity-50 disabled:cursor-not-allowed mt-4"
+                className="w-full py-4 bg-gold-400 hover:bg-white text-black font-mono uppercase tracking-[0.2em] text-xs font-bold transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed mt-4 flex items-center justify-center gap-2"
               >
-                Continue to Concierge
+                <span>PROCEED WITH SELECTED OPTION</span>
+                <ArrowRight size={14} />
               </button>
             </div>
           </motion.div>
