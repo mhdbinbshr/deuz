@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
+import { CustomerProfileChamber } from './CustomerProfileChamber';
 
 interface NavbarProps {
   onOpenWishlist: () => void;
@@ -28,6 +29,7 @@ const Navbar: React.FC<NavbarProps> = ({
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isProfileChamberOpen, setIsProfileChamberOpen] = useState(false);
 
   const { user, openAuthModal, logout } = useAuth();
   const { cartCount, setIsCartOpen } = useCart();
@@ -119,7 +121,7 @@ const Navbar: React.FC<NavbarProps> = ({
                           exit={{ opacity: 0, y: 10, rotateX: -10, scale: 0.96, filter: "blur(4px)" }}
                           transition={{ type: "spring", stiffness: 380, damping: 26, mass: 0.8 }}
                           style={{ transformPerspective: 1000, transformStyle: "preserve-3d" }}
-                          className="absolute top-full right-0 mt-3 w-64 max-w-[calc(100vw-2rem)] bg-[#070707]/95 border border-white/10 backdrop-blur-2xl shadow-[0_30px_70px_rgba(0,0,0,0.95),0_0_40px_rgba(212,175,55,0.08)] rounded-md overflow-hidden z-50 origin-top-right pointer-events-auto"
+                          className="absolute top-full right-0 mt-3 w-72 max-w-[calc(100vw-2rem)] bg-[#070707]/95 border border-white/10 backdrop-blur-2xl shadow-[0_30px_70px_rgba(0,0,0,0.95),0_0_40px_rgba(212,175,55,0.08)] rounded-md overflow-hidden z-50 origin-top-right pointer-events-auto"
                         >
                           {/* Sweeping Laser Line */}
                           <div className="absolute top-0 left-0 right-0 h-[2px] overflow-hidden pointer-events-none">
@@ -133,7 +135,28 @@ const Navbar: React.FC<NavbarProps> = ({
                           <div className="px-5 py-4 border-b border-white/5 bg-white/[0.02]">
                             <p className="text-white text-xs font-serif tracking-wider">{user.fullName}</p>
                             <p className="text-white/40 text-[9px] uppercase tracking-widest mt-1 truncate">{user.email}</p>
+                            {(user.houseCode || user.houseId) && (
+                              <div className="mt-2 inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-amber-500/15 border border-amber-500/40 text-amber-300 font-mono text-[9px] font-bold tracking-widest">
+                                <Sparkles size={10} className="text-amber-400" />
+                                <span>HOUSE ID: {user.houseCode || user.houseId}</span>
+                              </div>
+                            )}
                           </div>
+
+                          {/* Profile Dossier & Flight Status Button */}
+                          <motion.button 
+                            whileHover={{ x: 4 }}
+                            onClick={() => {
+                              setIsUserMenuOpen(false);
+                              setIsProfileChamberOpen(true);
+                            }}
+                            className="w-full text-left px-5 py-3.5 text-[10px] uppercase tracking-[0.2em] text-gold-400 hover:text-gold-300 hover:bg-white/[0.03] transition-all flex items-center justify-between border-b border-white/5 group cursor-pointer"
+                          >
+                            <span className="flex items-center gap-3 font-semibold">
+                              <User size={13} className="text-gold-400" /> Client Profile & Progression
+                            </span>
+                            <ArrowRight size={12} className="opacity-0 group-hover:opacity-100 -translate-x-1 group-hover:translate-x-0 transition-all text-gold-400" />
+                          </motion.button>
                           
                           {/* My Orders Link */}
                           {onOpenMyOrders && (
@@ -197,26 +220,7 @@ const Navbar: React.FC<NavbarProps> = ({
                       )}
                     </AnimatePresence>
                  </div>
-              ) : (
-                <div className="flex items-center gap-4">
-                  {onOpenMyOrders && (
-                    <button
-                      onClick={onOpenMyOrders}
-                      className="hidden sm:flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-white/60 hover:text-gold-400 transition-colors duration-300 whitespace-nowrap cursor-pointer"
-                      title="View Confirmed Dossiers & Orders"
-                    >
-                      <Package size={14} className="text-gold-400/80" />
-                      <span>Dossiers</span>
-                    </button>
-                  )}
-                  <button
-                     onClick={openAuthModal}
-                     className="hidden sm:block text-[10px] uppercase tracking-[0.25em] text-white/60 hover:text-gold-400 transition-colors duration-300 whitespace-nowrap cursor-pointer"
-                  >
-                     Login
-                  </button>
-                </div>
-              )}
+              ) : null}
             </div>
 
             {/* Wishlist */}
@@ -361,6 +365,12 @@ const Navbar: React.FC<NavbarProps> = ({
                         </div>
                         <p className="text-white font-serif text-sm tracking-wide">{user.fullName}</p>
                         <p className="text-white/40 text-[9px] font-mono tracking-wider truncate max-w-[220px] sm:max-w-[280px]">{user.email}</p>
+                        {(user.houseCode || user.houseId) && (
+                          <div className="mt-1.5 inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-amber-500/15 border border-amber-500/40 text-amber-300 font-mono text-[9px] font-bold tracking-widest">
+                            <Sparkles size={10} className="text-amber-400" />
+                            <span>HOUSE ID: {user.houseCode || user.houseId}</span>
+                          </div>
+                        )}
                       </div>
                       <button 
                         onClick={() => { logout(); setMobileMenuOpen(false); }}
@@ -371,6 +381,15 @@ const Navbar: React.FC<NavbarProps> = ({
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-white/5">
+                      <button
+                        onClick={() => { setIsProfileChamberOpen(true); setMobileMenuOpen(false); }}
+                        className="col-span-2 flex items-center justify-between text-[10px] uppercase font-mono tracking-wider text-gold-400 bg-gold-500/10 border border-gold-500/30 hover:bg-gold-500/20 transition-all p-2 rounded cursor-pointer"
+                      >
+                        <span className="flex items-center gap-2 font-semibold">
+                          <User size={13} /> Client Profile & Progression
+                        </span>
+                        <span className="text-[9px] text-white/50 font-bold">Open Dossier &gt;</span>
+                      </button>
                       {onOpenMyOrders && (
                         <button
                           onClick={() => { onOpenMyOrders(); setMobileMenuOpen(false); }}
@@ -401,7 +420,8 @@ const Navbar: React.FC<NavbarProps> = ({
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.05 }}
                     whileHover={{ scale: 1.01 }}
-                    className="p-3.5 sm:p-4 rounded-sm border border-white/10 bg-gradient-to-r from-gold-500/10 via-white/[0.02] to-transparent flex items-center justify-between relative overflow-hidden group"
+                    onClick={() => { setMobileMenuOpen(false); openAuthModal(); }}
+                    className="p-3.5 sm:p-4 rounded-sm border border-gold-500/30 hover:border-gold-500/60 bg-gradient-to-r from-gold-500/10 via-white/[0.02] to-transparent flex items-center justify-between relative overflow-hidden group cursor-pointer transition-colors"
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-black/60 border border-gold-500/30 flex items-center justify-center text-gold-400 group-hover:border-gold-500 transition-colors shrink-0">
@@ -409,25 +429,13 @@ const Navbar: React.FC<NavbarProps> = ({
                       </div>
                       <div>
                         <p className="text-xs font-serif text-white tracking-wider">Client Authentication</p>
-                        <p className="text-[10px] text-white/40 tracking-wide">Initialize private dossier & track orders</p>
+                        <p className="text-[10px] text-white/40 tracking-wide">Sign in to access your atelier account</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0 ml-2">
-                      {onOpenMyOrders && (
-                        <button
-                          onClick={() => { setMobileMenuOpen(false); onOpenMyOrders(); }}
-                          className="px-2.5 py-1.5 text-[9px] uppercase font-mono tracking-widest text-white/70 border border-white/10 rounded-sm hover:text-gold-400 hover:border-gold-500/40 transition-all cursor-pointer flex items-center gap-1"
-                        >
-                          <Package size={11} className="text-gold-400" />
-                          <span>Dossiers</span>
-                        </button>
-                      )}
-                      <button
-                        onClick={() => { setMobileMenuOpen(false); openAuthModal(); }}
-                        className="px-3 py-1.5 text-[9px] uppercase font-mono tracking-widest text-gold-400 border border-gold-500/40 rounded-sm hover:bg-gold-500 hover:text-black transition-all cursor-pointer"
-                      >
+                      <span className="px-3.5 py-1.5 text-[9px] uppercase font-mono tracking-widest text-gold-400 border border-gold-500/40 rounded-sm group-hover:bg-gold-500 group-hover:text-black transition-all">
                         Login / Join
-                      </button>
+                      </span>
                     </div>
                   </motion.div>
                 )}
@@ -669,6 +677,13 @@ const Navbar: React.FC<NavbarProps> = ({
           </div>
         )}
       </AnimatePresence>
+
+      {/* Customer Profile & Stage Flight Radar Chamber */}
+      <CustomerProfileChamber
+        isOpen={isProfileChamberOpen}
+        onClose={() => setIsProfileChamberOpen(false)}
+        onOpenConcierge={onOpenContact}
+      />
     </>
   );
 };

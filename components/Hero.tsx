@@ -118,16 +118,7 @@ const Hero: React.FC = () => {
         style={{ y, opacity }}
         className="relative z-10 h-full flex flex-col items-center justify-center text-center px-4 pt-10 gap-0"
       >
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 1, delay: 0.2, ease }}
-          className="mb-6 sm:mb-8"
-        >
-          <span className="text-gold-400 text-[9px] xs:text-[10px] md:text-xs uppercase tracking-[0.3em] xs:tracking-[0.5em] font-medium border border-gold-500/20 bg-gold-900/5 px-3 xs:px-4 py-1.5 xs:py-2 rounded-full backdrop-blur-md">
-            EST•2026•KERALA
-          </span>
-        </motion.div>
+
 
         {/* Staggered Title Reveal */}
         {/* Responsive vertical padding and scaling to fix overlap/clipping across all screens */}

@@ -211,7 +211,7 @@ async function seedAll() {
       shippingAddress: {
         firstName: "Curator",
         lastName: "Archive",
-        email: "unk410066@gmail.com",
+        email: "muhammadbinbasheer777@gmail.com",
         mobile: "918848918633",
         address: "DEUZ House Headquarters, Suite 101",
         city: "Mumbai",
@@ -314,7 +314,7 @@ async function seedAll() {
       },
       performedBy: {
         fullName: "System Admin",
-        email: "unk410066@gmail.com",
+        email: "muhammadbinbasheer777@gmail.com",
         uid: "admin_root"
       },
       timestamp: new Date().toISOString()

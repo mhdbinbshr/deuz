@@ -20,7 +20,6 @@ import MyOrdersPage from './components/MyOrdersPage';
 import AuthModal from './components/AuthModal';
 import { SecurityNotificationBanner } from './components/SecurityNotificationBanner';
 import AdminDashboard from './components/AdminDashboard';
-import AdminLoginPage from './components/AdminLoginPage';
 import AdminSetupPage from './components/AdminSetupPage';
 import PremiumBackground from './components/PremiumBackground';
 import PrivacyPolicyPage from './components/PrivacyPolicyPage';
@@ -61,7 +60,6 @@ function AppContent() {
   const [showContactPage, setShowContactPage] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
-  const [showAdminLogin, setShowAdminLogin] = useState(false);
   const [showAdminSetup, setShowAdminSetup] = useState(false);
   const [showMyOrders, setShowMyOrders] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
@@ -77,7 +75,7 @@ function AppContent() {
   const [wishlistItems, setWishlistItems] = useState<WishlistItem[]>([]);
   const [activeOrders, setActiveOrders] = useState<any[]>([]);
   
-  const { user } = useAuth();
+  const { user, openAuthModal } = useAuth();
   const { addToCart, clearCart } = useCart();
 
   // Synchronize and load wishlist from Firebase & local storage
@@ -125,9 +123,12 @@ function AppContent() {
     if (path === '/admin' || path === '/admin/dashboard') {
       setShowAdmin(true);
     } else if (path === '/admin/login') {
-      setShowAdminLogin(true);
+      setShowAdmin(true);
+      openAuthModal();
     } else if (path === '/admin/setup') {
       setShowAdminSetup(true);
+    } else if (path === '/login' || path === '/signin') {
+      openAuthModal();
     }
   }, []);
 
@@ -182,12 +183,12 @@ function AppContent() {
   };
 
   useEffect(() => {
-    if (!loading && !showProductPage && !showCheckout && !activeDossierCode && !showAdmin && !showAdminLogin && !showAdminSetup && !showMyOrders && !showPrivacy && !showTerms && !showShipping && !showReturns && !showArchivePage && !showContactPage) {
+    if (!loading && !showProductPage && !showCheckout && !activeDossierCode && !showAdmin && !showAdminSetup && !showMyOrders && !showPrivacy && !showTerms && !showShipping && !showReturns && !showArchivePage && !showContactPage) {
       document.body.style.overflow = 'auto';
     } else {
       document.body.style.overflow = 'hidden';
     }
-  }, [loading, showProductPage, showCheckout, activeDossierCode, showAdmin, showAdminLogin, showAdminSetup, showMyOrders, showPrivacy, showTerms, showShipping, showReturns, showArchivePage, showContactPage]);
+  }, [loading, showProductPage, showCheckout, activeDossierCode, showAdmin, showAdminSetup, showMyOrders, showPrivacy, showTerms, showShipping, showReturns, showArchivePage, showContactPage]);
 
   useEffect(() => {
      const handler = (e: KeyboardEvent) => {
@@ -243,31 +244,17 @@ function AppContent() {
                   key="admin-setup"
                   onSuccess={() => {
                     setShowAdminSetup(false);
-                    // Check if auto-login was successful via storage
                     const hasToken = storage.getToken();
+                    setShowAdmin(true);
                     if (hasToken) {
-                        setShowAdmin(true);
                         window.history.pushState({}, '', '/admin/dashboard');
                     } else {
-                        setShowAdminLogin(true);
+                        openAuthModal();
                         window.history.pushState({}, '', '/admin/login');
                     }
                   }}
                   onCancel={() => {
                     setShowAdminSetup(false);
-                    window.history.pushState({}, '', '/');
-                  }}
-                />
-             ) : showAdminLogin ? (
-                <AdminLoginPage 
-                  key="admin-login"
-                  onLoginSuccess={() => {
-                    setShowAdminLogin(false);
-                    setShowAdmin(true);
-                    window.history.pushState({}, '', '/admin/dashboard');
-                  }}
-                  onCancel={() => {
-                    setShowAdminLogin(false);
                     window.history.pushState({}, '', '/');
                   }}
                 />
@@ -299,7 +286,7 @@ function AppContent() {
                         onOpenWishlist={() => setIsWishlistOpen(true)}
                         onOpenFashionStore={() => setShowProductPage(true)}
                         onOpenAdmin={() => setShowAdmin(true)}
-                        onOpenMyOrders={() => setShowMyOrders(true)}
+                        onOpenMyOrders={user ? () => setShowMyOrders(true) : undefined}
                         onOpenArchive={() => setShowArchivePage(true)}
                         onOpenContact={() => setShowContactPage(true)}
                       />

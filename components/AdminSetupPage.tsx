@@ -154,7 +154,7 @@ const AdminSetupPage: React.FC<AdminSetupPageProps> = ({ onSuccess, onCancel }) 
 
                         <div className="relative group">
                             <label className="text-[9px] uppercase tracking-widest text-gold-500/70 mb-2 block flex items-center gap-2">
-                                <Shield size={10} /> Secure Passcode
+                                <Shield size={10} /> Secure Password
                             </label>
                             <input 
                                 type="password" 

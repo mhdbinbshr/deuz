@@ -244,7 +244,7 @@ export const ArchivePage: React.FC<ArchivePageProps> = ({ onBack }) => {
           Conservatoire Permanent Deuz & Co.
         </p>
         <p className="text-[9px] text-[#e8e0d5]/40 font-mono uppercase tracking-widest mt-2">
-          Place Vendôme • London • Milano • Tokyo
+          Mumbai • New Delhi • Bengaluru • Hyderabad
         </p>
       </footer>
     </motion.div>

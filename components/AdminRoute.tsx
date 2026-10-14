@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { ShieldAlert, Lock, EyeOff, X } from 'lucide-react';
+import { ShieldAlert, Lock, EyeOff, X, KeyRound, ArrowRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import AdminLoginPage from './AdminLoginPage';
 
 interface AdminRouteProps {
   children: React.ReactNode;
@@ -10,7 +9,7 @@ interface AdminRouteProps {
 }
 
 export const AdminRoute: React.FC<AdminRouteProps> = ({ children, onExit }) => {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, openAuthModal } = useAuth();
   const [status, setStatus] = useState<'checking' | 'login_required' | 'authorized' | 'unauthorized'>('checking');
   const [countdown, setCountdown] = useState(3);
 
@@ -18,13 +17,10 @@ export const AdminRoute: React.FC<AdminRouteProps> = ({ children, onExit }) => {
     if (isLoading) return;
 
     if (!user) {
-      // Not logged in -> Show Admin Login Screen
       setStatus('login_required');
     } else if (user.role === 'admin' || user.role === 'concierge') {
-      // Logged in + Correct Role -> Show Dashboard
       setStatus('authorized');
     } else {
-      // Logged in + Wrong Role (Customer) -> Access Denied
       setStatus('unauthorized');
       const timer = setInterval(() => {
         setCountdown((prev) => {
@@ -53,10 +49,40 @@ export const AdminRoute: React.FC<AdminRouteProps> = ({ children, onExit }) => {
 
   if (status === 'login_required') {
     return (
-      <AdminLoginPage 
-        onLoginSuccess={() => setStatus('checking')} // Re-run check after login
-        onCancel={onExit}
-      />
+      <div className="fixed inset-0 z-[100] bg-[#020202] flex items-center justify-center p-4 sm:p-6 font-mono select-none">
+        <div className="fixed inset-0 bg-[linear-gradient(rgba(20,20,20,0.5)_1px,transparent_1px),linear-gradient(90deg,rgba(20,20,20,0.5)_1px,transparent_1px)] bg-[size:40px_40px] opacity-20 pointer-events-none" />
+        <motion.div 
+          initial={{ scale: 0.95, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="relative z-10 w-full max-w-md bg-[#0A0A0A] border border-white/10 p-8 rounded-sm shadow-2xl text-center"
+        >
+          <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center border border-white/10 mx-auto mb-5 text-gold-500">
+            <Lock size={26} />
+          </div>
+          <h1 className="text-xl text-white font-serif tracking-widest uppercase mb-2">
+            Administrator Access
+          </h1>
+          <p className="text-xs text-white/50 leading-relaxed mb-6 font-light">
+            Sign in with your verified credentials to enter the Atelier Dashboard.
+          </p>
+          <div className="space-y-3">
+            <button
+              onClick={() => openAuthModal()}
+              className="w-full py-3.5 bg-gradient-to-r from-gold-500 to-amber-500 text-black uppercase font-mono text-xs font-bold tracking-[0.2em] rounded-sm hover:from-gold-400 hover:to-amber-400 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-[0_0_20px_rgba(212,175,55,0.3)]"
+            >
+              <KeyRound size={14} />
+              <span>Authenticate Identity</span>
+              <ArrowRight size={14} />
+            </button>
+            <button
+              onClick={onExit}
+              className="w-full py-2.5 bg-transparent text-white/40 hover:text-white uppercase font-mono text-[10px] tracking-widest transition-colors cursor-pointer"
+            >
+              Return to Store
+            </button>
+          </div>
+        </motion.div>
+      </div>
     );
   }
 

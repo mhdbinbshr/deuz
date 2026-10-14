@@ -578,7 +578,7 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, directItem, onRegis
             </p>
 
             <button
-              onClick={openAuthModal}
+              onClick={() => openAuthModal('login')}
               className="w-full py-4 bg-gold-400 hover:bg-white text-black font-mono font-bold text-xs uppercase tracking-[0.25em] transition-all duration-300 shadow-[0_0_30px_rgba(212,175,55,0.25)] flex items-center justify-center gap-2"
             >
               <span>SIGN IN / REGISTER TO PROCEED</span>
@@ -752,11 +752,46 @@ const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, directItem, onRegis
                         <input
                           type="text"
                           name="city"
+                          list="major-cities-all-india"
                           value={address.city}
                           onChange={handleInputChange}
-                          placeholder="e.g. Mumbai"
+                          placeholder="e.g. Mumbai, New Delhi, Pune..."
                           className={`w-full bg-black/60 border ${errors.city ? 'border-red-500' : 'border-white/10 focus:border-gold-400'} px-3.5 py-3 text-xs text-white font-mono rounded-sm outline-none transition-colors`}
                         />
+                        <datalist id="major-cities-all-india">
+                          <option value="Mumbai" />
+                          <option value="New Delhi" />
+                          <option value="Bengaluru" />
+                          <option value="Hyderabad" />
+                          <option value="Kolkata" />
+                          <option value="Chennai" />
+                          <option value="Pune" />
+                          <option value="Ahmedabad" />
+                          <option value="Jaipur" />
+                          <option value="Surat" />
+                          <option value="Chandigarh" />
+                          <option value="Lucknow" />
+                          <option value="Kochi" />
+                          <option value="Goa" />
+                          <option value="Indore" />
+                          <option value="Bhopal" />
+                          <option value="Nagpur" />
+                          <option value="Coimbatore" />
+                          <option value="Vadodara" />
+                          <option value="Visakhapatnam" />
+                          <option value="Ludhiana" />
+                          <option value="Agra" />
+                          <option value="Varanasi" />
+                          <option value="Amritsar" />
+                          <option value="Udaipur" />
+                          <option value="Patna" />
+                          <option value="Bhubaneswar" />
+                          <option value="Guwahati" />
+                          <option value="Thiruvananthapuram" />
+                          <option value="Mysore" />
+                          <option value="Raipur" />
+                          <option value="Dehradun" />
+                        </datalist>
                         {errors.city && <span className="text-[10px] text-red-400 font-mono mt-1 block">{errors.city}</span>}
                       </div>
 

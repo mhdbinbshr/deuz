@@ -17,10 +17,12 @@ interface ContactProps {
 }
 
 const ATELIER_CITIES = [
-  { city: 'Paris', label: 'Place Vendôme' },
-  { city: 'London', label: 'Mayfair' },
-  { city: 'New York', label: 'Madison Ave' },
-  { city: 'Tokyo', label: 'Ginza' }
+  { city: 'Mumbai', label: 'BKC & Colaba' },
+  { city: 'New Delhi', label: 'Chanakyapuri' },
+  { city: 'Bengaluru', label: 'UB City' },
+  { city: 'Hyderabad', label: 'Banjara Hills' },
+  { city: 'Kolkata', label: 'Park Street' },
+  { city: 'Chennai', label: 'Nungambakkam' }
 ];
 
 export const Contact: React.FC<ContactProps> = ({ onOpenConcierge }) => {

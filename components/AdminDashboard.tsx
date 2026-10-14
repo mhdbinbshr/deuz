@@ -11,9 +11,10 @@ import {
   Crown, Link as LinkIcon, CheckCircle2, Copy, UserCheck, DollarSign,
   MessageCircle, Mail, Instagram, Filter, Settings, Clock, FileText, Smartphone,
   CreditCard, ExternalLink, PenTool, Layout, Lock, Power, RefreshCw, Archive, Truck, Box, EyeOff, Check, Activity, Terminal, Database, Menu,
-  Calendar, Compass, Phone, Sparkles, MapPin
+  Calendar, Compass, Phone, Sparkles, MapPin, Plane, ArrowUpRight, Radio, ChevronUp, KeyRound
 } from 'lucide-react';
-import { User, OrderStatus, ORDER_STATUS_LABELS } from '../types';
+import { User, OrderStatus, ORDER_STATUS_LABELS, CustomerStage, CUSTOMER_STAGES } from '../types';
+import { ADMIN_EMAIL } from '../utils/securityVerification';
 
 interface ProductForm {
   _id?: string;
@@ -231,7 +232,151 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
 
   // User Management
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
-  const [newUserForm, setNewUserForm] = useState({ fullName: '', email: '', password: '', role: 'concierge', mobile: '' });
+  const [newUserForm, setNewUserForm] = useState({ fullName: '', email: '', password: '', role: 'concierge', mobile: '', houseCode: '' });
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [userStageFilter, setUserStageFilter] = useState<string>('all');
+  const [updatingStageUserId, setUpdatingStageUserId] = useState<string | null>(null);
+
+  // Unique House Code Management
+  const [houseCodeModal, setHouseCodeModal] = useState<{
+    isOpen: boolean;
+    user: User | null;
+    code: string;
+    error: string | null;
+    isSaving: boolean;
+  }>({
+    isOpen: false,
+    user: null,
+    code: '',
+    error: null,
+    isSaving: false
+  });
+
+  const generateUniqueHouseCode = () => {
+    const existingCodes = new Set(
+      users
+        .map(u => (u.houseCode || u.houseId || '').trim().toUpperCase())
+        .filter(Boolean)
+    );
+    let candidate = '';
+    let attempts = 0;
+    do {
+      const num = Math.floor(1000 + Math.random() * 9000);
+      candidate = `DEUZ-HC-${num}`;
+      attempts++;
+    } while (existingCodes.has(candidate) && attempts < 100);
+    return candidate;
+  };
+
+  const openHouseCodeModal = (targetUser: User) => {
+    setHouseCodeModal({
+      isOpen: true,
+      user: targetUser,
+      code: targetUser.houseCode || targetUser.houseId || '',
+      error: null,
+      isSaving: false
+    });
+  };
+
+  const handleSaveHouseCode = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!houseCodeModal.user) return;
+
+    const trimmed = houseCodeModal.code.trim().toUpperCase();
+    if (!trimmed) {
+      setHouseCodeModal(prev => ({ ...prev, error: 'Please enter a valid unique House Code (e.g. DEUZ-HC-104).' }));
+      return;
+    }
+
+    // Uniqueness validation against other clients
+    const duplicate = users.find(u => 
+      u.id !== houseCodeModal.user?.id && 
+      ((u.houseCode || '').trim().toUpperCase() === trimmed || (u.houseId || '').trim().toUpperCase() === trimmed)
+    );
+
+    if (duplicate) {
+      setHouseCodeModal(prev => ({ 
+        ...prev, 
+        error: `Conflict: Code "${trimmed}" is already assigned to ${duplicate.fullName} (${duplicate.email}). House Codes must be strictly unique.` 
+      }));
+      return;
+    }
+
+    setHouseCodeModal(prev => ({ ...prev, isSaving: true, error: null }));
+    try {
+      const res = await db.updateUserHouseCode(houseCodeModal.user.id, trimmed);
+      if (res.success) {
+        setUsers(prev => prev.map(u => u.id === houseCodeModal.user!.id ? { ...u, houseCode: trimmed, houseId: trimmed } : u));
+        showNotification(`House Code "${trimmed}" successfully assigned to ${houseCodeModal.user.fullName} and synchronized.`);
+        setHouseCodeModal({ isOpen: false, user: null, code: '', error: null, isSaving: false });
+      }
+    } catch (err: any) {
+      setHouseCodeModal(prev => ({ ...prev, isSaving: false, error: err.message || 'Failed to update House Code' }));
+    }
+  };
+
+  const handleClearHouseCode = async () => {
+    if (!houseCodeModal.user) return;
+    setHouseCodeModal(prev => ({ ...prev, isSaving: true, error: null }));
+    try {
+      await db.updateUserProfile(houseCodeModal.user.id, { houseCode: '', houseId: '' });
+      setUsers(prev => prev.map(u => u.id === houseCodeModal.user!.id ? { ...u, houseCode: '', houseId: '' } : u));
+      showNotification(`House Code cleared for ${houseCodeModal.user.fullName}.`);
+      setHouseCodeModal({ isOpen: false, user: null, code: '', error: null, isSaving: false });
+    } catch (err: any) {
+      setHouseCodeModal(prev => ({ ...prev, isSaving: false, error: err.message || 'Failed to clear House Code' }));
+    }
+  };
+
+  const handleUpdateUserStage = async (userId: string, newStage: CustomerStage, userName: string) => {
+    setUpdatingStageUserId(userId);
+    try {
+      const res = await db.updateUserStage(userId, newStage);
+      if (res.success) {
+        setUsers(prev => prev.map(u => u.id === userId ? { ...u, stage: newStage } : u));
+        const stageMeta = CUSTOMER_STAGES.find(s => s.id === newStage);
+        showNotification(`${userName || 'Client'} elevated to Stage ${stageMeta?.level || ''} (${stageMeta?.name || newStage})`);
+      } else {
+        showNotification('Failed to update client stage', 'error');
+      }
+    } catch (err: any) {
+      showNotification(err.message || 'Error updating stage', 'error');
+    } finally {
+      setUpdatingStageUserId(null);
+    }
+  };
+
+  const handleDeleteUser = (targetUser: User) => {
+    if (!targetUser) return;
+    if (targetUser.email && targetUser.email.toLowerCase().trim() === ADMIN_EMAIL.toLowerCase().trim()) {
+      showNotification('Executive Root Administrator cannot be removed.', 'error');
+      return;
+    }
+
+    setConfirmModal({
+      isOpen: true,
+      title: 'Remove User Dossier',
+      message: `Are you sure you want to permanently remove "${targetUser.fullName || 'Operative'}" (${targetUser.email || 'No email'})? This will erase their user profile, permissions, and house assignments.`,
+      onConfirm: async () => {
+        setActionLoading(true);
+        try {
+          const res = await db.deleteUserByAdmin(targetUser.id, targetUser.email);
+          if (res.success) {
+            setUsers(prev => prev.filter(u => u.id !== targetUser.id));
+            setStats(prev => ({ ...prev, totalUsers: Math.max(0, prev.totalUsers - 1) }));
+            showNotification(res.message || `User dossier removed successfully.`);
+          } else {
+            showNotification(res.message || 'Failed to remove user dossier.', 'error');
+          }
+        } catch (err: any) {
+          showNotification(err.message || 'Failed to remove user.', 'error');
+        } finally {
+          setActionLoading(false);
+          setConfirmModal(prev => ({ ...prev, isOpen: false }));
+        }
+      }
+    });
+  };
 
   // Confirmation Modal State
   const [confirmModal, setConfirmModal] = useState<{
@@ -398,7 +543,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
     setIsSyncing(true);
     try {
       await fetchData();
-      showNotification("Firestore Synchronized (Real-time connection active)");
+      showNotification("Database Synchronized (Real-time connection active)");
     } catch (e: any) {
       showNotification("Sync error: " + (e.message || "Network issue"), "error");
     } finally {
@@ -422,7 +567,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
     setConfirmModal({
       isOpen: true,
       title: 'Delete Appointment Dossier',
-      message: 'Are you sure you want to permanently purge this concierge appointment record from Firestore?',
+      message: 'Are you sure you want to permanently purge this concierge appointment record from the database?',
       onConfirm: async () => {
         setActionLoading(true);
         try {
@@ -447,7 +592,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
           await fetchData();
           showNotification(`Operative ${newUserForm.fullName} Registered`);
           setIsUserModalOpen(false);
-          setNewUserForm({ fullName: '', email: '', password: '', role: 'concierge', mobile: '' });
+          setNewUserForm({ fullName: '', email: '', password: '', role: 'concierge', mobile: '', houseCode: '' });
       } catch (e: any) {
           showNotification(e.message || "Failed to create user", 'error');
       }
@@ -956,11 +1101,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
                   onClick={handleManualFirebaseSync}
                   disabled={isSyncing}
                   className="flex items-center gap-2 text-white/70 hover:text-gold-500 bg-white/[0.04] border border-white/10 px-3 py-1.5 rounded-sm transition-colors cursor-pointer"
-                  title="Force Live Synchronisation with Firebase Firestore"
+                  title="Force Live Synchronisation with Database"
                 >
                   <RefreshCw size={13} className={isSyncing ? "animate-spin text-gold-500" : "text-gold-400"} />
                   <span className="hidden sm:inline text-[9px] uppercase tracking-widest font-mono font-bold">
-                    {isSyncing ? 'Syncing...' : 'Sync Firebase'}
+                    {isSyncing ? 'Syncing...' : 'Live Sync'}
                   </span>
                 </button>
                 <button 
@@ -1169,7 +1314,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
                          <div>
                              <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full border border-gold-500/30 bg-gold-500/10 text-gold-400 text-[9px] uppercase tracking-widest font-mono mb-2">
                                  <Sparkles size={11} className="text-gold-400 animate-pulse" />
-                                 <span>Firebase Real-Time Synchronized</span>
+                                 <span>Real-Time Synchronized</span>
                              </div>
                              <h3 className="text-2xl font-serif text-white tracking-wide">Concierge Dossiers & Salon Appointments</h3>
                              <p className="text-white/50 text-xs font-mono mt-1">
@@ -1334,7 +1479,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
                                                      Location / Atelier
                                                  </span>
                                                  <p className="text-gold-400/90 font-mono flex items-center gap-1">
-                                                     <MapPin size={11} /> {appt.location || appt.city || 'Atelier Paris — Place Vendôme'}
+                                                     <MapPin size={11} /> {appt.location || appt.city || 'Atelier Mumbai — BKC & Colaba'}
                                                  </p>
                                              </div>
 
@@ -1643,35 +1788,265 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
              </div>
          )}
          
-         {activeTab === 'users' && (
-            <div className="space-y-6">
-                <div className="flex justify-end">
-                    <button onClick={() => setIsUserModalOpen(true)} className="flex items-center gap-2 px-6 py-3 bg-white text-black text-xs uppercase tracking-widest font-bold hover:bg-gold-500 hover:text-white transition-colors">
-                        <UserCheck size={14} /> Register Operative
-                    </button>
-                </div>
-                <div className="bg-[#0A0A0A] border border-white/10 overflow-x-auto">
-                    <table className="w-full text-left min-w-[600px]">
-                        <thead className="bg-white/5 border-b border-white/10">
-                            <tr>
-                                <th className="p-4 text-[10px] uppercase tracking-widest text-white/50">Name</th>
-                                <th className="p-4 text-[10px] uppercase tracking-widest text-white/50">Email</th>
-                                <th className="p-4 text-[10px] uppercase tracking-widest text-white/50">Role</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-white/5">
-                            {users.map(u => (
-                                <tr key={u.id} className="hover:bg-white/[0.02]">
-                                    <td className="p-4 text-sm text-white">{u.fullName}</td>
-                                    <td className="p-4 text-xs text-white/60">{u.email}</td>
-                                    <td className="p-4 text-xs uppercase tracking-widest text-gold-500">{u.role}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-         )}
+          {activeTab === 'users' && (() => {
+             const filteredUsers = users.filter(u => {
+               const matchesSearch = userSearchQuery === '' || 
+                 (u.fullName || '').toLowerCase().includes(userSearchQuery.toLowerCase()) ||
+                 (u.email || '').toLowerCase().includes(userSearchQuery.toLowerCase()) ||
+                 (u.role || '').toLowerCase().includes(userSearchQuery.toLowerCase()) ||
+                 (u.houseCode || '').toLowerCase().includes(userSearchQuery.toLowerCase()) ||
+                 (u.houseId || '').toLowerCase().includes(userSearchQuery.toLowerCase());
+               
+               const userStage = u.stage || 'initiative';
+               const matchesStage = userStageFilter === 'all' || userStage === userStageFilter;
+
+               return matchesSearch && matchesStage;
+             });
+
+             // Stage distribution stats
+             const stageCounts: Record<string, number> = {};
+             CUSTOMER_STAGES.forEach(s => { stageCounts[s.id] = 0; });
+             users.forEach(u => {
+               const st = u.stage || 'initiative';
+               stageCounts[st] = (stageCounts[st] || 0) + 1;
+             });
+
+             const assignedCount = users.filter(u => Boolean(u.houseCode || u.houseId)).length;
+
+             return (
+               <div className="space-y-6">
+                 {/* Top Controls: Registration & Search */}
+                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                   <div className="relative flex-1 max-w-md">
+                     <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40" />
+                     <input
+                       type="text"
+                       value={userSearchQuery}
+                       onChange={(e) => setUserSearchQuery(e.target.value)}
+                       placeholder="Filter by name, email, house code (e.g. DEUZ-HC), or ID..."
+                       className="w-full bg-[#0A0A0A] border border-white/10 rounded-sm py-2 pl-9 pr-4 text-xs text-white placeholder:text-white/30 focus:outline-none focus:border-gold-500/60 font-mono"
+                     />
+                   </div>
+
+                   <div className="flex items-center gap-3 self-start sm:self-auto flex-wrap">
+                     <div className="flex items-center gap-2 px-3.5 py-2 bg-[#0A0A0A] border border-gold-500/30 rounded text-xs font-mono text-gold-400">
+                       <Sparkles size={13} className="text-gold-400" />
+                       <span>House Codes:</span>
+                       <span className="font-bold text-white">
+                         {assignedCount} / {users.length} Assigned
+                       </span>
+                     </div>
+
+                     <button 
+                       onClick={() => setIsUserModalOpen(true)} 
+                       className="flex items-center gap-2 px-5 py-2.5 bg-white text-black text-xs uppercase tracking-widest font-bold hover:bg-gold-500 hover:text-white transition-colors cursor-pointer shadow-[0_0_15px_rgba(255,255,255,0.1)]"
+                     >
+                       <UserCheck size={14} /> Register Operative
+                     </button>
+                   </div>
+                 </div>
+
+                 {/* Customer Stage Telemetry Distribution Banner */}
+                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5">
+                   {CUSTOMER_STAGES.map(s => {
+                     const count = stageCounts[s.id] || 0;
+                     const isSelected = userStageFilter === s.id;
+                     return (
+                       <button
+                         key={s.id}
+                         type="button"
+                         onClick={() => setUserStageFilter(isSelected ? 'all' : s.id)}
+                         className={`p-3 rounded border text-left transition-all cursor-pointer ${
+                           isSelected 
+                             ? 'bg-gold-500/15 border-gold-400 text-white shadow-[0_0_15px_rgba(212,175,55,0.2)]' 
+                             : 'bg-[#0A0A0A] border-white/5 text-white/60 hover:border-white/20'
+                         }`}
+                       >
+                         <div className="flex items-center justify-between">
+                           <span className="text-[9px] font-mono uppercase tracking-widest text-white/40">0{s.level}</span>
+                           <span className="text-xs font-mono font-bold text-gold-400">{count}</span>
+                         </div>
+                         <p className="text-xs font-serif text-white font-semibold mt-1 truncate">{s.name}</p>
+                         <p className="text-[9px] font-mono text-white/40 truncate">{s.callsign}</p>
+                       </button>
+                     );
+                   })}
+                 </div>
+
+                 {/* Users Table */}
+                 <div className="bg-[#0A0A0A] border border-white/10 overflow-x-auto rounded-sm">
+                   <table className="w-full text-left min-w-[850px]">
+                     <thead className="bg-white/5 border-b border-white/10">
+                       <tr>
+                         <th className="p-4 text-[10px] uppercase tracking-widest text-white/50">Client Dossier</th>
+                         <th className="p-4 text-[10px] uppercase tracking-widest text-white/50">Contact Email</th>
+                         <th className="p-4 text-[10px] uppercase tracking-widest text-white/50">Role</th>
+                         <th className="p-4 text-[10px] uppercase tracking-widest text-gold-400">House Code // ID</th>
+                         <th className="p-4 text-[10px] uppercase tracking-widest text-white/50">Flight Stage</th>
+                         <th className="p-4 text-[10px] uppercase tracking-widest text-white/50 text-right">Admin Stage Elevation</th>
+                       </tr>
+                     </thead>
+                     <tbody className="divide-y divide-white/5">
+                       {filteredUsers.length === 0 ? (
+                         <tr>
+                           <td colSpan={6} className="p-8 text-center text-xs text-white/40 font-mono">
+                             No matching clients or operatives found in archive.
+                           </td>
+                         </tr>
+                       ) : (
+                         filteredUsers.map(u => {
+                           const currentStageId = (u.stage || 'initiative') as CustomerStage;
+                           const currentStageIdx = CUSTOMER_STAGES.findIndex(s => s.id === currentStageId);
+                           const currentStageMeta = CUSTOMER_STAGES[currentStageIdx >= 0 ? currentStageIdx : 0];
+                           const isUpdating = updatingStageUserId === u.id;
+                           const canElevate = currentStageIdx < CUSTOMER_STAGES.length - 1;
+                           const nextStage = canElevate ? CUSTOMER_STAGES[currentStageIdx + 1] : null;
+
+                           return (
+                             <tr key={u.id} className="hover:bg-white/[0.02] transition-colors">
+                               {/* Client Dossier */}
+                               <td className="p-4">
+                                 <div className="flex items-center gap-3">
+                                   <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gold-500/30 to-black border border-gold-500/40 flex items-center justify-center text-gold-400 font-serif text-xs font-bold shrink-0">
+                                     {u.fullName?.charAt(0).toUpperCase() || 'P'}
+                                   </div>
+                                   <div>
+                                     <p className="text-sm text-white font-medium">{u.fullName}</p>
+                                     <p className="text-[9px] font-mono text-white/30 truncate max-w-[140px]">{u.id}</p>
+                                   </div>
+                                 </div>
+                               </td>
+
+                               {/* Contact */}
+                               <td className="p-4">
+                                 <p className="text-xs text-white/80 font-mono">{u.email}</p>
+                                 {u.mobile && (
+                                   <p className="text-[10px] text-white/40 font-mono mt-0.5">{u.mobile}</p>
+                                 )}
+                               </td>
+
+                               {/* Role */}
+                               <td className="p-4">
+                                 <span className={`inline-block px-2 py-0.5 text-[9px] font-mono uppercase tracking-widest rounded border ${
+                                   u.role === 'admin'
+                                     ? 'bg-red-500/15 border-red-500/40 text-red-300 font-bold'
+                                     : u.role === 'concierge'
+                                     ? 'bg-amber-500/15 border-amber-500/40 text-amber-300 font-bold'
+                                     : 'bg-white/5 border-white/10 text-white/60'
+                                 }`}>
+                                   {u.role}
+                                 </span>
+                               </td>
+
+                               {/* House ID // Unique Code */}
+                               <td className="p-4">
+                                 {u.houseCode || u.houseId ? (
+                                   <div className="flex items-center gap-2">
+                                     <span className="px-2.5 py-1 rounded bg-amber-500/15 border border-amber-500/40 text-amber-300 font-mono text-xs font-bold tracking-wider flex items-center gap-1.5 shadow-[0_0_12px_rgba(245,158,11,0.15)]">
+                                       <Sparkles size={11} className="text-amber-400 shrink-0" />
+                                       {u.houseCode || u.houseId}
+                                     </span>
+                                     <button
+                                       type="button"
+                                       onClick={() => openHouseCodeModal(u)}
+                                       className="p-1 rounded bg-white/5 hover:bg-white/15 text-white/50 hover:text-white transition-colors cursor-pointer"
+                                       title="Modify Unique House Code"
+                                     >
+                                       <Edit size={12} />
+                                     </button>
+                                   </div>
+                                 ) : (
+                                   <button
+                                     type="button"
+                                     onClick={() => openHouseCodeModal(u)}
+                                     className="flex items-center gap-1.5 px-3 py-1.5 rounded bg-gold-500/10 hover:bg-gold-500/25 border border-dashed border-gold-500/40 hover:border-gold-400 text-gold-400 text-xs font-mono tracking-wider transition-all cursor-pointer"
+                                   >
+                                     <Plus size={12} />
+                                     <span>Assign House ID</span>
+                                   </button>
+                                 )}
+                               </td>
+
+                               {/* Flight Stage Status Badge */}
+                               <td className="p-4">
+                                 <div className="flex items-center gap-2">
+                                   <div className="p-1.5 rounded bg-gold-500/10 border border-gold-500/30 text-gold-400">
+                                     <Plane size={13} className="rotate-45" />
+                                   </div>
+                                   <div>
+                                     <div className="flex items-center gap-1.5">
+                                       <span className="text-xs font-serif font-bold text-gold-400">
+                                         {currentStageMeta.name}
+                                       </span>
+                                       <span className="text-[9px] font-mono text-white/40">
+                                         (0{currentStageMeta.level})
+                                       </span>
+                                     </div>
+                                     <p className="text-[9px] font-mono text-white/40">
+                                       {currentStageMeta.machSpeed} • {currentStageMeta.altitude}
+                                     </p>
+                                   </div>
+                                 </div>
+                               </td>
+
+                               {/* Admin Stage Upgrade Dropdown & Fast Elevate Button */}
+                               <td className="p-4 text-right">
+                                 <div className="flex items-center justify-end gap-2">
+                                   {/* Remove User Dossier */}
+                                   <button
+                                     type="button"
+                                     onClick={() => handleDeleteUser(u)}
+                                     title={`Remove user dossier: ${u.fullName || u.email}`}
+                                     className="p-1.5 rounded bg-red-950/30 hover:bg-red-600/30 text-white/40 hover:text-red-400 border border-red-500/20 hover:border-red-500/50 transition-colors cursor-pointer"
+                                   >
+                                     <Trash size={12} />
+                                   </button>
+
+                                   {/* Stage Select Dropdown */}
+                                   <select
+                                     value={currentStageId}
+                                     disabled={isUpdating}
+                                     onChange={(e) => handleUpdateUserStage(u.id, e.target.value as CustomerStage, u.fullName)}
+                                     className="bg-black/80 border border-gold-500/40 text-gold-400 text-xs font-mono uppercase tracking-wider rounded px-2.5 py-1.5 outline-none focus:border-gold-400 cursor-pointer disabled:opacity-50"
+                                   >
+                                     {CUSTOMER_STAGES.map(s => (
+                                       <option key={s.id} value={s.id} className="bg-[#0A0A0A] text-white">
+                                         Stage 0{s.level}: {s.name} ({s.code})
+                                       </option>
+                                     ))}
+                                   </select>
+
+                                   {/* Fast Elevate Button */}
+                                   {canElevate && nextStage && (
+                                     <button
+                                       type="button"
+                                       disabled={isUpdating}
+                                       onClick={() => handleUpdateUserStage(u.id, nextStage.id, u.fullName)}
+                                       title={`Fast elevate to Stage 0${nextStage.level}: ${nextStage.name}`}
+                                       className="flex items-center gap-1 px-2.5 py-1.5 bg-gold-500/20 hover:bg-gold-500/40 text-gold-300 border border-gold-500/40 rounded text-[10px] font-mono uppercase tracking-widest font-bold transition-colors cursor-pointer disabled:opacity-50"
+                                     >
+                                       {isUpdating ? (
+                                         <span className="w-3 h-3 border border-gold-400 border-t-transparent rounded-full animate-spin" />
+                                       ) : (
+                                         <>
+                                           <ChevronUp size={12} />
+                                           <span>+1 {nextStage.name}</span>
+                                         </>
+                                       )}
+                                     </button>
+                                   )}
+                                 </div>
+                               </td>
+                             </tr>
+                           );
+                         })
+                       )}
+                     </tbody>
+                   </table>
+                 </div>
+               </div>
+             );
+          })()}
 
          {/* --- AUDIT & LOG STREAM TAB --- */}
          {activeTab === 'audit' && (() => {
@@ -2642,12 +3017,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
                       <div>
                           <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Status</label>
                           <select 
-                            value={currentProduct.isArchived ? 'archived' : currentProduct.countInStock > 0 ? 'active' : 'exhausted'} 
+                            value={currentProduct.countInStock > 0 ? 'active' : 'exhausted'} 
                             onChange={e => {
                                 const val = e.target.value;
-                                if (val === 'archived') {
-                                    setCurrentProduct({...currentProduct, isArchived: true, countInStock: 0});
-                                } else if (val === 'active') {
+                                if (val === 'active') {
                                     setCurrentProduct({...currentProduct, isArchived: false, countInStock: Math.max(1, currentProduct.countInStock)});
                                 } else {
                                     setCurrentProduct({...currentProduct, isArchived: false, countInStock: 0});
@@ -2657,22 +3030,19 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
                           >
                               <option value="active">Active (In Stock)</option>
                               <option value="exhausted">Exhausted (Out of Stock)</option>
-                              <option value="archived">Hidden from Store</option>
                           </select>
                       </div>
-                      {(!currentProduct.isArchived) && (
-                          <div>
-                              <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Total Stock Count</label>
-                              <input 
-                                type="number" 
-                                required 
-                                value={currentProduct.countInStock} 
-                                onChange={e => setCurrentProduct({...currentProduct, countInStock: Number(e.target.value)})} 
-                                className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none disabled:opacity-50" 
-                                disabled={currentProduct.sizes && currentProduct.sizes.length > 0}
-                              />
-                          </div>
-                      )}
+                      <div>
+                          <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Total Stock Count</label>
+                          <input 
+                            type="number" 
+                            required 
+                            value={currentProduct.countInStock} 
+                            onChange={e => setCurrentProduct({...currentProduct, countInStock: Number(e.target.value)})} 
+                            className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none disabled:opacity-50" 
+                            disabled={currentProduct.sizes && currentProduct.sizes.length > 0}
+                          />
+                      </div>
                   </div>
 
                   <div>
@@ -2719,12 +3089,126 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
                      <input required type="email" placeholder="Email" value={newUserForm.email} onChange={e => setNewUserForm({...newUserForm, email: e.target.value})} className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" />
                      <input required type="password" placeholder="Password" value={newUserForm.password} onChange={e => setNewUserForm({...newUserForm, password: e.target.value})} className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" />
                      <select value={newUserForm.role} onChange={e => setNewUserForm({...newUserForm, role: e.target.value})} className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none">
+                         <option value="user">Client (User)</option>
                          <option value="concierge">Concierge</option>
                          <option value="admin">System Admin</option>
                      </select>
                      <button disabled={actionLoading} className="w-full py-4 bg-white text-black uppercase tracking-widest text-xs font-bold hover:bg-gold-500 hover:text-white transition-colors disabled:opacity-50">
                          {actionLoading ? 'Registering...' : 'Grant Access'}
                      </button>
+                 </form>
+             </div>
+          </div>
+      )}
+
+      {/* Unique House Code Assignment Modal */}
+      {houseCodeModal.isOpen && houseCodeModal.user && (
+          <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4 backdrop-blur-md">
+             <div className="bg-[#0A0A0A] border border-gold-500/40 w-full max-w-lg p-6 md:p-8 rounded-sm shadow-[0_20px_70px_rgba(0,0,0,0.95)] relative">
+                 <div className="flex justify-between items-start mb-6 border-b border-white/10 pb-4">
+                    <div>
+                       <span className="text-[10px] font-mono uppercase tracking-[0.25em] text-gold-400">
+                         ATELIER ARCHIVE MANAGEMENT
+                       </span>
+                       <h2 className="text-xl font-serif text-white mt-1">
+                         Assign Unique House ID
+                       </h2>
+                       <p className="text-xs text-white/50 font-mono mt-0.5">
+                         Client: <span className="text-white font-semibold">{houseCodeModal.user.fullName}</span> ({houseCodeModal.user.email})
+                       </p>
+                    </div>
+                    <button 
+                      type="button"
+                      onClick={() => setHouseCodeModal({ isOpen: false, user: null, code: '', error: null, isSaving: false })}
+                      className="p-1 rounded hover:bg-white/10 text-white/50 hover:text-white transition-colors cursor-pointer"
+                    >
+                      <X size={18} />
+                    </button>
+                 </div>
+
+                 <form onSubmit={handleSaveHouseCode} className="space-y-5">
+                     <div>
+                       <div className="flex items-center justify-between mb-1.5">
+                         <label className="text-[10px] font-mono uppercase tracking-widest text-white/60">
+                           Unique House ID // Code
+                         </label>
+                         <button
+                           type="button"
+                           onClick={() => {
+                             const generated = generateUniqueHouseCode();
+                             setHouseCodeModal(prev => ({ ...prev, code: generated, error: null }));
+                           }}
+                           className="text-[10px] font-mono text-gold-400 hover:text-gold-300 underline underline-offset-2 flex items-center gap-1 cursor-pointer"
+                         >
+                           <Sparkles size={11} /> Auto-Generate Unique Code
+                         </button>
+                       </div>
+
+                       <div className="relative">
+                         <input
+                           type="text"
+                           required
+                           value={houseCodeModal.code}
+                           onChange={(e) => {
+                             const val = e.target.value.toUpperCase();
+                             setHouseCodeModal(prev => ({ ...prev, code: val, error: null }));
+                           }}
+                           placeholder="e.g. DEUZ-HC-4091 or HOUSE-ALTO"
+                           className="w-full bg-black border border-gold-500/40 p-3 text-gold-300 font-mono text-sm tracking-wider uppercase focus:border-gold-400 outline-none rounded-sm"
+                         />
+                       </div>
+
+                       <p className="text-[10px] font-mono text-white/40 mt-1.5">
+                         When saved, this House ID will immediately sync and appear live on the client's profile.
+                       </p>
+                     </div>
+
+                     {houseCodeModal.error && (
+                       <div className="p-3 bg-red-950/40 border border-red-500/40 rounded text-red-300 text-xs font-mono flex items-center gap-2">
+                         <AlertTriangle size={14} className="shrink-0 text-red-400" />
+                         <span>{houseCodeModal.error}</span>
+                       </div>
+                     )}
+
+                     <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-white/10">
+                       {(houseCodeModal.user.houseCode || houseCodeModal.user.houseId) ? (
+                         <button
+                           type="button"
+                           disabled={houseCodeModal.isSaving}
+                           onClick={handleClearHouseCode}
+                           className="w-full sm:w-auto px-4 py-2.5 bg-red-950/40 hover:bg-red-900/60 text-red-300 border border-red-500/30 text-xs font-mono uppercase tracking-wider rounded transition-colors disabled:opacity-50 cursor-pointer"
+                         >
+                           Clear Code
+                         </button>
+                       ) : <div />}
+
+                       <div className="flex items-center gap-3 w-full sm:w-auto">
+                         <button
+                           type="button"
+                           onClick={() => setHouseCodeModal({ isOpen: false, user: null, code: '', error: null, isSaving: false })}
+                           className="flex-1 sm:flex-initial px-5 py-2.5 bg-white/5 hover:bg-white/10 text-white text-xs font-mono uppercase tracking-wider rounded transition-colors cursor-pointer"
+                         >
+                           Cancel
+                         </button>
+                         <button
+                           type="submit"
+                           disabled={houseCodeModal.isSaving}
+                           className="flex-1 sm:flex-initial px-6 py-2.5 bg-gold-500 hover:bg-gold-400 text-black text-xs font-mono uppercase tracking-widest font-bold rounded transition-colors disabled:opacity-50 cursor-pointer shadow-[0_0_15px_rgba(212,175,55,0.3)] flex items-center justify-center gap-2"
+                         >
+                           {houseCodeModal.isSaving ? (
+                             <>
+                               <span className="w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                               <span>Saving & Syncing...</span>
+                             </>
+                           ) : (
+                             <>
+                               <CheckCircle2 size={13} />
+                               <span>Save & Sync House ID</span>
+                             </>
+                           )}
+                         </button>
+                       </div>
+                     </div>
                  </form>
              </div>
           </div>

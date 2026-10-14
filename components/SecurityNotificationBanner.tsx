@@ -71,7 +71,7 @@ export const SecurityNotificationBanner: React.FC = () => {
 
           <div className="my-3 p-2.5 bg-black/80 border border-white/10 rounded flex items-center justify-between">
             <div>
-              <span className="text-[8px] uppercase tracking-widest text-gold-500/70 block">Security Passcode</span>
+              <span className="text-[8px] uppercase tracking-widest text-gold-500/70 block">Recovery Security Code</span>
               <span className="text-base font-bold tracking-[0.3em] text-gold-400 font-mono">
                 {dispatchInfo.code}
               </span>

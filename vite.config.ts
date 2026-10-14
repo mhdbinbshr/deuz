@@ -1,11 +1,5 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 export default defineConfig({
   server: {
@@ -13,25 +7,34 @@ export default defineConfig({
     port: 3000,
     strictPort: true
   },
-  plugins: [
-    react(),
-    {
-      name: 'mirror-build-artifacts',
-      closeBundle() {
-        try {
-          const distDir = path.resolve(__dirname, 'dist');
-          const buildDir = path.resolve(__dirname, 'build');
-          if (fs.existsSync(distDir)) {
-            fs.cpSync(distDir, buildDir, { recursive: true, force: true });
+  plugins: [react()],
+  build: {
+    outDir: 'dist',
+    emptyOutDir: true,
+    chunkSizeWarningLimit: 1600,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('three') || id.includes('@react-three')) {
+              return 'vendor-three';
+            }
+            if (id.includes('jspdf') || id.includes('html2canvas')) {
+              return 'vendor-pdf';
+            }
+            if (id.includes('firebase')) {
+              return 'vendor-firebase';
+            }
+            if (id.includes('framer-motion')) {
+              return 'vendor-motion';
+            }
+            if (id.includes('lucide-react')) {
+              return 'vendor-lucide';
+            }
+            return 'vendor-core';
           }
-        } catch (err) {
-          console.warn('Artifact mirroring notice:', err);
         }
       }
     }
-  ],
-  build: {
-    outDir: 'dist',
-    emptyOutDir: true
   }
 });

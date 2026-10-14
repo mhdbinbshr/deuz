@@ -69,7 +69,7 @@ const Footer: React.FC<FooterProps> = ({ onOpenStore, onOpenPrivacy, onOpenTerms
         </div>
 
         <div className="w-full flex flex-col md:flex-row justify-between items-center text-[10px] text-white/30 uppercase tracking-wider">
-          <p>© 2026 DEUZ & CO</p>
+          <p>© DEUZ & CO</p>
           <p className="mt-2 md:mt-0">SINGULAR BY DESIGN.</p>
         </div>
       </div>

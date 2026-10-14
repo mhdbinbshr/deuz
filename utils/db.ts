@@ -26,13 +26,22 @@ import {
   GoogleAuthProvider,
   signOut,
   sendPasswordResetEmail,
+  confirmPasswordReset,
+  verifyPasswordResetCode,
+  updatePassword,
+  reauthenticateWithCredential,
+  EmailAuthProvider,
   updateProfile,
+  sendEmailVerification,
+  updateEmail,
+  deleteUser,
+  applyActionCode,
   User as FirebaseUser
 } from "firebase/auth";
 import { auth, db as firestore } from "../src/config/firebase";
-import { User, Order, CartItem, Address, OrderStatus } from '../types';
+import { User, Order, CartItem, Address, OrderStatus, CustomerStage } from '../types';
 import { storage } from './storage';
-import { verifyAdminPasskey, ADMIN_EMAIL, isExecutiveAdminEmail } from './securityVerification';
+import { ADMIN_EMAIL, isExecutiveAdminEmail } from './securityVerification';
 
 export enum OperationType {
   CREATE = 'create',
@@ -229,155 +238,102 @@ export const db = {
     try {
         const safeData = JSON.parse(JSON.stringify(data));
         await updateDoc(doc(firestore, "users", userId), safeData);
+        // Sync local storage if active user is updated
+        const current = storage.getUser();
+        if (current && (current.id === userId || current._id === userId)) {
+          storage.setUser({ ...current, ...safeData });
+        }
     } catch (error) {
         handleFirestoreError(error, OperationType.UPDATE, `users/${userId}`);
     }
   },
 
-  loginPasswordless: async (email: string, fullName?: string, mobile?: string) => {
-    const normalizedEmail = email.toLowerCase().trim();
-    const isAdminEmail = normalizedEmail === ADMIN_EMAIL;
-    const internalSecret = `deuz_sec_${btoa(normalizedEmail).slice(0, 16)}!99`;
-
-    let userCredential: any;
+  updateUserStage: async (userId: string, stage: CustomerStage) => {
     try {
-      userCredential = await signInWithEmailAndPassword(auth, normalizedEmail, internalSecret);
-    } catch (err: any) {
-      try {
-        userCredential = await createUserWithEmailAndPassword(auth, normalizedEmail, internalSecret);
-        if (fullName || isAdminEmail) {
-          await updateProfile(userCredential.user, {
-            displayName: isAdminEmail ? 'Executive Director' : (fullName || normalizedEmail.split('@')[0])
-          });
-        }
-      } catch (createErr) {
-        const uid = (isAdminEmail ? 'admin_' : 'usr_') + normalizedEmail.replace(/[^a-zA-Z0-9]/g, '_');
-        const token = 'token_' + Date.now();
-        userCredential = {
-          user: {
-            uid,
-            email: normalizedEmail,
-            displayName: isAdminEmail ? 'Executive Director' : (fullName || normalizedEmail.split('@')[0]),
-            phoneNumber: mobile || '',
-            getIdToken: async () => token
-          }
-        };
+      const userRef = doc(firestore, "users", userId);
+      await updateDoc(userRef, { 
+        stage,
+        updatedAt: serverTimestamp() 
+      });
+      const current = storage.getUser();
+      if (current && (current.id === userId || current._id === userId)) {
+        storage.setUser({ ...current, stage });
       }
-    }
-
-    const user = userCredential.user;
-    const token = typeof user.getIdToken === 'function' ? await user.getIdToken() : 'token_' + Date.now();
-    storage.setToken(token);
-
-    const userRef = doc(firestore, "users", user.uid);
-    let userData: any = null;
-    try {
-      const userDoc = await getDoc(userRef);
-      if (userDoc.exists()) {
-        userData = { ...userDoc.data(), id: userDoc.id, _id: userDoc.id };
-        await updateDoc(userRef, { lastLoginAt: serverTimestamp() });
-      } else {
-        userData = {
-          fullName: fullName || user.displayName || (isAdminEmail ? 'Executive Director' : normalizedEmail.split('@')[0]),
-          email: normalizedEmail,
-          role: isAdminEmail ? 'admin' : 'user',
-          mobile: mobile || user.phoneNumber || '',
-          addresses: [],
-          createdAt: serverTimestamp(),
-          lastLoginAt: serverTimestamp()
-        };
-        await setDoc(userRef, userData);
-      }
+      await db.logAuditEvent('USER_STAGE_UPGRADED', 'users', userId, { stage, timestamp: new Date().toISOString() });
+      return { success: true, stage };
     } catch (error) {
-      handleFirestoreError(error, OperationType.GET, `users/${user.uid}`);
+      handleFirestoreError(error, OperationType.UPDATE, `users/${userId}`);
+      throw error;
     }
-
-    await db.logAuthEvent({
-      event: 'login_success',
-      action: 'PASSWORDLESS_LOGIN',
-      email: normalizedEmail,
-      userId: user.uid,
-      role: userData?.role || (isAdminEmail ? 'admin' : 'user'),
-      provider: 'gmail_verification',
-      status: 'success',
-      message: `Passwordless session initialized for ${normalizedEmail}`
-    });
-
-    const finalUser = {
-      id: user.uid,
-      _id: user.uid,
-      email: normalizedEmail,
-      fullName: userData?.fullName || user.displayName || normalizedEmail.split('@')[0],
-      mobile: userData?.mobile || mobile || '',
-      role: userData?.role || (isAdminEmail ? 'admin' : 'user'),
-      address: userData?.address || (userData?.addresses && userData?.addresses.length > 0 ? userData.addresses[0] : undefined),
-      addresses: userData?.addresses || [],
-      token
-    };
-
-    storage.setUser(finalUser as any);
-    return finalUser;
   },
 
-  loginUser: async (email: string, password?: string) => {
-    const normalizedEmail = email.toLowerCase().trim();
-    const isAdminEmail = normalizedEmail === ADMIN_EMAIL;
-
-    // If passwordless flow or no password supplied, use passwordless authentication
-    if (!password || password === 'passwordless') {
-      return db.loginPasswordless(normalizedEmail);
-    }
-
-    // 1. Primary: Direct Firebase Authentication
+  updateUserHouseCode: async (userId: string, rawCode: string) => {
     try {
-      let userCredential: any;
-      try {
-        userCredential = await signInWithEmailAndPassword(auth, normalizedEmail, password);
-      } catch (fbErr: any) {
-        // If it is the authorized system administrator and the account isn't enrolled yet,
-        // auto-provision the admin in Firebase Authentication seamlessly
-        if (isAdminEmail) {
-          try {
-            userCredential = await createUserWithEmailAndPassword(auth, normalizedEmail, password);
-            await updateProfile(userCredential.user, { displayName: 'Executive Director' });
-          } catch (createErr) {
-            // If already enrolled in Firebase with existing record, synthesize an authorized admin session
-            const adminUid = 'admin_' + normalizedEmail.replace(/[^a-zA-Z0-9]/g, '_');
-            const token = 'admin_session_token_' + Date.now();
-            userCredential = {
-              user: {
-                uid: adminUid,
-                email: normalizedEmail,
-                displayName: 'Executive Director',
-                phoneNumber: '',
-                getIdToken: async () => token
-              }
-            };
-          }
-        } else {
-          // Secondary fallback to server API if available
-          try {
-            const res = await fetch('/api/auth/login', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ email: normalizedEmail, password })
-            });
-            if (res.ok) {
-              const data = await res.json();
-              if (data.token) storage.setToken(data.token);
-              storage.setUser(data);
-              // Also sync into Firebase Auth in background
-              try {
-                const autoCred = await createUserWithEmailAndPassword(auth, normalizedEmail, password);
-                if (data.fullName) await updateProfile(autoCred.user, { displayName: data.fullName });
-              } catch (autoErr) {}
-              return data;
-            }
-          } catch (apiErr) {}
-          throw fbErr;
-        }
+      const cleanCode = rawCode.trim().toUpperCase();
+      if (!cleanCode) {
+        throw new Error('House Code cannot be empty.');
       }
 
+      // Query if this house code is already assigned to another user in Firestore
+      const usersRef = collection(firestore, "users");
+      const qCode = query(usersRef, where("houseCode", "==", cleanCode));
+      const snapCode = await getDocs(qCode);
+      const isDuplicateCode = snapCode.docs.some(d => d.id !== userId);
+
+      if (isDuplicateCode) {
+        throw new Error(`House Code "${cleanCode}" is already assigned to another patron. Please choose a unique House Code.`);
+      }
+
+      const qId = query(usersRef, where("houseId", "==", cleanCode));
+      const snapId = await getDocs(qId);
+      const isDuplicateId = snapId.docs.some(d => d.id !== userId);
+
+      if (isDuplicateId) {
+        throw new Error(`House ID "${cleanCode}" is already assigned to another patron. Please choose a unique House Code.`);
+      }
+
+      const userRef = doc(firestore, "users", userId);
+      await updateDoc(userRef, { 
+        houseCode: cleanCode,
+        houseId: cleanCode,
+        updatedAt: serverTimestamp() 
+      });
+
+      // Update local cached user if active user is modified
+      const current = storage.getUser();
+      if (current && (current.id === userId || current._id === userId)) {
+        storage.setUser({ ...current, houseCode: cleanCode, houseId: cleanCode });
+      }
+
+      await db.logAuditEvent('USER_HOUSE_CODE_ASSIGNED', 'users', userId, { 
+        houseCode: cleanCode, 
+        assignedBy: auth.currentUser?.email || 'admin',
+        timestamp: new Date().toISOString() 
+      });
+
+      return { success: true, houseCode: cleanCode };
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `users/${userId}`);
+      throw error;
+    }
+  },
+
+  loginUser: async (email: string, password: string) => {
+    const normalizedEmail = email.toLowerCase().trim();
+    if (!normalizedEmail) {
+      throw new Error('Please provide an email address.');
+    }
+    if (!password) {
+      throw new Error('Please enter your password for secure authentication.');
+    }
+
+    const isAdminEmail = normalizedEmail === ADMIN_EMAIL;
+
+    // Direct Firebase Authentication: strict validation against Firebase Auth.
+    // When a password is changed, Firebase Auth is the single source of truth.
+    // Old passwords are strictly rejected with auth/invalid-credential.
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, normalizedEmail, password);
       const user = userCredential.user;
       const token = await user.getIdToken();
       storage.setToken(token);
@@ -389,12 +345,16 @@ export const db = {
         const userDoc = await getDoc(userRef);
         if (userDoc.exists()) {
           userData = { ...userDoc.data(), id: userDoc.id, _id: userDoc.id };
-          await updateDoc(userRef, { lastLoginAt: serverTimestamp() });
+          await updateDoc(userRef, { 
+            lastLoginAt: serverTimestamp(),
+            ...(isAdminEmail ? { role: 'admin', fullName: userData.fullName || 'Muhammad Bin Basheer' } : {})
+          });
         } else {
           userData = {
-            fullName: user.displayName || normalizedEmail.split('@')[0],
+            fullName: isAdminEmail ? 'Muhammad Bin Basheer' : (user.displayName || normalizedEmail.split('@')[0]),
             email: normalizedEmail,
             role: isAdminEmail ? 'admin' : 'user',
+            stage: 'initiative',
             mobile: user.phoneNumber || '',
             addresses: [],
             createdAt: serverTimestamp(),
@@ -406,13 +366,13 @@ export const db = {
         handleFirestoreError(error, OperationType.GET, `users/${user.uid}`);
       }
 
-      // Log authentication success across Firebase console collections
+      // Log authentication success across Firebase audit collection
       await db.logAuthEvent({
         event: 'login_success',
         action: 'USER_LOGIN',
         email: normalizedEmail,
         userId: user.uid,
-        role: userData?.role || (isAdminEmail ? 'admin' : 'user'),
+        role: isAdminEmail ? 'admin' : (userData?.role || 'user'),
         provider: 'firebase_email_password',
         status: 'success',
         message: `Session initialized for ${normalizedEmail} via Firebase Authentication`
@@ -422,9 +382,12 @@ export const db = {
         id: user.uid,
         _id: user.uid,
         email: normalizedEmail,
-        fullName: userData?.fullName || user.displayName || normalizedEmail.split('@')[0],
+        fullName: isAdminEmail ? 'Muhammad Bin Basheer' : (userData?.fullName || user.displayName || normalizedEmail.split('@')[0]),
         mobile: userData?.mobile || '',
-        role: userData?.role || (isAdminEmail ? 'admin' : 'user'),
+        role: isAdminEmail ? 'admin' : (userData?.role || 'user'),
+        stage: userData?.stage || 'initiative',
+        houseCode: userData?.houseCode || userData?.houseId || '',
+        houseId: userData?.houseId || userData?.houseCode || '',
         address: userData?.address || (userData?.addresses && userData?.addresses.length > 0 ? userData.addresses[0] : undefined),
         addresses: userData?.addresses || [],
         token
@@ -467,6 +430,7 @@ export const db = {
           fullName: user.displayName || 'Client Operative',
           email: normalizedEmail,
           role: isAdminEmail ? 'admin' : 'user',
+          stage: 'initiative',
           createdAt: serverTimestamp(),
           lastLoginAt: serverTimestamp(),
           mobile: user.phoneNumber || '',
@@ -505,6 +469,9 @@ export const db = {
         fullName: userData?.fullName || user.displayName || 'Client Operative',
         mobile: userData?.mobile || '',
         role: userData?.role || (isAdminEmail ? 'admin' : 'user'),
+        stage: userData?.stage || 'initiative',
+        houseCode: userData?.houseCode || userData?.houseId || '',
+        houseId: userData?.houseId || userData?.houseCode || '',
         address: userData?.address || (userData?.addresses && userData?.addresses.length > 0 ? userData.addresses[0] : undefined),
         addresses: userData?.addresses || [],
         token
@@ -529,18 +496,44 @@ export const db = {
   },
 
   checkUserExists: async (email: string) => {
+    const normalizedEmail = (email || '').toLowerCase().trim();
+    if (!normalizedEmail) return false;
+    if (normalizedEmail === ADMIN_EMAIL.toLowerCase().trim()) return true;
+
     try {
-      const q = query(collection(firestore, "users"), where("email", "==", email.toLowerCase().trim()));
+      const q = query(collection(firestore, "users"), where("email", "==", normalizedEmail));
       const snap = await getDocs(q);
-      return !snap.empty;
+      if (!snap.empty) return true;
+
+      // Fallback: check all docs case-insensitively
+      const allDocs = await getDocs(collection(firestore, "users"));
+      const match = allDocs.docs.some(doc => {
+        const docEmail = (doc.data()?.email || '').toLowerCase().trim();
+        return docEmail === normalizedEmail;
+      });
+      if (match) return true;
+
+      // Check current session storage
+      const cached = storage.getUser();
+      if (cached && (cached.email || '').toLowerCase().trim() === normalizedEmail) {
+        return true;
+      }
+
+      return false;
     } catch {
+      const cached = storage.getUser();
+      if (cached && (cached.email || '').toLowerCase().trim() === normalizedEmail) {
+        return true;
+      }
       return false; 
     }
   },
 
   registerUser: async (userData: any) => {
     const { email, password, fullName, mobile } = userData;
-    const normalizedEmail = email.toLowerCase().trim();
+    const normalizedEmail = (email || '').toLowerCase().trim();
+    const cleanFullName = (fullName || '').trim() || normalizedEmail.split('@')[0];
+    const cleanMobile = (mobile || '').trim().slice(0, 20);
     const isAdminEmail = normalizedEmail === ADMIN_EMAIL;
 
     try {
@@ -548,10 +541,17 @@ export const db = {
       const userCredential = await createUserWithEmailAndPassword(auth, normalizedEmail, password);
       const user = userCredential.user;
 
-      if (fullName) {
+      if (cleanFullName) {
         try {
-          await updateProfile(user, { displayName: fullName });
+          await updateProfile(user, { displayName: cleanFullName });
         } catch (e) {}
+      }
+
+      // Automatically dispatch email verification
+      try {
+        await sendEmailVerification(user);
+      } catch (e) {
+        console.warn("Auto verification email dispatch notice:", e);
       }
 
       const token = await user.getIdToken();
@@ -559,16 +559,25 @@ export const db = {
 
       // 2. Provision User Dossier in Cloud Firestore
       const newUserProfile = {
-        fullName: fullName || normalizedEmail.split('@')[0],
+        id: user.uid,
+        uid: user.uid,
+        fullName: cleanFullName,
+        displayName: cleanFullName,
         email: normalizedEmail,
-        mobile: mobile || '',
+        mobile: cleanMobile,
         role: isAdminEmail ? 'admin' : 'user',
+        stage: 'initiative',
         addresses: [],
+        emailVerified: user.emailVerified,
         createdAt: serverTimestamp(),
         lastLoginAt: serverTimestamp()
       };
 
-      await setDoc(doc(firestore, "users", user.uid), newUserProfile);
+      try {
+        await setDoc(doc(firestore, "users", user.uid), newUserProfile);
+      } catch (err) {
+        console.warn("User dossier firestore sync notice:", err);
+      }
 
       // 3. Log event across Firebase Console collections
       await db.logAuthEvent({
@@ -579,13 +588,20 @@ export const db = {
         role: newUserProfile.role,
         provider: 'firebase_email_password',
         status: 'success',
-        message: `New identity registered via Firebase Authentication: ${normalizedEmail}`
-      });
+        message: `New identity registered: ${normalizedEmail}`
+      }).catch(() => {});
 
-      const finalUser = {
+      const finalUser: User = {
         id: user.uid,
         _id: user.uid,
-        ...newUserProfile,
+        fullName: cleanFullName,
+        displayName: cleanFullName,
+        email: normalizedEmail,
+        mobile: cleanMobile,
+        role: isAdminEmail ? 'admin' : 'user',
+        stage: 'initiative',
+        addresses: [],
+        emailVerified: user.emailVerified,
         token
       };
 
@@ -600,41 +616,191 @@ export const db = {
         provider: 'firebase_email_password',
         status: 'failed',
         failureReason: error.message || 'Registration refused'
-      });
+      }).catch(() => {});
       throw error;
     }
   },
 
-  resetPasswordWithFirebase: async (email: string) => {
-    const normalizedEmail = email.toLowerCase().trim();
+  resetPasswordWithFirebase: async (email: string): Promise<{ success: boolean; message: string; isNewUser?: boolean; sender?: string }> => {
+    const normalizedEmail = (email || '').toLowerCase().trim();
+    if (!normalizedEmail) {
+      return { success: false, message: 'Please enter a valid email address.' };
+    }
+
     try {
-      await sendPasswordResetEmail(auth, normalizedEmail);
+      // 1. Try sending password reset email with continue URL
+      const continueUrl = typeof window !== 'undefined' && window.location?.origin
+        ? `${window.location.origin}/?mode=resetPassword`
+        : 'https://ais-dev-znj7fh45drqnif6slnr5iv-87346794639.asia-southeast1.run.app/?mode=resetPassword';
+
+      try {
+        await sendPasswordResetEmail(auth, normalizedEmail, {
+          url: continueUrl,
+          handleCodeInApp: true
+        });
+      } catch (settingsErr: any) {
+        // If domain not allowlisted for continue URL, send standard reset email
+        if (settingsErr.code === 'auth/unauthorized-continue-uri') {
+          await sendPasswordResetEmail(auth, normalizedEmail);
+        } else {
+          throw settingsErr;
+        }
+      }
+
       await db.logAuthEvent({
         event: 'password_reset_sent',
         action: 'PASSWORD_RESET_REQUESTED',
         email: normalizedEmail,
         userId: 'anonymous',
-        provider: 'firebase_auth',
+        provider: 'email_auth',
         status: 'success',
-        message: `Firebase password reset link transmitted to ${normalizedEmail}`
-      });
-      return { success: true, message: `Passcode recovery instructions transmitted to ${normalizedEmail} via Firebase.` };
+        message: `Password reset link transmitted to ${normalizedEmail}`
+      }).catch(() => {});
+
+      return { 
+        success: true, 
+        message: `Password reset link dispatched to ${normalizedEmail}.`,
+        sender: 'noreply@gen-lang-client-0255030909.firebaseapp.com'
+      };
     } catch (err: any) {
-      let message = err.message || 'Passcode recovery failed.';
+      let message = err.message || 'Password recovery failed.';
+      let isNewUser = false;
       if (err.code === 'auth/user-not-found') {
-        message = 'No registered dossier located for this email address.';
+        message = 'No registered account found for this email address. Please register first.';
+        isNewUser = true;
       } else if (err.code === 'auth/invalid-email') {
         message = 'Please enter a valid email address.';
+      } else if (err.code === 'auth/too-many-requests') {
+        message = 'Too many requests. Please wait a moment before trying again.';
       }
       await db.logAuthEvent({
         event: 'password_reset_failure',
         action: 'PASSWORD_RESET_FAILED',
         email: normalizedEmail,
         userId: 'anonymous',
-        provider: 'firebase_auth',
+        provider: 'email_auth',
         status: 'failed',
         failureReason: message
-      });
+      }).catch(() => {});
+      return { success: false, isNewUser, message };
+    }
+  },
+
+  verifyPasswordResetCodeWithFirebase: async (oobCode: string): Promise<{ success: boolean; email?: string; message?: string }> => {
+    let cleanCode = (oobCode || '').trim();
+    if (cleanCode.includes('oobCode=')) {
+      const match = cleanCode.match(/[?&]oobCode=([^&#]+)/);
+      if (match && match[1]) cleanCode = decodeURIComponent(match[1]);
+    }
+    try {
+      const email = await verifyPasswordResetCode(auth, cleanCode);
+      return { success: true, email };
+    } catch (err: any) {
+      let message = 'The recovery code is invalid or has expired.';
+      if (err.code === 'auth/expired-action-code') {
+        message = 'The recovery link has expired. Please request a new recovery link.';
+      } else if (err.code === 'auth/invalid-action-code') {
+        message = 'The recovery code is invalid or has already been used.';
+      } else if (err.code === 'auth/user-disabled') {
+        message = 'This user account has been disabled.';
+      }
+      return { success: false, message };
+    }
+  },
+
+  confirmPasswordResetWithFirebase: async (oobCode: string, newPassword: string): Promise<{ success: boolean; message: string }> => {
+    let code = (oobCode || '').trim();
+    if (code.includes('oobCode=')) {
+      const match = code.match(/[?&]oobCode=([^&#]+)/);
+      if (match && match[1]) code = decodeURIComponent(match[1]);
+    }
+    if (!code) {
+      return { success: false, message: 'Recovery code or link is required.' };
+    }
+    if (!newPassword || newPassword.length < 6) {
+      return { success: false, message: 'New password must contain at least 6 characters.' };
+    }
+
+    try {
+      await confirmPasswordReset(auth, code, newPassword);
+      await db.logAuthEvent({
+        event: 'password_reset_confirmed',
+        action: 'PASSWORD_RESET_CONFIRMED',
+        email: 'confirmed_user',
+        userId: 'anonymous',
+        provider: 'email_auth',
+        status: 'success',
+        message: 'Password successfully updated via recovery code'
+      }).catch(() => {});
+
+      return {
+        success: true,
+        message: 'Password updated successfully. You can now sign in with your new credentials.'
+      };
+    } catch (err: any) {
+      let message = err.message || 'Failed to reset password.';
+      if (err.code === 'auth/expired-action-code') {
+        message = 'The recovery code has expired. Please request a new recovery link.';
+      } else if (err.code === 'auth/invalid-action-code') {
+        message = 'The recovery code is invalid or has already been used.';
+      } else if (err.code === 'auth/weak-password') {
+        message = 'New password is too weak. Please use at least 6 characters.';
+      }
+      await db.logAuthEvent({
+        event: 'password_reset_confirm_failed',
+        action: 'PASSWORD_RESET_CONFIRM_FAILED',
+        email: 'unknown',
+        userId: 'anonymous',
+        provider: 'email_auth',
+        status: 'failed',
+        failureReason: message
+      }).catch(() => {});
+      return { success: false, message };
+    }
+  },
+
+  updateCurrentUserPassword: async (currentPassword: string, newPassword: string): Promise<{ success: boolean; message: string }> => {
+    const currentUser = auth.currentUser;
+    if (!currentUser || currentUser.isAnonymous) {
+      return { success: false, message: 'You must be signed in to change your password.' };
+    }
+    if (!newPassword || newPassword.length < 6) {
+      return { success: false, message: 'New password must contain at least 6 characters.' };
+    }
+
+    try {
+      if (currentUser.email && currentPassword) {
+        const credential = EmailAuthProvider.credential(currentUser.email, currentPassword);
+        await reauthenticateWithCredential(currentUser, credential);
+      }
+
+      await updatePassword(currentUser, newPassword);
+      try {
+        const refreshedToken = await currentUser.getIdToken(true);
+        storage.setToken(refreshedToken);
+      } catch (tokenErr) {
+        console.debug('Token refresh notice:', tokenErr);
+      }
+      await db.logAuthEvent({
+        event: 'password_changed',
+        action: 'USER_PASSWORD_CHANGED',
+        email: currentUser.email || 'user',
+        userId: currentUser.uid,
+        provider: 'email_auth',
+        status: 'success',
+        message: `Password changed successfully for ${currentUser.email}`
+      }).catch(() => {});
+
+      return { success: true, message: 'Your password has been successfully updated.' };
+    } catch (err: any) {
+      let message = err.message || 'Failed to update password.';
+      if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+        message = 'Current password is incorrect.';
+      } else if (err.code === 'auth/weak-password') {
+        message = 'New password must contain at least 6 characters.';
+      } else if (err.code === 'auth/requires-recent-login') {
+        message = 'For security reasons, please re-authenticate before changing your password.';
+      }
       return { success: false, message };
     }
   },
@@ -664,22 +830,171 @@ export const db = {
     } catch (e) {}
   },
 
-  getCurrentUser: async () => {
-    // Check token with /api/auth/me
-    const token = storage.getToken();
-    if (token) {
-      try {
-        const res = await fetch('/api/auth/me', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (res.ok) {
-          const user = await res.json();
-          storage.setUser(user);
-          return user;
-        }
-      } catch (e) {}
+  sendVerificationEmail: async (): Promise<{ success: boolean; message: string }> => {
+    const currentUser = auth.currentUser;
+    if (!currentUser || currentUser.isAnonymous) {
+      return { success: false, message: 'You must be signed in to request email verification.' };
     }
+    try {
+      await sendEmailVerification(currentUser);
+      await db.logAuthEvent({
+        event: 'email_verification_sent',
+        action: 'EMAIL_VERIFICATION_SENT',
+        email: currentUser.email || 'user',
+        userId: currentUser.uid,
+        provider: 'email_auth',
+        status: 'success',
+        message: `Verification email transmitted to ${currentUser.email}`
+      }).catch(() => {});
+      return { success: true, message: `Verification email dispatched to ${currentUser.email}. Please inspect your inbox.` };
+    } catch (err: any) {
+      let message = err.message || 'Failed to dispatch verification email.';
+      if (err.code === 'auth/too-many-requests') {
+        message = 'Too many requests. Please wait a moment before requesting another verification email.';
+      }
+      return { success: false, message };
+    }
+  },
 
+  updateCurrentAuthProfile: async (profileData: { displayName?: string; photoURL?: string; fullName?: string; mobile?: string }): Promise<{ success: boolean; message: string; user?: User }> => {
+    const currentUser = auth.currentUser;
+    if (!currentUser || currentUser.isAnonymous) {
+      return { success: false, message: 'You must be signed in to update your profile.' };
+    }
+    try {
+      const updateObj: { displayName?: string; photoURL?: string } = {};
+      if (profileData.displayName !== undefined) updateObj.displayName = profileData.displayName;
+      if (profileData.fullName !== undefined) updateObj.displayName = profileData.fullName;
+      if (profileData.photoURL !== undefined) updateObj.photoURL = profileData.photoURL;
+
+      await updateProfile(currentUser, updateObj);
+
+      const userDocRef = doc(firestore, "users", currentUser.uid);
+      const firestoreUpdates: any = { updatedAt: serverTimestamp() };
+      if (profileData.fullName || profileData.displayName) {
+        firestoreUpdates.fullName = profileData.fullName || profileData.displayName;
+      }
+      if (profileData.photoURL) firestoreUpdates.photoURL = profileData.photoURL;
+      if (profileData.mobile) firestoreUpdates.mobile = profileData.mobile;
+
+      await updateDoc(userDocRef, firestoreUpdates).catch(() => {});
+
+      const cached = storage.getUser() || {} as User;
+      const updatedUser: User = {
+        ...cached,
+        fullName: profileData.fullName || profileData.displayName || cached.fullName,
+        displayName: profileData.displayName || profileData.fullName || cached.displayName,
+        photoURL: profileData.photoURL || cached.photoURL,
+        mobile: profileData.mobile || cached.mobile,
+        emailVerified: currentUser.emailVerified
+      };
+      storage.setUser(updatedUser);
+
+      return { success: true, message: 'Profile updated successfully.', user: updatedUser };
+    } catch (err: any) {
+      return { success: false, message: err.message || 'Failed to update profile.' };
+    }
+  },
+
+  updateUserEmail: async (newEmail: string, currentPassword?: string): Promise<{ success: boolean; message: string }> => {
+    const currentUser = auth.currentUser;
+    if (!currentUser || currentUser.isAnonymous) {
+      return { success: false, message: 'You must be signed in to update your email.' };
+    }
+    const normalizedEmail = (newEmail || '').toLowerCase().trim();
+    if (!normalizedEmail) {
+      return { success: false, message: 'Please enter a valid email address.' };
+    }
+    try {
+      if (currentPassword && currentUser.email) {
+        const credential = EmailAuthProvider.credential(currentUser.email, currentPassword);
+        await reauthenticateWithCredential(currentUser, credential);
+      }
+      await updateEmail(currentUser, normalizedEmail);
+
+      const userDocRef = doc(firestore, "users", currentUser.uid);
+      await updateDoc(userDocRef, { email: normalizedEmail, updatedAt: serverTimestamp() }).catch(() => {});
+
+      const cached = storage.getUser();
+      if (cached) {
+        storage.setUser({ ...cached, email: normalizedEmail });
+      }
+      return { success: true, message: 'Email address updated successfully.' };
+    } catch (err: any) {
+      let message = err.message || 'Failed to update email address.';
+      if (err.code === 'auth/requires-recent-login') {
+        message = 'For security reasons, please provide your current password before changing your email.';
+      } else if (err.code === 'auth/email-already-in-use') {
+        message = 'This email address is already in use by another account.';
+      } else if (err.code === 'auth/invalid-email') {
+        message = 'Invalid email address provided.';
+      }
+      return { success: false, message };
+    }
+  },
+
+  deleteCurrentUserAccount: async (currentPassword?: string): Promise<{ success: boolean; message: string }> => {
+    const currentUser = auth.currentUser;
+    if (!currentUser || currentUser.isAnonymous) {
+      return { success: false, message: 'You must be signed in to delete your account.' };
+    }
+    const uid = currentUser.uid;
+    const email = currentUser.email || 'user';
+    try {
+      if (currentPassword && currentUser.email) {
+        const credential = EmailAuthProvider.credential(currentUser.email, currentPassword);
+        await reauthenticateWithCredential(currentUser, credential);
+      }
+      await deleteDoc(doc(firestore, "users", uid)).catch(() => {});
+      await deleteUser(currentUser);
+      storage.removeToken();
+      storage.removeUser();
+      await db.logAuthEvent({
+        event: 'account_deleted',
+        action: 'USER_ACCOUNT_DELETED',
+        email,
+        userId: uid,
+        provider: 'email_auth',
+        status: 'success',
+        message: `Account deleted: ${email}`
+      }).catch(() => {});
+      return { success: true, message: 'Your dossier and credentials have been permanently deleted.' };
+    } catch (err: any) {
+      let message = err.message || 'Failed to delete account.';
+      if (err.code === 'auth/requires-recent-login') {
+        message = 'Security protocol: please re-authenticate with your password before deleting your account.';
+      }
+      return { success: false, message };
+    }
+  },
+
+  /**
+   * Admin method to permanently remove a user record/dossier from Firestore.
+   */
+  deleteUserByAdmin: async (userId: string, targetEmail?: string): Promise<{ success: boolean; message: string }> => {
+    if (!userId) {
+      return { success: false, message: 'Invalid user identifier.' };
+    }
+    try {
+      await deleteDoc(doc(firestore, "users", userId));
+      await db.logAuditEvent(
+        'ADMIN_REMOVED_USER_DOSSIER',
+        'users',
+        userId,
+        {
+          targetEmail: targetEmail || 'unknown',
+          removedBy: auth.currentUser?.email || 'executive_admin',
+          timestamp: new Date().toISOString()
+        }
+      ).catch(() => {});
+      return { success: true, message: `User dossier removed from archives.` };
+    } catch (err: any) {
+      console.error('Error removing user:', err);
+      return { success: false, message: err.message || 'Failed to remove user.' };
+    }
+  },
+
+  getCurrentUser: async () => {
     // Check cached user in storage
     const cached = storage.getUser();
     if (cached) return cached;
@@ -690,7 +1005,14 @@ export const db = {
       try {
         const userDoc = await getDoc(doc(firestore, "users", currentUser.uid));
         if (userDoc.exists()) {
-          const u = { ...userDoc.data(), id: userDoc.id, _id: userDoc.id } as User;
+          const u = { 
+            ...userDoc.data(), 
+            id: userDoc.id, 
+            _id: userDoc.id,
+            displayName: currentUser.displayName || userDoc.data().fullName,
+            photoURL: currentUser.photoURL || userDoc.data().photoURL,
+            emailVerified: currentUser.emailVerified
+          } as User;
           storage.setUser(u);
           return u;
         }
@@ -730,8 +1052,8 @@ export const db = {
 
         return querySnapshot.docs.map(mapDoc);
     } catch (error: any) {
-        if (error.message && error.message.includes('the client is offline')) {
-            console.error("Please check your Firebase configuration.");
+        if (error?.message?.includes('offline') || error?.code === 'unavailable') {
+            return INITIAL_PRODUCTS.map((p, idx) => ({ ...p, id: `seed_${idx}`, _id: `seed_${idx}` }));
         }
         handleFirestoreError(error, OperationType.LIST, 'products');
         return INITIAL_PRODUCTS.map((p, idx) => ({ ...p, id: `seed_${idx}`, _id: `seed_${idx}` }));
@@ -2179,7 +2501,7 @@ export const db = {
         email: data.email,
         phone: data.phone || '',
         consultationType: data.consultationType || 'Private Salon Fitting',
-        location: data.location || 'Paris — Place Vendôme',
+        location: data.location || 'Mumbai — Bandra Kurla & Colaba',
         datePreference: data.datePreference || '',
         notes: data.notes || '',
         status: data.status || 'PENDING',

@@ -121,7 +121,7 @@ service cloud.firestore {
     // ===============================================================
 
     function isValidUser() {
-      return hasOnlyAllowedFields(['fullName', 'email', 'mobile', 'alternateMobile', 'role', 'createdAt', 'addresses', 'address', 'passwordHash', 'updatedAt', 'lastLoginAt', 'authProvider', 'lastLoginIp', 'loginCount', 'status']) &&
+      return hasOnlyAllowedFields(['fullName', 'email', 'mobile', 'alternateMobile', 'role', 'stage', 'createdAt', 'addresses', 'address', 'passwordHash', 'updatedAt', 'lastLoginAt', 'authProvider', 'lastLoginIp', 'loginCount', 'status', 'houseCode', 'houseId', 'displayName', 'photoURL', 'emailVerified', 'id', 'uid']) &&
              isValidOptionalString('fullName', 0, 100) &&
              isValidString('email', 3, 100) &&
              isValidOptionalString('mobile', 0, 20) &&
@@ -130,6 +130,14 @@ service cloud.firestore {
              isValidOptionalString('authProvider', 0, 50) &&
              isValidOptionalString('lastLoginIp', 0, 100) &&
              isValidOptionalString('status', 0, 50) &&
+             isValidOptionalString('stage', 0, 50) &&
+             isValidOptionalString('houseCode', 0, 100) &&
+             isValidOptionalString('houseId', 0, 100) &&
+             isValidOptionalString('displayName', 0, 100) &&
+             isValidOptionalString('photoURL', 0, 1000) &&
+             isValidOptionalString('id', 0, 128) &&
+             isValidOptionalString('uid', 0, 128) &&
+             (!( 'emailVerified' in request.resource.data ) || request.resource.data.emailVerified is bool) &&
              (!( 'loginCount' in request.resource.data ) || request.resource.data.loginCount is number) &&
              request.resource.data.role in ['user', 'admin', 'concierge'] &&
              (!( 'createdAt' in request.resource.data ) || request.resource.data.createdAt is timestamp) &&

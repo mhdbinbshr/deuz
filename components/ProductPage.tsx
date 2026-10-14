@@ -660,53 +660,56 @@ const ProductPage: React.FC<ProductPageProps> = ({
                       </span>
                     </div>
                   ) : (
-                    <div className="flex gap-2.5 sm:gap-4 h-13 sm:h-15">
-                      {/* Acquire Button */}
+                    <div className="flex gap-2.5 sm:gap-4 h-14 sm:h-16">
+                      {/* Acquire Button - High Luxury Metallic Gold with Ambient Radiance */}
                       <button 
                         onClick={handleBuyNow}
                         disabled={!selectedProduct.inStock}
                         aria-label="Acquire Now"
-                        className="group relative flex-[2.2] overflow-hidden rounded-sm bg-gradient-to-r from-[#D4AF37] via-[#F5E6A3] to-[#AA771C] px-4 sm:px-8 border border-amber-300/80 shadow-[0_4px_25px_rgba(212,175,55,0.4)] hover:shadow-[0_0_40px_rgba(212,175,55,0.7)] hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.985] transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+                        className="group relative flex-[2.2] overflow-hidden rounded-sm bg-gradient-to-r from-[#DFBA53] via-[#FFF2C2] to-[#B88728] px-4 sm:px-8 border border-amber-200/90 shadow-[0_4px_24px_rgba(212,175,55,0.45)] hover:shadow-[0_0_45px_rgba(212,175,55,0.75)] hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.985] transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
                       >
-                        {/* Shimmer light sweep on hover */}
-                        <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-out bg-gradient-to-r from-transparent via-white/70 to-transparent pointer-events-none" />
+                        {/* Shimmer light sweep */}
+                        <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-out bg-gradient-to-r from-transparent via-white/80 to-transparent pointer-events-none" />
                         
                         {/* Subtle top rim light */}
-                        <div className="absolute top-0 left-0 right-0 h-[1px] bg-white/60 pointer-events-none" />
+                        <div className="absolute top-0 left-0 right-0 h-[1.5px] bg-white/80 pointer-events-none" />
 
                         <span className="relative z-10 flex items-center justify-center gap-2 sm:gap-3 text-black font-mono">
-                          <Sparkles size={14} className="text-black/80 shrink-0 hidden sm:inline-block animate-pulse" />
-                          <span className="text-[11px] sm:text-xs md:text-sm font-black uppercase tracking-[0.22em] sm:tracking-[0.26em] drop-shadow-[0_1px_1px_rgba(255,255,255,0.5)]">
+                          <Sparkles size={15} className="text-black/90 shrink-0 hidden sm:inline-block animate-pulse" />
+                          <span className="text-xs sm:text-sm font-black uppercase tracking-[0.22em] sm:tracking-[0.26em] drop-shadow-[0_1px_1px_rgba(255,255,255,0.6)]">
                             ACQUIRE NOW
                           </span>
-                          <ArrowRight size={15} className="text-black stroke-[2.5] transition-transform duration-300 group-hover:translate-x-1.5 shrink-0" />
+                          <ArrowRight size={16} className="text-black stroke-[3] transition-transform duration-300 group-hover:translate-x-1.5 shrink-0" />
                         </span>
                       </button>
 
-                      {/* Add to Vault Button */}
+                      {/* Add to Vault Button - Obsidian Chamber with Polished Gold Accents */}
                       <button 
                         onClick={handleAddToCart}
                         disabled={!selectedProduct.inStock}
                         aria-label="Add to Vault"
-                        className={`group relative flex-[1.4] overflow-hidden rounded-sm px-3 sm:px-6 transition-all duration-300 border hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer ${
+                        className={`group relative flex-[1.4] overflow-hidden rounded-sm px-3 sm:px-6 transition-all duration-300 border-2 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer ${
                           addedToVault
-                            ? 'bg-emerald-950/80 border-emerald-400/80 text-emerald-300 shadow-[0_0_25px_rgba(16,185,129,0.35)]'
-                            : 'bg-gradient-to-b from-[#181818] via-[#0E0E0E] to-[#080808] border-gold-500/40 hover:border-gold-400 hover:shadow-[0_0_30px_rgba(212,175,55,0.25)]'
+                            ? 'bg-emerald-950/90 border-emerald-400 text-emerald-300 shadow-[0_0_28px_rgba(16,185,129,0.4)]'
+                            : 'bg-gradient-to-b from-[#141414] via-[#0A0A0A] to-[#040404] border-gold-500/60 hover:border-gold-300 hover:bg-gold-500/10 hover:shadow-[0_0_32px_rgba(212,175,55,0.35)]'
                         }`}
                       >
                         {/* Ambient gold sheen overlay */}
-                        <div className="absolute inset-0 bg-gradient-to-r from-gold-500/0 via-gold-500/15 to-gold-500/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+                        <div className="absolute inset-0 bg-gradient-to-r from-gold-500/0 via-gold-500/20 to-gold-500/0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
                         
-                        <span className="relative z-10 flex items-center justify-center gap-1.5 sm:gap-2.5 text-[10px] sm:text-xs font-bold uppercase tracking-[0.16em] sm:tracking-[0.2em] font-mono">
+                        {/* Top subtle rim highlight */}
+                        <div className="absolute top-0 left-0 right-0 h-[1px] bg-gold-400/30 group-hover:bg-gold-300/60 transition-colors pointer-events-none" />
+
+                        <span className="relative z-10 flex items-center justify-center gap-2 text-xs font-mono font-bold uppercase tracking-[0.18em] sm:tracking-[0.22em]">
                           {addedToVault ? (
                             <span className="flex items-center gap-1.5 text-emerald-300 font-black">
-                              <Check size={14} className="stroke-[3]" />
+                              <Check size={15} className="stroke-[3]" />
                               IN VAULT
                             </span>
                           ) : (
                             <>
-                              <ShoppingBag size={14} className="text-gold-400 transition-transform duration-300 group-hover:scale-110 mb-0.5 shrink-0" />
-                              <span className="text-white group-hover:text-gold-300 transition-colors">
+                              <ShoppingBag size={15} className="text-gold-400 group-hover:text-gold-300 transition-transform duration-300 group-hover:scale-110 shrink-0" />
+                              <span className="text-white group-hover:text-gold-200 transition-colors font-extrabold">
                                 VAULT
                               </span>
                             </>

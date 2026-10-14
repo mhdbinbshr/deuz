@@ -180,7 +180,7 @@ const About: React.FC = () => {
                   <InfinityIcon size={14} className="text-gold-400/90" />
                 </div>
                 <div className="text-right text-white/40">
-                  <span>REF. 2026.01</span>
+                  <span>REF. ATELIER.01</span>
                 </div>
               </div>
 
@@ -298,7 +298,7 @@ const About: React.FC = () => {
                 {/* Floating Rotating Hallmark Badge */}
                 <div className="relative w-14 h-14 rounded-full border border-gold-400/30 bg-black/40 backdrop-blur-sm flex items-center justify-center animate-spin-slow">
                   <div className="text-[7px] font-mono uppercase tracking-[0.2em] text-gold-400/90 text-center leading-tight">
-                    EST.<br />2026
+                    DEUZ<br />ATELIER
                   </div>
                   <Sparkles size={8} className="absolute -top-1 -right-1 text-gold-400 animate-ping" />
                 </div>

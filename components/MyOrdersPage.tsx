@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { db } from '../utils/db';
 import { storage } from '../utils/storage';
+import { useAuth } from '../context/AuthContext';
 import { Order, ORDER_STATUS_LABELS, ORDER_STATUS_DESCRIPTIONS, ORDER_PHASES, OrderStatus } from '../types';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -107,6 +108,7 @@ const OrderTimeline = ({ currentStatus }: { currentStatus: OrderStatus }) => {
 };
 
 const MyOrdersPage: React.FC<MyOrdersPageProps> = ({ onBack }) => {
+  const { user, openAuthModal } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ message: string; visible: boolean }>({ message: '', visible: false });
@@ -114,6 +116,38 @@ const MyOrdersPage: React.FC<MyOrdersPageProps> = ({ onBack }) => {
   const [updatingChannelOrderId, setUpdatingChannelOrderId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
+
+  if (!user) {
+    return (
+      <div className="fixed inset-0 z-50 bg-[#020202] text-white flex flex-col items-center justify-center p-6 text-center select-none font-mono">
+        <div className="w-16 h-16 rounded-full border border-gold-500/30 flex items-center justify-center mb-6 bg-gold-500/5">
+          <ShieldCheck size={24} className="text-gold-500" />
+        </div>
+        <span className="text-[10px] text-gold-500 uppercase tracking-[0.3em] mb-2">Restricted Chamber</span>
+        <h2 className="text-2xl sm:text-3xl font-serif text-white mb-3">CLIENT AUTHENTICATION REQUIRED</h2>
+        <p className="text-xs sm:text-sm text-white/50 max-w-md mb-8 leading-relaxed font-sans">
+          Client dossier archives and live order tracking require authenticated authorization. Please log in with your registered credentials.
+        </p>
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={onBack}
+            className="px-6 py-3 border border-white/20 text-white/70 hover:text-white uppercase tracking-widest text-[10px] transition-colors cursor-pointer"
+          >
+            Return to Gallery
+          </button>
+          <button 
+            onClick={() => {
+              onBack();
+              openAuthModal();
+            }}
+            className="px-6 py-3 bg-white text-black hover:bg-gold-500 hover:text-white uppercase tracking-widest text-[10px] font-bold transition-colors cursor-pointer"
+          >
+            Authenticate / Log In
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const showToast = (message: string) => {
     setToast({ message, visible: true });
