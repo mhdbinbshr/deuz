@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from 'framer-motion';
-import { ArrowUpRight, Sparkles, Eye } from 'lucide-react';
+import { ArrowUpRight, Sparkles, Eye, RefreshCw } from 'lucide-react';
 import { db } from '../utils/db';
+import { getProductImageSet } from '../utils/productImages';
 
 interface PortfolioProps {
   onEnterShop: () => void;
@@ -14,6 +15,8 @@ interface FormPiece {
   tag: string;
   year: string;
   imgUrl: string;
+  secondaryImgUrl: string;
+  allImages: string[];
   material: string;
   weight: string;
 }
@@ -26,6 +29,8 @@ const DEFAULT_FORM_PIECES: FormPiece[] = [
     tag: 'SIGNATURE SILHOUETTE',
     year: '2026',
     imgUrl: 'https://ik.imagekit.io/dto1zguat/Evolve_1.jpg',
+    secondaryImgUrl: 'https://ik.imagekit.io/dto1zguat/Evolve_4.jpg?updatedAt=1775278133983',
+    allImages: ['https://ik.imagekit.io/dto1zguat/Evolve_1.jpg', 'https://ik.imagekit.io/dto1zguat/Evolve_4.jpg?updatedAt=1775278133983'],
     material: 'Organic Supima Cotton',
     weight: '480 GSM Heavyweight'
   },
@@ -36,6 +41,8 @@ const DEFAULT_FORM_PIECES: FormPiece[] = [
     tag: 'LIMITED CAPSULE',
     year: '2026',
     imgUrl: 'https://ik.imagekit.io/dto1zguat/Dustbound_1.jpg?updatedAt=1775277953541',
+    secondaryImgUrl: 'https://ik.imagekit.io/dto1zguat/Dustbound_2.jpg',
+    allImages: ['https://ik.imagekit.io/dto1zguat/Dustbound_1.jpg?updatedAt=1775277953541', 'https://ik.imagekit.io/dto1zguat/Dustbound_2.jpg'],
     material: 'Dyed Mineral Fleece',
     weight: '420 GSM Hand-Distressed'
   },
@@ -46,6 +53,8 @@ const DEFAULT_FORM_PIECES: FormPiece[] = [
     tag: 'ARCHITECTURAL OUTERWEAR',
     year: '2026',
     imgUrl: 'https://ik.imagekit.io/dto1zguat/EternalHorizon_1.jpg?updatedAt=1775278022400',
+    secondaryImgUrl: 'https://ik.imagekit.io/dto1zguat/EternalHorizon_2.jpg?updatedAt=1775278048419',
+    allImages: ['https://ik.imagekit.io/dto1zguat/EternalHorizon_1.jpg?updatedAt=1775278022400', 'https://ik.imagekit.io/dto1zguat/EternalHorizon_2.jpg?updatedAt=1775278048419'],
     material: 'Virgin Merino Blend',
     weight: '560 GSM Bonded Structure'
   },
@@ -56,6 +65,8 @@ const DEFAULT_FORM_PIECES: FormPiece[] = [
     tag: 'FOUNDATIONAL PIECE',
     year: '2026',
     imgUrl: 'https://ik.imagekit.io/dto1zguat/Evolve_4.jpg?updatedAt=1775278133983',
+    secondaryImgUrl: 'https://ik.imagekit.io/dto1zguat/Evolve_1.jpg',
+    allImages: ['https://ik.imagekit.io/dto1zguat/Evolve_4.jpg?updatedAt=1775278133983', 'https://ik.imagekit.io/dto1zguat/Evolve_1.jpg'],
     material: 'Combed Long-Staple Cotton',
     weight: '320 GSM Structural Drop'
   },
@@ -66,6 +77,8 @@ const DEFAULT_FORM_PIECES: FormPiece[] = [
     tag: 'STUDIO ARCHIVE',
     year: '2026',
     imgUrl: 'https://ik.imagekit.io/dto1zguat/EternalHorizon_2.jpg?updatedAt=1775278048419',
+    secondaryImgUrl: 'https://ik.imagekit.io/dto1zguat/EternalHorizon_3.jpg',
+    allImages: ['https://ik.imagekit.io/dto1zguat/EternalHorizon_2.jpg?updatedAt=1775278048419', 'https://ik.imagekit.io/dto1zguat/EternalHorizon_3.jpg'],
     material: 'Raw Texturized Canvas',
     weight: '620 GSM Tailored Weave'
   }
@@ -100,13 +113,16 @@ const Portfolio: React.FC<PortfolioProps> = ({ onEnterShop }) => {
           const cleanTitle = p.title
             ? p.title.replace(/^DEUZ\s*(FORM\s*\d+\s*)?[—–-]\s*/i, '').trim()
             : `PIECE 0${idx + 1}`;
+          const imgSet = getProductImageSet(p);
           return {
             id: p._id || p.id || `live-piece-${idx}`,
             title: cleanTitle || p.title || 'EXCLUSIVE CUT',
             code: p.houseCode || `FORM 01 ∞ 0${idx + 1}`,
             tag: p.imageTag || 'EXCLUSIVE CUT',
             year: '2026',
-            imgUrl: p.image || (p.gallery && p.gallery.length > 0 ? p.gallery[0] : 'https://ik.imagekit.io/dto1zguat/Evolve_1.jpg'),
+            imgUrl: imgSet.primary,
+            secondaryImgUrl: imgSet.secondary,
+            allImages: imgSet.allImages,
             material: p.details?.Fabric || 'ORGANIC SUPIMA COTTON',
             weight: p.details?.Silhouette || p.details?.Cut || ''
           };
@@ -177,9 +193,26 @@ const Portfolio: React.FC<PortfolioProps> = ({ onEnterShop }) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [nextPiece, prevPiece]);
 
+  const [centerHovered, setCenterHovered] = useState(false);
+  const [manualCenterPerspective, setManualCenterPerspective] = useState<number | null>(null);
+
+  // Reset perspective when active index changes
+  useEffect(() => {
+    setCenterHovered(false);
+    setManualCenterPerspective(null);
+  }, [activeIndex]);
+
   const activePiece = pieces[activeIndex] || pieces[0];
   const prevPieceIndex = (activeIndex - 1 + pieces.length) % pieces.length;
   const nextPieceIndex = (activeIndex + 1) % pieces.length;
+
+  const isShowingCenterAlternate = manualCenterPerspective !== null
+    ? manualCenterPerspective === 1
+    : centerHovered;
+
+  const centerDisplayImg = isShowingCenterAlternate
+    ? (activePiece.secondaryImgUrl || activePiece.imgUrl)
+    : activePiece.imgUrl;
 
   return (
     <section id="works" className="relative bg-black/40 py-20 md:py-28 overflow-hidden select-none">
@@ -387,7 +420,7 @@ const Portfolio: React.FC<PortfolioProps> = ({ onEnterShop }) => {
                 className="absolute w-[340px] md:w-[480px] h-[340px] md:h-[480px] rounded-full bg-gradient-to-tr from-gold-500/25 via-amber-600/15 to-transparent blur-[90px] pointer-events-none"
               />
 
-              {/* Free-floating 3D Oscillating Image Container with Soft Feather Edge-Fading */}
+              {/* Free-floating 3D Oscillating Image Container with Soft Feather Edge-Fading & Perspective Animation */}
               <motion.div
                 animate={{
                   y: [-12, 12, -12],
@@ -402,7 +435,15 @@ const Portfolio: React.FC<PortfolioProps> = ({ onEnterShop }) => {
                 style={{
                   transformStyle: 'preserve-3d',
                 }}
-                className="relative w-full h-[360px] md:h-[440px] flex items-center justify-center cursor-pointer"
+                className="relative w-full h-[360px] md:h-[440px] flex items-center justify-center cursor-pointer group"
+                onMouseEnter={() => {
+                  setCenterHovered(true);
+                  setManualCenterPerspective(null);
+                }}
+                onMouseLeave={() => {
+                  setCenterHovered(false);
+                  setManualCenterPerspective(null);
+                }}
                 onClick={onEnterShop}
               >
                 {/* The Unboxed Image with Gradient Feather Mask (No solid borders) */}
@@ -413,24 +454,45 @@ const Portfolio: React.FC<PortfolioProps> = ({ onEnterShop }) => {
                     maskImage: 'radial-gradient(ellipse 75% 82% at 50% 50%, rgba(0,0,0,1) 45%, rgba(0,0,0,0.7) 70%, rgba(0,0,0,0) 100%)',
                   }}
                 >
-                  <img
-                    src={activePiece.imgUrl}
-                    alt={activePiece.title}
-                    className="max-w-full max-h-full object-contain filter contrast-[1.08] brightness-105 drop-shadow-[0_20px_50px_rgba(0,0,0,0.9)]"
-                  />
+                  <AnimatePresence mode="wait">
+                    <motion.img
+                      key={centerDisplayImg}
+                      initial={{ opacity: 0, scale: 0.94, filter: 'blur(3px)' }}
+                      animate={{ opacity: 1, scale: isShowingCenterAlternate ? 1.03 : 1, filter: 'blur(0px)' }}
+                      exit={{ opacity: 0, scale: 1.04, filter: 'blur(3px)' }}
+                      transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
+                      src={centerDisplayImg}
+                      alt={activePiece.title}
+                      className="max-w-full max-h-full object-contain filter contrast-[1.08] brightness-105 drop-shadow-[0_20px_50px_rgba(0,0,0,0.9)]"
+                    />
+                  </AnimatePresence>
                   
                   {/* Gentle Shimmer Sheen across the unboxed silhouette */}
                   <motion.div
-                    animate={{ x: ['-200%', '200%'] }}
-                    transition={{
-                      duration: 3.8,
-                      repeat: Infinity,
-                      repeatDelay: 2,
-                      ease: 'easeInOut',
-                    }}
-                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent skew-x-[-25deg] pointer-events-none"
+                    key={`sheen-${centerDisplayImg}`}
+                    initial={{ x: '-150%' }}
+                    animate={{ x: '150%' }}
+                    transition={{ duration: 1.2, ease: 'easeOut' }}
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent skew-x-[-25deg] pointer-events-none"
                   />
                 </div>
+
+                {/* Perspective Angle Switcher Hologram Button */}
+                <motion.div
+                  style={{
+                    transform: 'translateZ(65px)',
+                  }}
+                  className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-1 bg-black/80 backdrop-blur-md border border-gold-400/40 text-[8px] md:text-[9px] font-mono tracking-[0.25em] text-gold-300 uppercase shadow-2xl pointer-events-auto cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setManualCenterPerspective(prev => prev === 1 ? 0 : 1);
+                  }}
+                >
+                  <RefreshCw size={10} className={`text-gold-400 ${isShowingCenterAlternate ? 'rotate-180' : ''} transition-transform duration-500`} />
+                  <span>{isShowingCenterAlternate ? 'VIEW FRONT' : 'VIEW REVERSE'}</span>
+                  <span className="text-white/40">|</span>
+                  <span className="text-white/60">{isShowingCenterAlternate ? '02' : '01'}</span>
+                </motion.div>
 
                 {/* Floating 3D Metadata Hologram Badge */}
                 <motion.div

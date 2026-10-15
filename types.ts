@@ -191,7 +191,7 @@ export interface Product {
   createdAt?: any;
 }
 
-export type CustomerStage = 'initiative' | 'core' | 'inner' | 'ascent' | 'black' | 'signature';
+export type CustomerStage = 'applicant' | 'initiative' | 'core' | 'inner' | 'ascent' | 'black' | 'signature';
 
 export interface StageDefinition {
   id: CustomerStage;
@@ -211,6 +211,26 @@ export interface StageDefinition {
 
 export const CUSTOMER_STAGES: StageDefinition[] = [
   {
+    id: 'applicant',
+    level: 0,
+    name: 'Applicant',
+    code: 'APPL-00',
+    tagline: 'Pre-Flight Registration',
+    flightStatus: 'Pre-Flight Standby • Awaiting First Order & Admin Accreditation',
+    callsign: 'DEUZ-APPL-00',
+    altitude: '0 FT // HANGAR',
+    machSpeed: 'STATIC 0 KTS',
+    coordinates: 'ATELIER HANGAR [PRE-FLIGHT]',
+    accentColor: '#71717A',
+    description: 'Initial patron registration. Unlocks full Initiative Stage (Stage 01) upon completing your first order and receiving administrative accreditation by House Admin.',
+    privileges: [
+      'Access to exclusive capsule catalog & dossier archive',
+      'Placing initial atelier orders & concierge communications',
+      'Eligible for Stage 01 (Initiative) elevation after placing first order',
+      'Personal patron profile chamber access'
+    ]
+  },
+  {
     id: 'initiative',
     level: 1,
     name: 'Initiative',
@@ -222,7 +242,7 @@ export const CUSTOMER_STAGES: StageDefinition[] = [
     machSpeed: 'TAXI 25 KTS',
     coordinates: '48°51\'N • 2°20\'E [PARIS HUB]',
     accentColor: '#A1A1AA',
-    description: 'Initial patron accreditation. Verification of coordinates and invitation to house releases.',
+    description: 'First order accredited patron. Official verification of coordinates and invitation to house releases.',
     privileges: [
       'Standard seasonal collection reservations',
       'Digital certificate of acquisition authentication',

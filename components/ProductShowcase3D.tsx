@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from 'framer-motion';
 import { Sparkles, Eye, ZoomIn, ZoomOut, Lock, ShieldCheck, RefreshCw, ChevronLeft, ChevronRight, Layers } from 'lucide-react';
+import { getProductImageSet } from '../utils/productImages';
 
 interface ProductShowcase3DProps {
   product: any;
@@ -22,10 +23,9 @@ const ProductShowcase3D: React.FC<ProductShowcase3DProps> = ({
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
 
   const allImages = useMemo(() => {
-    return product.gallery && product.gallery.length > 0
-      ? [product.image, ...product.gallery]
-      : [product.image];
-  }, [product.image, product.gallery]);
+    const imgSet = getProductImageSet(product);
+    return imgSet.allImages;
+  }, [product]);
 
   // Spring physics for smooth 3D tilt
   const mouseX = useMotionValue(0);
@@ -311,7 +311,7 @@ const ProductShowcase3D: React.FC<ProductShowcase3DProps> = ({
             {/* Macro Weave Inspection Toggle */}
             <button
               onClick={() => setIsZoomMode(!isZoomMode)}
-              className={`flex items-center gap-1.5 px-2.5 py-1 text-[8.5px] font-mono tracking-[0.2em] uppercase rounded-sm border transition-all duration-300 backdrop-blur-md ${
+              className={`flex items-center gap-1.5 px-2.5 py-1 text-[8.5px] font-mono tracking-[0.2em] uppercase rounded-none border transition-all duration-300 backdrop-blur-md ${
                 isZoomMode 
                   ? 'bg-gold-400 text-black border-gold-400 font-bold shadow-[0_0_15px_rgba(212,175,55,0.4)]' 
                   : 'bg-black/70 text-white/80 border-white/15 hover:border-gold-400/60 hover:text-gold-300'
@@ -321,7 +321,22 @@ const ProductShowcase3D: React.FC<ProductShowcase3DProps> = ({
               <span>{isZoomMode ? 'EXIT LOUPE' : 'INSPECT WEAVE'}</span>
             </button>
 
-            <span className="text-[8px] font-mono text-white/40 tracking-widest hidden sm:inline-block">
+            {/* Quick Perspective Toggle (Front / Reverse) */}
+            {allImages.length > 1 && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCurrentImageIndex((currentImageIndex + 1) % allImages.length);
+                }}
+                className="flex items-center gap-1.5 px-2.5 py-1 text-[8.5px] font-mono tracking-[0.2em] uppercase rounded-none border border-gold-500/30 bg-black/80 hover:border-gold-400 text-gold-300 transition-all duration-300 shadow-lg cursor-pointer"
+              >
+                <RefreshCw size={10} className="text-gold-400" />
+                <span>{currentImageIndex === 0 ? "VIEW REVERSE (02)" : "VIEW FRONT (01)"}</span>
+              </button>
+            )}
+
+            <span className="text-[8px] font-mono text-white/40 tracking-widest hidden lg:inline-block">
               3D GYROSCOPE ACTIVE
             </span>
           </motion.div>
@@ -329,16 +344,17 @@ const ProductShowcase3D: React.FC<ProductShowcase3DProps> = ({
 
         {/* --- MULTI-PERSPECTIVE 3D FILMSTRIP THUMBNAILS DOCK --- */}
         {allImages.length > 1 && (
-          <div className="relative z-20 mt-4 sm:mt-5 flex items-center justify-center gap-2 p-1.5 bg-black/60 backdrop-blur-md border border-white/10 rounded-sm">
+          <div className="relative z-20 mt-4 sm:mt-5 flex items-center justify-center gap-2 p-1.5 bg-black/60 backdrop-blur-md border border-white/10 rounded-none">
             {allImages.map((img: string, idx: number) => {
               const isActive = idx === currentImageIndex;
+              const label = idx === 0 ? '01 FRONT' : (idx === 1 ? '02 REVERSE' : `0${idx + 1} DETAIL`);
               return (
                 <motion.button
                   key={idx}
                   whileHover={{ scale: 1.08, y: -2 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={() => setCurrentImageIndex(idx)}
-                  className={`relative w-12 h-14 sm:w-14 sm:h-16 rounded-sm overflow-hidden border transition-all duration-300 ${
+                  className={`relative w-14 h-16 sm:w-16 sm:h-18 rounded-none overflow-hidden border transition-all duration-300 ${
                     isActive 
                       ? 'border-gold-400 shadow-[0_0_12px_rgba(212,175,55,0.5)]' 
                       : 'border-white/10 opacity-50 hover:opacity-90 hover:border-white/40'
@@ -352,8 +368,8 @@ const ProductShowcase3D: React.FC<ProductShowcase3DProps> = ({
                   {isActive && (
                     <div className="absolute inset-0 bg-gold-400/10 pointer-events-none" />
                   )}
-                  <div className="absolute bottom-0 inset-x-0 bg-black/85 text-[7px] sm:text-[8px] font-mono text-center text-white/80 py-0.5">
-                    0{idx + 1}
+                  <div className="absolute bottom-0 inset-x-0 bg-black/90 text-[6.5px] sm:text-[7.5px] font-mono text-center text-white/90 py-0.5 tracking-wider">
+                    {label}
                   </div>
                 </motion.button>
               );

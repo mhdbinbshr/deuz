@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   X, 
@@ -63,10 +63,21 @@ export const CustomerProfileChamber: React.FC<CustomerProfileChamberProps> = ({
   const [copiedHouseCode, setCopiedHouseCode] = useState(false);
   const [copiedDossierId, setCopiedDossierId] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [userOrders, setUserOrders] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (isOpen && user) {
+      const unsub = db.subscribeMyOrders((orders) => {
+        if (Array.isArray(orders)) setUserOrders(orders);
+      });
+      return () => unsub();
+    }
+  }, [isOpen, user]);
 
   if (!isOpen || !user) return null;
 
-  const currentStage = user.stage || 'initiative';
+  const currentStage = user.stage || 'applicant';
+  const hasFirstOrder = userOrders.length > 0;
   const stageMeta = CUSTOMER_STAGES.find(s => s.id === currentStage) || CUSTOMER_STAGES[0];
   const dossierId = `DEUZ-ARCHIVE-0${stageMeta.level}-${(user.id || '777').slice(0, 6).toUpperCase()}`;
 
@@ -444,9 +455,21 @@ export const CustomerProfileChamber: React.FC<CustomerProfileChamberProps> = ({
                         AERONAUTICAL FLIGHT TELEMETRY
                       </span>
                     </div>
-                    <span className="px-2.5 py-0.5 rounded-full text-[8.5px] font-mono uppercase tracking-widest bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 flex items-center gap-1.5 font-bold shadow-[0_0_10px_rgba(16,185,129,0.3)]">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                      AIRBORNE • CORRIDOR ACTIVE
+                    <span className={`px-2.5 py-0.5 rounded-full text-[8.5px] font-mono uppercase tracking-widest border flex items-center gap-1.5 font-bold ${
+                      currentStage === 'applicant'
+                        ? hasFirstOrder 
+                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-[0_0_10px_rgba(245,158,11,0.25)]'
+                          : 'bg-zinc-800/60 text-zinc-400 border-zinc-700'
+                        : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 shadow-[0_0_10px_rgba(16,185,129,0.3)]'
+                    }`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${
+                        currentStage === 'applicant'
+                          ? hasFirstOrder ? 'bg-amber-400 animate-ping' : 'bg-zinc-500'
+                          : 'bg-emerald-400 animate-ping'
+                      }`} />
+                      {currentStage === 'applicant' 
+                        ? (hasFirstOrder ? '1ST ORDER PLACED • PENDING ADMIN DECISION' : 'PRE-FLIGHT • STANDBY') 
+                        : 'AIRBORNE • CORRIDOR ACTIVE'}
                     </span>
                   </div>
 
@@ -820,6 +843,7 @@ export const CustomerProfileChamber: React.FC<CustomerProfileChamberProps> = ({
               
               <CustomerStageTracker 
                 currentStage={currentStage} 
+                hasPlacedFirstOrder={hasFirstOrder}
                 onRequestUpgrade={handleRequestUpgrade}
               />
             </div>

@@ -7,6 +7,7 @@ import { CartItem, WishlistItem } from '../types';
 import { db } from '../utils/db';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
+import { getProductImageSet } from '../utils/productImages';
 
 interface ProductPageProps {
   onBack: () => void;
@@ -32,13 +33,13 @@ const ProductCard: React.FC<ProductCardProps> = ({
 }) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const [isHovered, setIsHovered] = useState(false);
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [manualIndex, setManualIndex] = useState<number | null>(null);
 
   // 3D Tilt Spring Physics
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
-  const rotateX = useSpring(useTransform(mouseY, [-0.5, 0.5], [12, -12]), { stiffness: 220, damping: 22 });
-  const rotateY = useSpring(useTransform(mouseX, [-0.5, 0.5], [-12, 12]), { stiffness: 220, damping: 22 });
+  const rotateX = useSpring(useTransform(mouseY, [-0.5, 0.5], [10, -10]), { stiffness: 220, damping: 22 });
+  const rotateY = useSpring(useTransform(mouseX, [-0.5, 0.5], [-10, 10]), { stiffness: 220, damping: 22 });
   const glareX = useTransform(mouseX, [-0.5, 0.5], ['0%', '100%']);
   const glareY = useTransform(mouseY, [-0.5, 0.5], ['0%', '100%']);
 
@@ -55,23 +56,25 @@ const ProductCard: React.FC<ProductCardProps> = ({
     mouseX.set(0);
     mouseY.set(0);
     setIsHovered(false);
+    setManualIndex(null);
   }, [mouseX, mouseY]);
   
-  const allImages = useMemo(() => {
-    return product.gallery?.length > 0 
-      ? [product.image, ...product.gallery] 
-      : [product.image];
-  }, [product.image, product.gallery]);
+  // Guarantee paired primary and secondary views for every product
+  const imageSet = useMemo(() => {
+    return getProductImageSet({
+      image: product.image,
+      gallery: product.gallery,
+      title: product.title,
+      houseCode: product.houseCode
+    });
+  }, [product.image, product.gallery, product.title, product.houseCode]);
 
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (allImages.length > 1 && isHovered) {
-      interval = setInterval(() => {
-        setCurrentImageIndex(prev => (prev + 1) % allImages.length);
-      }, 1600);
-    }
-    return () => clearInterval(interval);
-  }, [allImages.length, isHovered]);
+  const allImages = imageSet.allImages;
+  const currentImageIndex = manualIndex !== null 
+    ? manualIndex 
+    : (isHovered && allImages.length > 1 ? 1 : 0);
+
+  const activeImage = allImages[currentImageIndex] || imageSet.primary;
 
   return (
     <motion.div
@@ -80,7 +83,10 @@ const ProductCard: React.FC<ProductCardProps> = ({
       onClick={onClick}
       ref={cardRef}
       onMouseMove={handleMouseMove}
-      onMouseEnter={() => setIsHovered(true)}
+      onMouseEnter={() => {
+        setIsHovered(true);
+        setManualIndex(null);
+      }}
       onMouseLeave={handleMouseLeave}
       className="group cursor-pointer flex flex-col perspective-[1000px]"
     >
@@ -92,25 +98,35 @@ const ProductCard: React.FC<ProductCardProps> = ({
         }}
         whileHover={{ scale: 1.02 }}
         transition={{ type: "spring", stiffness: 250, damping: 22 }}
-        className="w-full aspect-[3/4] overflow-hidden bg-[#0A0A0A] relative mb-5 rounded-sm border border-white/10 group-hover:border-gold-400/40 transition-colors duration-500 shadow-[0_15px_35px_rgba(0,0,0,0.6)] group-hover:shadow-[0_20px_50px_rgba(212,175,55,0.15)]"
+        className="w-full aspect-[3/4] overflow-hidden bg-[#0A0A0A] relative mb-5 rounded-none border border-white/10 group-hover:border-gold-400/50 transition-colors duration-500 shadow-[0_15px_35px_rgba(0,0,0,0.6)] group-hover:shadow-[0_20px_50px_rgba(212,175,55,0.15)]"
       >
-        {/* Images */}
-        {allImages.map((img: string, idx: number) => (
+        {/* Animated Alternate Product Image View */}
+        <AnimatePresence mode="wait">
           <motion.img 
-            key={idx}
-            layoutId={idx === 0 ? `product-image-${product.id}` : undefined}
-            src={img} 
+            key={activeImage}
+            layoutId={currentImageIndex === 0 ? `product-image-${product.id}` : undefined}
+            src={activeImage} 
             alt={product.title} 
-            initial={idx === 0 ? { scale: 1.05 } : { opacity: 0 }}
+            initial={{ opacity: 0, scale: 1.05, filter: 'blur(2px)' }}
             animate={{ 
-                scale: currentImageIndex === idx ? (isHovered ? 1.04 : 1) : 1.05, 
-                opacity: currentImageIndex === idx ? 1 : 0,
-                zIndex: currentImageIndex === idx ? 10 : 0
+              opacity: product.inStock ? 1 : 0.45,
+              scale: isHovered ? 1.04 : 1,
+              filter: 'blur(0px)'
             }}
-            transition={{ duration: 0.7, ease: "easeOut" }}
-            className={`absolute inset-0 w-full h-full object-cover transition-all duration-700 ${product.inStock ? 'opacity-85 group-hover:opacity-100' : 'opacity-40 grayscale'}`} 
+            exit={{ opacity: 0, scale: 0.98, filter: 'blur(2px)' }}
+            transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
+            className={`absolute inset-0 w-full h-full object-cover transition-transform duration-700 ${!product.inStock ? 'grayscale' : ''}`} 
           />
-        ))}
+        </AnimatePresence>
+
+        {/* Dynamic Light Sweep on Image Change */}
+        <motion.div
+          key={`flare-${currentImageIndex}`}
+          initial={{ x: '-100%', opacity: 0.35 }}
+          animate={{ x: '200%', opacity: 0 }}
+          transition={{ duration: 0.9, ease: 'easeOut' }}
+          className="absolute inset-0 bg-gradient-to-r from-transparent via-gold-300/20 to-transparent skew-x-[-20deg] pointer-events-none z-20"
+        />
 
         {/* Dynamic Interactive Specular Glare */}
         <motion.div 
@@ -139,7 +155,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
         {product.imageTag && (
           <div 
             style={{ transform: "translateZ(30px)" }}
-            className="absolute top-3.5 left-3.5 bg-black/70 border border-gold-400/25 backdrop-blur-md px-2.5 py-1 z-30 rounded-sm pointer-events-none"
+            className="absolute top-3.5 left-3.5 bg-black/70 border border-gold-400/25 backdrop-blur-md px-2.5 py-1 z-30 rounded-none pointer-events-none"
           >
             <div className="flex items-center gap-1.5">
               <Sparkles size={9} className="text-gold-400 animate-pulse" />
@@ -155,7 +171,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
             e.stopPropagation();
             onToggleWishlist?.(e);
           }}
-          className={`absolute top-3 right-3 z-40 w-8 h-8 rounded-full border backdrop-blur-md flex items-center justify-center transition-all duration-300 cursor-pointer ${
+          className={`absolute top-3 right-3 z-40 w-8 h-8 rounded-none border backdrop-blur-md flex items-center justify-center transition-all duration-300 cursor-pointer ${
             isWishlisted
               ? 'bg-red-500/20 border-red-500/60 text-red-400 scale-105 opacity-100 shadow-[0_0_15px_rgba(239,68,68,0.4)]'
               : 'bg-black/60 border-white/20 text-white/70 hover:text-red-400 hover:border-red-400/50 opacity-90 sm:opacity-0 group-hover:opacity-100'
@@ -166,28 +182,35 @@ const ProductCard: React.FC<ProductCardProps> = ({
           <Heart size={14} fill={isWishlisted ? "currentColor" : "none"} strokeWidth={1.8} />
         </button>
 
-        {/* Multi-angle indicator pills */}
+        {/* Multi-angle Interactive Perspective Indicator Pill */}
         {allImages.length > 1 && (
-          <div className="absolute top-3.5 right-13 flex items-center gap-1 z-30 pointer-events-none">
-            {allImages.map((_, i) => (
-              <span
-                key={i}
-                className={`w-1 h-1 rounded-full transition-all duration-300 ${
-                  currentImageIndex === i ? 'bg-gold-400 w-2.5' : 'bg-white/30'
-                }`}
-              />
-            ))}
+          <div 
+            style={{ transform: "translateZ(32px)" }}
+            className="absolute top-3.5 right-12 flex items-center gap-1 z-30 pointer-events-auto"
+            onClick={(e) => {
+              e.stopPropagation();
+              setManualIndex(prev => prev === 1 ? 0 : 1);
+            }}
+          >
+            <button
+              type="button"
+              className="px-2 py-0.5 bg-black/80 hover:bg-black border border-white/20 hover:border-gold-400/60 text-[7.5px] font-mono tracking-widest uppercase text-white/80 rounded-none flex items-center gap-1 transition-all duration-300 shadow-md"
+              title="Click to toggle perspective"
+            >
+              <RefreshCw size={8} className={`text-gold-400 ${currentImageIndex === 1 ? 'rotate-180' : ''} transition-transform duration-500`} />
+              <span>{currentImageIndex === 0 ? '01 FRONT' : '02 REVERSE'}</span>
+            </button>
           </div>
         )}
 
         {product.inStock && (
           <div 
             style={{ transform: "translateZ(35px)" }}
-            className="absolute bottom-0 left-0 right-0 p-4 translate-y-full group-hover:translate-y-0 transition-transform duration-400 ease-[0.22,1,0.36,1] flex justify-between items-center bg-gradient-to-t from-black via-black/80 to-transparent z-30 pointer-events-none border-t border-gold-400/20"
+            className="absolute bottom-0 left-0 right-0 p-3.5 translate-y-full group-hover:translate-y-0 transition-transform duration-400 ease-[0.22,1,0.36,1] flex justify-between items-center bg-gradient-to-t from-black via-black/80 to-transparent z-30 pointer-events-none border-t border-gold-400/20"
           >
             <span className="text-[9px] uppercase tracking-[0.25em] text-white font-mono flex items-center gap-1.5">
               <Eye size={11} className="text-gold-400" />
-              Examine Artifact
+              {currentImageIndex === 1 ? 'Viewing Reverse' : 'Examine Artifact'}
             </span>
             <ArrowUpRight size={13} className="text-gold-400" />
           </div>
@@ -251,25 +274,28 @@ const ProductPage: React.FC<ProductPageProps> = ({
             const data = await db.getProducts() as any[];
             if (data && data.length > 0) {
                 // Map Backend Model to Frontend UI
-                const mapped = data.map((p: any) => ({
-                    id: p._id,
-                    title: p.title,
-                    price: p.price,
-                    category: 'TEES',
-                    image: p.image,
-                    gallery: p.gallery || [],
-                    description: p.description,
-                    details: p.details || {},
-                    inStock: p.countInStock > 0,
-                    countInStock: p.countInStock,
-                    isArchived: p.isArchived, // Add archived state
-                    // Enforce Alpha sizing fallback if not present, though DB should now provide it
-                    sizes: p.sizes && p.sizes.length > 0 ? p.sizes : ['S', 'M', 'L', 'XL', 'XXL'],
-                    outOfStockSizes: p.outOfStockSizes || [],
-                    sizeStock: p.sizeStock || {},
-                    imageTag: p.imageTag,
-                    houseCode: p.houseCode
-                }));
+                const mapped = data.map((p: any) => {
+                    const imgSet = getProductImageSet(p);
+                    return {
+                      id: p._id,
+                      title: p.title,
+                      price: p.price,
+                      category: 'TEES',
+                      image: imgSet.primary,
+                      gallery: imgSet.allImages.slice(1),
+                      description: p.description,
+                      details: p.details || {},
+                      inStock: p.countInStock > 0,
+                      countInStock: p.countInStock,
+                      isArchived: p.isArchived, // Add archived state
+                      // Enforce Alpha sizing fallback if not present, though DB should now provide it
+                      sizes: p.sizes && p.sizes.length > 0 ? p.sizes : ['S', 'M', 'L', 'XL', 'XXL'],
+                      outOfStockSizes: p.outOfStockSizes || [],
+                      sizeStock: p.sizeStock || {},
+                      imageTag: p.imageTag,
+                      houseCode: p.houseCode
+                    };
+                });
                 // Filter out archived products for the public store
                 setProducts(mapped.filter((p: any) => !p.isArchived));
             } else {

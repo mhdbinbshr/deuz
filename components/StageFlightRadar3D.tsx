@@ -117,6 +117,7 @@ export const StageFlightRadar3D: React.FC<StageFlightRadar3DProps> = ({
     const safeStageIdx = stageIndex >= 0 ? stageIndex : 0;
 
     const waypointAngles = [
+      { lat: 18.92, lon: 72.83 },   // Mumbai Hangar (Applicant Stage 00)
       { lat: 48.85, lon: 2.35 },    // Paris (Initiative)
       { lat: 51.5, lon: -0.12 },    // London (Core)
       { lat: 25.2, lon: 55.27 },    // Dubai (Inner)

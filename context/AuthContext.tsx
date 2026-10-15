@@ -135,7 +135,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 mobile: userData.mobile || '',
                 alternateMobile: addressData?.alternateMobile || '',
                 role: isAdminEmail ? 'admin' : (userData.role || 'user'),
-                stage: (userData.stage as any) || 'initiative',
+                stage: (userData.stage as any) || 'applicant',
                 houseCode: userData.houseCode || userData.houseId || '',
                 houseId: userData.houseId || userData.houseCode || '',
                 address: addressData,
@@ -156,7 +156,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 emailVerified: firebaseUser.emailVerified,
                 mobile: '',
                 role: isAdminEmail ? 'admin' : 'user',
-                stage: 'initiative',
+                stage: 'applicant',
                 houseCode: '',
                 houseId: '',
                 orders: [],
@@ -174,7 +174,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                   email: (firebaseUser.email || '').toLowerCase().trim(),
                   mobile: '',
                   role: isAdminEmail ? 'admin' : 'user',
-                  stage: 'initiative',
+                  stage: 'applicant',
                   addresses: [],
                   emailVerified: firebaseUser.emailVerified,
                   createdAt: serverTimestamp(),
@@ -246,14 +246,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       let isUserNotFound = false;
 
       if (error.code === 'auth/user-not-found') {
-        message = 'No account found for this email address in Firebase. Please register first.';
+        message = 'No account found for this email address. Please register first.';
         isUserNotFound = true;
       } else if (error.code === 'auth/invalid-credential' || error.code === 'auth/wrong-password') {
         try {
           const exists = await db.checkUserExists(email);
           if (!exists) {
             isUserNotFound = true;
-            message = 'No registered dossier found in Firebase. Please register first.';
+            message = 'No registered dossier found. Please register first.';
           } else {
             message = 'Invalid email or password. Please verify your credentials.';
           }

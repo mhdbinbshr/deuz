@@ -26,14 +26,16 @@ interface CustomerStageTrackerProps {
   show3DRadar?: boolean;
   isAdmin?: boolean;
   onAdminUpgradeStage?: (stageId: CustomerStage) => Promise<void> | void;
+  hasPlacedFirstOrder?: boolean;
 }
 
 export const CustomerStageTracker: React.FC<CustomerStageTrackerProps> = ({
-  currentStage = 'initiative',
+  currentStage = 'applicant',
   onRequestUpgrade,
   show3DRadar = true,
   isAdmin = false,
-  onAdminUpgradeStage
+  onAdminUpgradeStage,
+  hasPlacedFirstOrder = false
 }) => {
   const [selectedStage, setSelectedStage] = useState<CustomerStage>(currentStage);
   const [activeTab, setActiveTab] = useState<'trajectory' | 'radar3d'>('trajectory');
@@ -193,8 +195,8 @@ export const CustomerStageTracker: React.FC<CustomerStageTrackerProps> = ({
             }}
           />
 
-          {/* The 6 Stages Row */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 sm:gap-4 relative z-10">
+          {/* The 7 Stages Row */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2.5 sm:gap-3 relative z-10">
             {CUSTOMER_STAGES.map((stage, idx) => {
               const active = isCurrent(stage.id);
               const completed = isCompleted(idx);
@@ -349,6 +351,23 @@ export const CustomerStageTracker: React.FC<CustomerStageTrackerProps> = ({
                       : `Admin: Elevate to ${selectedStageData.name}`}
                   </span>
                 </button>
+              ) : selectedStage === 'initiative' && currentStage === 'applicant' ? (
+                hasPlacedFirstOrder ? (
+                  <div className="flex items-center gap-2 px-3.5 py-2 rounded-lg bg-amber-500/15 border border-amber-500/40 text-amber-300 text-xs font-mono shadow-[0_0_15px_rgba(245,158,11,0.2)]">
+                    <Sparkles size={13} className="text-amber-400 shrink-0" />
+                    <span>1st Order Placed • Awaiting Admin Decision</span>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={onRequestUpgrade}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-gold-500 to-amber-400 hover:from-gold-400 hover:to-amber-300 text-black text-xs font-mono uppercase tracking-widest font-bold rounded-lg transition-all shadow-[0_0_20px_rgba(212,175,55,0.35)] cursor-pointer"
+                  >
+                    <Sparkles size={13} />
+                    <span>Place 1st Order for Initiative</span>
+                    <ArrowUpRight size={13} />
+                  </button>
+                )
               ) : (
                 <button
                   type="button"

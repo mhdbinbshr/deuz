@@ -1220,12 +1220,37 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
                                  if (orderFilter === 'shipped') return ['DISPATCHED', 'IN_TRANSIT', 'ARRIVED_AT_HUB', 'OUT_FOR_DELIVERY', 'DELIVERED', 'EXPERIENCE_UNLOCKED'].includes(o.orderStatus);
                                  if (orderFilter === 'cancelled') return o.orderStatus === 'CANCELLED';
                                  return true;
-                             }).map((order) => (
+                             }).map((order) => {
+                                 const clientEmail = order.shippingAddress?.email || (order as any).clientEmail;
+                                 const matchingUser = users.find(u => 
+                                   (clientEmail && u.email && u.email.toLowerCase() === clientEmail.toLowerCase()) || 
+                                   u.id === order.user || 
+                                   u._id === order.user
+                                 );
+                                 const isApplicant = matchingUser && (!matchingUser.stage || matchingUser.stage === 'applicant');
+
+                                 return (
                                  <tr key={order._id} className="hover:bg-white/[0.02] transition-colors">
                                      <td className="p-4 text-xs font-mono text-gold-500">{order.conciergeCode || order._id.slice(-6)}</td>
                                      <td className="p-4">
                                          <p className="text-white text-xs font-bold">{order.shippingAddress?.fullName || 'Unknown'}</p>
                                          <p className="text-white/40 text-[10px]">{order.shippingAddress?.city}</p>
+                                         {isApplicant && matchingUser && (
+                                             <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+                                                 <span className="px-1.5 py-0.5 rounded text-[8.5px] font-mono uppercase bg-amber-500/20 text-amber-300 border border-amber-500/40 font-semibold">
+                                                     1st Order • Needs Stage 01 Approval
+                                                 </span>
+                                                 <button
+                                                     type="button"
+                                                     onClick={() => handleUpdateUserStage(matchingUser.id, 'initiative', matchingUser.fullName)}
+                                                     title={`Elevate ${matchingUser.fullName} to Stage 01 Initiative`}
+                                                     className="px-2 py-0.5 bg-gold-500/20 hover:bg-gold-500 text-gold-300 hover:text-black border border-gold-500/40 text-[8.5px] font-mono uppercase tracking-wider rounded font-bold transition-all cursor-pointer flex items-center gap-1"
+                                                 >
+                                                     <CheckCircle2 size={10} />
+                                                     <span>Approve Initiative</span>
+                                                 </button>
+                                             </div>
+                                         )}
                                      </td>
                                      <td className="p-4 text-xs text-white">₹{order.totalAmount?.toLocaleString('en-IN') || 0}</td>
                                      <td className="p-4">
@@ -1279,7 +1304,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
                                          </button>
                                      </td>
                                  </tr>
-                             ))}
+                                  );
+                              })}
                          </tbody>
                      </table>
                  </div>
@@ -1797,7 +1823,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
                  (u.houseCode || '').toLowerCase().includes(userSearchQuery.toLowerCase()) ||
                  (u.houseId || '').toLowerCase().includes(userSearchQuery.toLowerCase());
                
-               const userStage = u.stage || 'initiative';
+               const userStage = u.stage || 'applicant';
                const matchesStage = userStageFilter === 'all' || userStage === userStageFilter;
 
                return matchesSearch && matchesStage;
@@ -1807,7 +1833,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
              const stageCounts: Record<string, number> = {};
              CUSTOMER_STAGES.forEach(s => { stageCounts[s.id] = 0; });
              users.forEach(u => {
-               const st = u.stage || 'initiative';
+               const st = u.stage || 'applicant';
                stageCounts[st] = (stageCounts[st] || 0) + 1;
              });
 
@@ -1847,7 +1873,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
                  </div>
 
                  {/* Customer Stage Telemetry Distribution Banner */}
-                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5">
+                 <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2.5">
                    {CUSTOMER_STAGES.map(s => {
                      const count = stageCounts[s.id] || 0;
                      const isSelected = userStageFilter === s.id;
@@ -1895,12 +1921,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
                          </tr>
                        ) : (
                          filteredUsers.map(u => {
-                           const currentStageId = (u.stage || 'initiative') as CustomerStage;
+                           const currentStageId = (u.stage || 'applicant') as CustomerStage;
                            const currentStageIdx = CUSTOMER_STAGES.findIndex(s => s.id === currentStageId);
                            const currentStageMeta = CUSTOMER_STAGES[currentStageIdx >= 0 ? currentStageIdx : 0];
                            const isUpdating = updatingStageUserId === u.id;
                            const canElevate = currentStageIdx < CUSTOMER_STAGES.length - 1;
                            const nextStage = canElevate ? CUSTOMER_STAGES[currentStageIdx + 1] : null;
+
+                           const userOrders = orders.filter(o => 
+                             (o.shippingAddress?.email && u.email && o.shippingAddress.email.toLowerCase() === u.email.toLowerCase()) ||
+                             (o.clientEmail && u.email && o.clientEmail.toLowerCase() === u.email.toLowerCase()) ||
+                             o.user === u.id || 
+                             o.user === u._id
+                           );
+                           const userOrderCount = userOrders.length;
+                           const isApplicant = currentStageId === 'applicant';
+                           const eligibleForInitiative = isApplicant && userOrderCount >= 1;
 
                            return (
                              <tr key={u.id} className="hover:bg-white/[0.02] transition-colors">
@@ -1970,20 +2006,36 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
                                {/* Flight Stage Status Badge */}
                                <td className="p-4">
                                  <div className="flex items-center gap-2">
-                                   <div className="p-1.5 rounded bg-gold-500/10 border border-gold-500/30 text-gold-400">
+                                   <div className={`p-1.5 rounded border ${
+                                     eligibleForInitiative 
+                                       ? 'bg-amber-500/20 border-amber-500/40 text-amber-300 animate-pulse'
+                                       : isApplicant 
+                                       ? 'bg-zinc-800/40 border-zinc-700 text-zinc-400' 
+                                       : 'bg-gold-500/10 border-gold-500/30 text-gold-400'
+                                   }`}>
                                      <Plane size={13} className="rotate-45" />
                                    </div>
                                    <div>
-                                     <div className="flex items-center gap-1.5">
-                                       <span className="text-xs font-serif font-bold text-gold-400">
+                                     <div className="flex items-center gap-1.5 flex-wrap">
+                                       <span className={`text-xs font-serif font-bold ${eligibleForInitiative ? 'text-amber-300' : 'text-gold-400'}`}>
                                          {currentStageMeta.name}
                                        </span>
                                        <span className="text-[9px] font-mono text-white/40">
                                          (0{currentStageMeta.level})
                                        </span>
+                                       {eligibleForInitiative && (
+                                         <span className="px-1.5 py-0.5 rounded text-[8.5px] font-mono uppercase tracking-wider bg-amber-500/25 border border-amber-500/50 text-amber-300 font-bold shadow-[0_0_10px_rgba(245,158,11,0.2)]">
+                                           ★ 1st Order Done • Ready for Initiative
+                                         </span>
+                                       )}
+                                       {isApplicant && userOrderCount === 0 && (
+                                         <span className="px-1.5 py-0.5 rounded text-[8px] font-mono uppercase bg-white/5 border border-white/10 text-white/40">
+                                           0 Orders (Pre-Initiative)
+                                         </span>
+                                       )}
                                      </div>
                                      <p className="text-[9px] font-mono text-white/40">
-                                       {currentStageMeta.machSpeed} • {currentStageMeta.altitude}
+                                       {userOrderCount} {userOrderCount === 1 ? 'order' : 'orders'} • {currentStageMeta.altitude}
                                      </p>
                                    </div>
                                  </div>
@@ -1992,6 +2044,26 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
                                {/* Admin Stage Upgrade Dropdown & Fast Elevate Button */}
                                <td className="p-4 text-right">
                                  <div className="flex items-center justify-end gap-2">
+                                   {/* Direct Admin Approval for First Order Initiative Elevation */}
+                                   {eligibleForInitiative && (
+                                     <button
+                                       type="button"
+                                       disabled={isUpdating}
+                                       onClick={() => handleUpdateUserStage(u.id, 'initiative', u.fullName)}
+                                       title={`Admin Decision: Elevate ${u.fullName || u.email} to Stage 01 (Initiative)`}
+                                       className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-gold-500 via-amber-400 to-yellow-300 hover:from-gold-400 hover:to-amber-200 text-black border border-gold-400 rounded text-[10px] font-mono uppercase tracking-wider font-bold transition-all shadow-[0_0_15px_rgba(212,175,55,0.4)] cursor-pointer disabled:opacity-50 shrink-0"
+                                     >
+                                       {isUpdating ? (
+                                         <span className="w-3 h-3 border border-black border-t-transparent rounded-full animate-spin" />
+                                       ) : (
+                                         <>
+                                           <CheckCircle2 size={12} />
+                                           <span>Approve Initiative</span>
+                                         </>
+                                       )}
+                                     </button>
+                                   )}
+
                                    {/* Remove User Dossier */}
                                    <button
                                      type="button"
@@ -2011,13 +2083,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
                                    >
                                      {CUSTOMER_STAGES.map(s => (
                                        <option key={s.id} value={s.id} className="bg-[#0A0A0A] text-white">
-                                         Stage 0{s.level}: {s.name} ({s.code})
+                                         Stage 0{s.level}: {s.name} ({s.code}) {s.id === 'applicant' ? '[Pre-Flight]' : s.id === 'initiative' ? '[1st Order]' : ''}
                                        </option>
                                      ))}
                                    </select>
 
                                    {/* Fast Elevate Button */}
-                                   {canElevate && nextStage && (
+                                   {canElevate && nextStage && !eligibleForInitiative && (
                                      <button
                                        type="button"
                                        disabled={isUpdating}

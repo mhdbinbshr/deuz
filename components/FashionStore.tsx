@@ -4,6 +4,8 @@ import { ArrowUpRight, MousePointer2 } from 'lucide-react';
 import { useSettings } from '../context/SettingsContext';
 import { db, INITIAL_PRODUCTS } from '../utils/db';
 import { Product } from '../types';
+import { getProductImageSet } from '../utils/productImages';
+import { RefreshCw, Sparkles, Layers } from 'lucide-react';
 
 interface FashionStoreProps {
   onEnterStore: () => void;
@@ -81,6 +83,22 @@ const FashionStore: React.FC<FashionStoreProps> = ({ onEnterStore }) => {
   const yPos = useTransform(smoothProgress, [0, 1], [50, 0]);
   const atmosphereOpacity = useTransform(smoothProgress, [0.1, 0.8], [0, 1]);
 
+  const [isHoveredCard, setIsHoveredCard] = useState(false);
+  const [manualPerspective, setManualPerspective] = useState<number | null>(null);
+
+  // Compute image pairing for the displayed garment (Front and Reverse silhouette)
+  const imageSet = React.useMemo(() => {
+    return getProductImageSet({
+      image: displayImage,
+      gallery: chosenProduct?.gallery,
+      title: displayTitle,
+      houseCode: chosenProduct?.houseCode
+    });
+  }, [displayImage, chosenProduct, displayTitle]);
+
+  const activeIndex = manualPerspective !== null ? manualPerspective : (isHoveredCard ? 1 : 0);
+  const currentDisplayImage = activeIndex === 0 ? imageSet.primary : imageSet.secondary;
+
   const handleEnterClick = () => {
     setIsWalkingIn(true);
     setTimeout(() => {
@@ -118,25 +136,72 @@ const FashionStore: React.FC<FashionStoreProps> = ({ onEnterStore }) => {
           style={{ y: isWalkingIn ? 0 : yPos, transformStyle: "preserve-3d" }}
           className="relative w-full max-w-5xl h-[70vh] flex items-center justify-center"
         >
-          {/* Main Center Garment Image Card */}
+          {/* Main Center Garment Image Card with Animated Alternate Image View */}
           <motion.div 
             initial={{ opacity: 0, scale: 0.9 }}
             whileInView={{ opacity: 1, scale: 1 }}
             transition={{ duration: 1, ease: "easeOut" }}
-            className="relative w-[320px] md:w-[400px] aspect-[3/4] bg-[#050505] rounded-sm overflow-hidden border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-10 group"
+            onMouseEnter={() => {
+              setIsHoveredCard(true);
+              setManualPerspective(null);
+            }}
+            onMouseLeave={() => {
+              setIsHoveredCard(false);
+              setManualPerspective(null);
+            }}
+            className="relative w-[320px] md:w-[400px] aspect-[3/4] bg-[#050505] rounded-none overflow-hidden border border-white/10 hover:border-gold-500/40 transition-colors duration-500 shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-10 group cursor-pointer"
           >
             <AnimatePresence mode="wait">
               <motion.img 
-                key={displayImage}
-                initial={{ opacity: 0, scale: 1.05 }}
-                animate={{ opacity: 0.85, scale: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 1.5 }}
-                src={displayImage}
+                key={currentDisplayImage}
+                initial={{ opacity: 0, scale: 1.05, filter: 'blur(2px)' }}
+                animate={{ opacity: 0.9, scale: isHoveredCard ? 1.04 : 1, filter: 'blur(0px)' }}
+                exit={{ opacity: 0, scale: 0.98, filter: 'blur(2px)' }}
+                transition={{ duration: 0.75, ease: [0.22, 1, 0.36, 1] }}
+                src={currentDisplayImage}
                 className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-[1.5s]"
-                alt="Collection Preview"
+                alt={displayTitle}
               />
             </AnimatePresence>
+
+            {/* Specular light sheen on transition */}
+            <motion.div
+              key={`sheen-${activeIndex}`}
+              initial={{ x: '-100%', opacity: 0.35 }}
+              animate={{ x: '200%', opacity: 0 }}
+              transition={{ duration: 1.1, ease: "easeOut" }}
+              className="absolute inset-0 bg-gradient-to-r from-transparent via-gold-300/20 to-transparent skew-x-[-20deg] pointer-events-none z-20"
+            />
+
+            {/* Perspective Switcher Controls */}
+            <div className="absolute top-4 left-4 right-4 z-30 flex items-center justify-between pointer-events-auto">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setManualPerspective(prev => prev === 1 ? 0 : 1);
+                }}
+                className="flex items-center gap-1.5 px-2.5 py-1 bg-black/80 backdrop-blur-md border border-gold-500/30 hover:border-gold-400 text-white text-[8.5px] font-mono tracking-[0.25em] uppercase rounded-none transition-all duration-300 shadow-lg cursor-pointer"
+              >
+                <RefreshCw size={10} className={`text-gold-400 ${activeIndex === 1 ? 'rotate-180' : ''} transition-transform duration-500`} />
+                <span className="text-gold-300">
+                  {activeIndex === 0 ? "PERSPECTIVE 01 // FRONT" : "PERSPECTIVE 02 // REVERSE"}
+                </span>
+              </button>
+
+              <div className="flex items-center gap-1 bg-black/60 backdrop-blur-md px-2 py-1 border border-white/10 text-[8px] font-mono text-white/50 tracking-widest rounded-none">
+                <span className={activeIndex === 0 ? "text-gold-400 font-bold" : "text-white/30"}>01</span>
+                <span>/</span>
+                <span className={activeIndex === 1 ? "text-gold-400 font-bold" : "text-white/30"}>02</span>
+              </div>
+            </div>
+
+            {/* Subtle Interactive Instruction Pill */}
+            <div className="absolute top-12 left-4 z-20 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+              <span className="text-[7.5px] font-mono tracking-[0.25em] uppercase text-white/80 bg-black/70 px-2 py-0.5 border border-white/15">
+                {activeIndex === 0 ? "HOVER / TAP TO REVEAL REVERSE" : "VIEWING REVERSE PERSPECTIVE"}
+              </span>
+            </div>
 
             <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-90 pointer-events-none" />
 

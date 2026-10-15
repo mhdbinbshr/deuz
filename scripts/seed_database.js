@@ -39,7 +39,9 @@ const INITIAL_PRODUCTS = [
     productType: "APPAREL",
     fit: "oversized",
     image: "https://ik.imagekit.io/dto1zguat/Dustbound_1.jpg?updatedAt=1775277953541",
-    gallery: [],
+    gallery: [
+      "https://ik.imagekit.io/dto1zguat/Dustbound_2.jpg"
+    ],
     houseCode: "DEUZ-F01-DST",
     countInStock: 18,
     isArchived: false,

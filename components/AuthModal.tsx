@@ -231,7 +231,7 @@ const AuthModal: React.FC = () => {
 
         if (res.success) {
           setIsExistingUserOnSignup(false);
-          setSuccess('Dossier established successfully in the Initiative Stage. Welcome to Deuz & Co.');
+          setSuccess('Dossier established successfully. Welcome to Deuz & Co.');
           setTimeout(() => {
             closeAuthModal();
           }, 800);
@@ -346,7 +346,7 @@ const AuthModal: React.FC = () => {
               className="relative w-full max-w-lg md:max-w-4xl bg-[#070707] border border-white/15 rounded-xl sm:rounded-lg overflow-hidden shadow-[0_30px_100px_rgba(0,0,0,0.95)] flex flex-col md:flex-row md:max-h-[88vh] z-10 my-auto shrink-0"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* User Not Found in Firebase Pop-up Dialog */}
+              {/* User Not Found Pop-up Dialog */}
               <AnimatePresence>
                 {showUserNotFoundPopup && (
                   <motion.div
@@ -386,10 +386,10 @@ const AuthModal: React.FC = () => {
 
                       <div className="space-y-1.5">
                         <span className="text-[10px] font-mono uppercase tracking-[0.25em] text-amber-400/90 font-bold block">
-                          FIREBASE IDENTITY CHECK // UNREGISTERED
+                          IDENTITY CHECK // UNREGISTERED
                         </span>
                         <h3 className="text-lg sm:text-xl font-serif text-white font-bold tracking-wide">
-                          User Not Found in Firebase
+                          User Not Found
                         </h3>
                         <p className="text-xs text-white/70 leading-relaxed pt-1">
                           No registered client profile or atelier dossier matches <span className="text-gold-400 font-mono font-medium underline break-all">{notFoundEmail}</span>.
@@ -975,7 +975,7 @@ const AuthModal: React.FC = () => {
                       <>
                         <span>
                           {mode === 'login' && 'Authorize & Sign In'}
-                          {mode === 'signup' && 'Establish Dossier (Initiative)'}
+                          {mode === 'signup' && 'Establish Dossier'}
                           {mode === 'forgot' && 'Transmit Recovery Link'}
                           {mode === 'resetConfirm' && 'Update & Confirm Password'}
                         </span>
