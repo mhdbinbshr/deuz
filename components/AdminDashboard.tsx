@@ -493,14 +493,25 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
   useEffect(() => {
     fetchData();
 
-    // Attach real-time Firestore listeners for live synchronisation
+    // Attach real-time database listeners for live synchronisation across all Admin Dashboard tabs
     const unsubProducts = db.subscribeProducts((liveProds) => {
-      if (Array.isArray(liveProds)) setProducts(liveProds);
+      if (Array.isArray(liveProds)) {
+        setProducts(liveProds);
+        const lowStock = liveProds.filter((p: any) => (p?.countInStock || 0) < 10).length;
+        setStats(prev => ({ ...prev, lowStock }));
+      }
     });
 
     const unsubOrders = db.subscribeOrders((liveOrders) => {
       if (Array.isArray(liveOrders)) {
         setOrders(liveOrders);
+        setSelectedOrder((prevSelected: any) => {
+          if (!prevSelected) return null;
+          const updated = liveOrders.find((o: any) =>
+            o._id === prevSelected._id || o.id === prevSelected.id || o.conciergeCode === prevSelected.conciergeCode
+          );
+          return updated || prevSelected;
+        });
         const revenue = liveOrders.reduce((acc: number, o: any) => {
           return (o?.paymentStatus === 'Paid' && typeof o?.totalAmount === 'number') ? acc + o.totalAmount : acc;
         }, 0);
@@ -529,21 +540,48 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
       }
     });
 
-    const interval = setInterval(fetchData, 15000);
+    const unsubAuditLogs = isAdmin ? db.subscribeAuditLogs((liveAudit) => {
+      if (Array.isArray(liveAudit)) setLogs(liveAudit);
+    }) : () => {};
+
+    const unsubAuthLogs = isAdmin ? db.subscribeAuthLogs((liveAuth) => {
+      if (Array.isArray(liveAuth)) setAuthLogs(liveAuth);
+    }) : () => {};
+
+    const unsubSystemLogs = isAdmin ? db.subscribeSystemLogs((liveSys) => {
+      if (Array.isArray(liveSys)) setSystemLogs(liveSys);
+    }) : () => {};
+
+    const unsubSettings = isAdmin ? db.subscribeSystemSettings((liveSettings) => {
+      if (liveSettings) {
+        setSettings((prev: any) => ({
+          ...(prev || {}),
+          ...liveSettings,
+          siteContent: { ...(prev?.siteContent || {}), ...(liveSettings.siteContent || {}) },
+          conciergeConfig: { ...(prev?.conciergeConfig || {}), ...(liveSettings.conciergeConfig || {}) }
+        }));
+      }
+    }) : () => {};
+
+    const interval = setInterval(fetchData, 20000);
     return () => {
       clearInterval(interval);
       unsubProducts();
       unsubOrders();
       unsubAppointments();
       unsubUsers();
+      unsubAuditLogs();
+      unsubAuthLogs();
+      unsubSystemLogs();
+      unsubSettings();
     };
-  }, [fetchData]);
+  }, [fetchData, isAdmin]);
 
-  const handleManualFirebaseSync = async () => {
+  const handleManualCloudSync = async () => {
     setIsSyncing(true);
     try {
       await fetchData();
-      showNotification("Database Synchronized (Real-time connection active)");
+      showNotification("Atelier Cloud Synchronized (Real-time connection active)");
     } catch (e: any) {
       showNotification("Sync error: " + (e.message || "Network issue"), "error");
     } finally {
@@ -798,12 +836,32 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
       setActionLoading(true);
       try {
           await db.restoreOrder(id);
-          setOrders(prev => prev.map(o => o._id === id ? { ...o, isTrashed: false } : o));
+          setOrders(prev => prev.map(o => (o._id === id || o.id === id) ? { ...o, isTrashed: false } : o));
           showNotification("Order restored");
       } catch (e) {
           showNotification("Failed to restore order", 'error');
       }
       setActionLoading(false);
+  };
+
+  const handleDeleteOrderPermanently = async (id: string) => {
+      setConfirmModal({
+        isOpen: true,
+        title: 'Permanently Purge Order',
+        message: 'Are you sure you want to permanently purge this order record from the cloud database? This action cannot be undone.',
+        onConfirm: async () => {
+          setConfirmModal(prev => ({ ...prev, isOpen: false }));
+          setActionLoading(true);
+          try {
+              await db.deleteOrder(id);
+              setOrders(prev => prev.filter(o => o._id !== id && o.id !== id));
+              showNotification("Order permanently purged");
+          } catch (e) {
+              showNotification("Failed to purge order", 'error');
+          }
+          setActionLoading(false);
+        }
+      });
   };
 
   const generatePDFReport = () => {
@@ -1010,7 +1068,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
   };
 
   return (
-    <div className="h-screen overflow-hidden bg-[#020202] text-white font-sans flex relative">
+    <div className="min-h-screen h-[100dvh] overflow-hidden bg-[#020202] text-white font-sans flex relative">
       {/* Mobile Sidebar Overlay */}
       <AnimatePresence>
         {isSidebarOpen && (
@@ -1084,9 +1142,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
       </motion.aside>
 
       {/* Main Content */}
-      <main className="flex-1 ml-0 md:ml-64 p-4 md:p-8 relative overflow-x-hidden overflow-y-auto h-screen">
+      <main className="flex-1 ml-0 md:ml-64 p-3 sm:p-6 md:p-8 relative overflow-x-hidden overflow-y-auto h-[100dvh] max-h-[100dvh]">
          {/* Status Bar */}
-         <header className="sticky top-0 z-30 bg-[#020202]/90 backdrop-blur-md -mx-4 px-4 py-4 md:mx-0 md:px-0 md:py-0 md:static md:bg-transparent md:backdrop-blur-none flex flex-row justify-between items-center mb-6 md:mb-10 gap-4 border-b border-white/10 md:border-none">
+         <header className="sticky top-0 z-30 bg-[#020202]/95 backdrop-blur-md -mx-3 sm:-mx-6 px-3 sm:px-6 py-3 sm:py-4 md:mx-0 md:px-0 md:py-0 md:static md:bg-transparent md:backdrop-blur-none flex flex-wrap sm:flex-nowrap justify-between items-center mb-6 md:mb-10 gap-3 sm:gap-4 border-b border-white/10 md:border-none">
             <div className="flex items-center gap-4">
                 <button className="md:hidden text-white hover:text-gold-500 transition-colors" onClick={() => setIsSidebarOpen(true)}>
                     <Menu size={24} />
@@ -1098,10 +1156,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
             {/* ... Status indicators ... */}
             <div className="flex items-center gap-3 md:gap-4">
                 <button 
-                  onClick={handleManualFirebaseSync}
+                  onClick={handleManualCloudSync}
                   disabled={isSyncing}
                   className="flex items-center gap-2 text-white/70 hover:text-gold-500 bg-white/[0.04] border border-white/10 px-3 py-1.5 rounded-sm transition-colors cursor-pointer"
-                  title="Force Live Synchronisation with Database"
+                  title="Force Live Synchronisation with Atelier Cloud"
                 >
                   <RefreshCw size={13} className={isSyncing ? "animate-spin text-gold-500" : "text-gold-400"} />
                   <span className="hidden sm:inline text-[9px] uppercase tracking-widest font-mono font-bold">
@@ -1122,9 +1180,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
                         <span className="text-[10px] uppercase tracking-widest font-bold">Offline Mode</span>
                     </div>
                 )}
-                <div className="flex items-center gap-2" title="Firebase Firestore Live Sync Status">
+                <div className="flex items-center gap-2" title="Atelier Cloud Live Sync Status">
                     <div className={`w-2 h-2 rounded-full ${isOfflineMode ? 'bg-red-500' : 'bg-emerald-400 animate-pulse'}`} />
-                    <span className="hidden sm:inline text-[10px] uppercase tracking-widest text-white/50">Firestore {isOfflineMode ? 'Severed' : 'Live'}</span>
+                    <span className="hidden sm:inline text-[10px] uppercase tracking-widest text-white/50">Cloud {isOfflineMode ? 'Severed' : 'Live'}</span>
                 </div>
                 <div className="hidden md:flex items-center gap-3 border-l border-white/10 pl-6">
                     <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-xs font-bold text-white">
@@ -1357,10 +1415,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
                                  </button>
                              )}
                              <button
-                                 onClick={handleManualFirebaseSync}
+                                 onClick={handleManualCloudSync}
                                  disabled={isSyncing}
                                  className="flex items-center gap-1.5 px-3 py-2.5 bg-white/5 border border-white/10 text-white/70 hover:text-white text-xs font-mono rounded-sm transition-colors cursor-pointer"
-                                 title="Sync Firestore"
+                                 title="Sync Cloud Database"
                              >
                                  <RefreshCw size={13} className={isSyncing ? "animate-spin text-gold-500" : ""} />
                                  <span className="hidden sm:inline">Refresh</span>
@@ -1620,7 +1678,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
                                                      onClick={() => handleDeleteAppointment(apptId)}
                                                      disabled={actionLoading}
                                                      className="p-2 text-white/30 hover:text-red-500 hover:bg-red-500/10 rounded transition-colors cursor-pointer"
-                                                     title="Purge Record from Firestore"
+                                                     title="Purge Record from Cloud Registry"
                                                  >
                                                      <Trash size={13} />
                                                  </button>
@@ -1680,8 +1738,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
                                          </span>
                                      </td>
                                      <td className="p-4 flex items-center gap-2">
-                                         <button onClick={() => handleRestoreOrder(order._id)} className="p-2 hover:bg-green-500/10 rounded-sm text-green-500 transition-colors" title="Restore Order">
+                                         <button onClick={() => handleRestoreOrder(order._id || order.id)} className="p-2 hover:bg-green-500/10 rounded-sm text-green-500 transition-colors cursor-pointer" title="Restore Order">
                                              <RefreshCw size={14} />
+                                         </button>
+                                         <button onClick={() => handleDeleteOrderPermanently(order._id || order.id)} className="p-2 hover:bg-red-500/10 rounded-sm text-red-500 transition-colors cursor-pointer" title="Permanently Purge Order">
+                                             <Trash size={14} />
                                          </button>
                                      </td>
                                  </tr>
@@ -1773,7 +1834,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
                          </div>
                          <h3 className="text-2xl font-serif text-white tracking-wide">The Vault & Museum Vitrines</h3>
                          <p className="text-white/50 text-xs font-mono mt-1">
-                           Archived artifacts preserved with auto-animated image carousels. Synced with Firestore.
+                           Archived artifacts preserved with auto-animated image carousels. Synchronized in real time with Atelier Cloud.
                          </p>
                      </div>
                      <div className="flex items-center gap-3">
@@ -2194,26 +2255,25 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
 
              return (
              <div className="space-y-6">
-                 {/* Firebase Console Reference Guide Card */}
+                 {/* Cloud Registry Collections & Sync Status Card */}
                  <div className="bg-[#0A0A0A] border border-white/10 p-6">
                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/10 pb-4 mb-4">
                          <div>
                              <div className="flex items-center gap-2 text-gold-500 font-mono text-sm uppercase tracking-widest">
-                                 <Database size={16} /> Firebase Console Collections & Sync Status
+                                 <Database size={16} /> Atelier Cloud Collections & Live Sync Status
                              </div>
                              <p className="text-white/40 text-xs mt-1">
-                                 All authentication records, login events, and operational logs are stored in Firebase Firestore and Authentication.
+                                 All authentication records, login events, and operational logs are synchronized in real time across the Atelier Cloud Registry.
                              </p>
                          </div>
-                         <a 
-                             href="https://console.firebase.google.com" 
-                             target="_blank" 
-                             rel="noreferrer" 
-                             className="inline-flex items-center gap-2 px-3 py-2 bg-white/5 border border-white/10 hover:border-gold-500 text-xs text-white uppercase tracking-wider transition-colors shrink-0"
+                         <button 
+                             type="button"
+                             onClick={handleManualCloudSync}
+                             className="inline-flex items-center gap-2 px-3 py-2 bg-white/5 border border-white/10 hover:border-gold-500 text-xs text-white uppercase tracking-wider transition-colors shrink-0 cursor-pointer"
                          >
-                             <ExternalLink size={12} className="text-gold-500" />
-                             <span>Open Firebase Console</span>
-                         </a>
+                             <RefreshCw size={12} className={isSyncing ? "animate-spin text-gold-500" : "text-gold-500"} />
+                             <span>Verify Cloud Sync</span>
+                         </button>
                      </div>
 
                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -2314,7 +2374,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
                          {filteredList.length === 0 ? (
                              <div className="text-white/30 text-center py-12 flex flex-col items-center gap-2">
                                  <Activity className="animate-pulse text-gold-500/50" size={24} />
-                                 <span className="text-xs uppercase tracking-widest">No matching logs found in Firestore</span>
+                                 <span className="text-xs uppercase tracking-widest">No matching logs found in Cloud Registry</span>
                              </div>
                          ) : (
                              filteredList.map((log: any, idx: number) => {
@@ -2527,6 +2587,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
                          <div>
                              <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">WhatsApp Line</label>
                              <input value={settings.conciergeConfig.whatsappNumber || ''} onChange={e => setSettings({...settings, conciergeConfig: {...settings.conciergeConfig, whatsappNumber: e.target.value}})} className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" />
+                         </div>
+                         <div>
+                             <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Direct Phone Line</label>
+                             <input value={settings.conciergeConfig.phoneNumber || settings.conciergeConfig.displayPhone || '+91 920 7676 921'} onChange={e => setSettings({...settings, conciergeConfig: {...settings.conciergeConfig, phoneNumber: e.target.value, displayPhone: e.target.value}})} className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" />
                          </div>
                          <div>
                              <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Instagram Handle</label>
@@ -2944,7 +3008,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
       {/* Payment Modal */}
       {isPaymentModalOpen && paymentOrder && (
           <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
-              <div className="bg-[#0A0A0A] border border-white/10 w-full max-w-md p-4 md:p-8">
+              <div className="bg-[#0A0A0A] border border-white/10 w-full max-w-md max-h-[90vh] overflow-y-auto p-4 md:p-8">
                   <div className="flex justify-between items-center mb-6">
                       <h2 className="text-xl font-serif text-white">Record Payment</h2>
                       <button onClick={() => setIsPaymentModalOpen(false)}><X className="text-white/50 hover:text-white" /></button>
@@ -3151,7 +3215,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
       {/* User Registration Modal */}
       {isUserModalOpen && (
           <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm">
-             <div className="bg-[#0A0A0A] border border-white/10 w-full max-w-md p-4 md:p-8">
+             <div className="bg-[#0A0A0A] border border-white/10 w-full max-w-md max-h-[90vh] overflow-y-auto p-4 md:p-8">
                  <div className="flex justify-between items-center mb-6">
                     <h2 className="text-xl font-serif text-white">New Operative</h2>
                     <button onClick={() => setIsUserModalOpen(false)}><X className="text-white/50 hover:text-white" /></button>
@@ -3176,7 +3240,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
       {/* Unique House Code Assignment Modal */}
       {houseCodeModal.isOpen && houseCodeModal.user && (
           <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4 backdrop-blur-md">
-             <div className="bg-[#0A0A0A] border border-gold-500/40 w-full max-w-lg p-6 md:p-8 rounded-sm shadow-[0_20px_70px_rgba(0,0,0,0.95)] relative">
+             <div className="bg-[#0A0A0A] border border-gold-500/40 w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 md:p-8 rounded-sm shadow-[0_20px_70px_rgba(0,0,0,0.95)] relative">
                  <div className="flex justify-between items-start mb-6 border-b border-white/10 pb-4">
                     <div>
                        <span className="text-[10px] font-mono uppercase tracking-[0.25em] text-gold-400">

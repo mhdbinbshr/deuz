@@ -45,7 +45,7 @@ const Footer: React.FC<FooterProps> = ({ onOpenStore, onOpenPrivacy, onOpenTerms
               <h3 className="text-gold-500 text-xs uppercase tracking-widest mb-6 font-bold">DEUZ & CO</h3>
               <div className="space-y-4 text-white/60 text-sm">
                  <p className="flex items-center justify-center md:justify-start gap-3"><Mail size={14} /> {concierge.emailAddress}</p>
-                 <p className="flex items-center justify-center md:justify-start gap-3"><Phone size={14} /> +91 8848918633</p>
+                 <a href="tel:+919207676921" className="flex items-center justify-center md:justify-start gap-3 hover:text-gold-400 transition-colors cursor-pointer"><Phone size={14} /> +91 920 7676 921</a>
               </div>
            </div>
            

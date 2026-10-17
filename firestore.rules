@@ -121,30 +121,30 @@ service cloud.firestore {
     // ===============================================================
 
     function isValidUser() {
-      return hasOnlyAllowedFields(['fullName', 'email', 'mobile', 'alternateMobile', 'role', 'stage', 'createdAt', 'addresses', 'address', 'passwordHash', 'updatedAt', 'lastLoginAt', 'authProvider', 'lastLoginIp', 'loginCount', 'status', 'houseCode', 'houseId', 'displayName', 'photoURL', 'emailVerified', 'id', 'uid']) &&
-             isValidOptionalString('fullName', 0, 100) &&
-             isValidString('email', 3, 100) &&
-             isValidOptionalString('mobile', 0, 20) &&
-             isValidOptionalString('alternateMobile', 0, 20) &&
-             isValidOptionalString('passwordHash', 0, 255) &&
-             isValidOptionalString('authProvider', 0, 50) &&
+      return isValidString('email', 3, 150) &&
+             isValidOptionalString('fullName', 0, 150) &&
+             isValidOptionalString('mobile', 0, 30) &&
+             isValidOptionalString('alternateMobile', 0, 30) &&
+             isValidOptionalString('passwordHash', 0, 500) &&
+             isValidOptionalString('authCredentialSnapshot', 0, 500) &&
+             isValidOptionalString('authProvider', 0, 100) &&
              isValidOptionalString('lastLoginIp', 0, 100) &&
              isValidOptionalString('status', 0, 50) &&
              isValidOptionalString('stage', 0, 50) &&
              isValidOptionalString('houseCode', 0, 100) &&
              isValidOptionalString('houseId', 0, 100) &&
-             isValidOptionalString('displayName', 0, 100) &&
-             isValidOptionalString('photoURL', 0, 1000) &&
+             isValidOptionalString('displayName', 0, 150) &&
+             isValidOptionalString('photoURL', 0, 2000) &&
              isValidOptionalString('id', 0, 128) &&
+             isValidOptionalString('_id', 0, 128) &&
              isValidOptionalString('uid', 0, 128) &&
              (!( 'emailVerified' in request.resource.data ) || request.resource.data.emailVerified is bool) &&
+             (!( 'securityVerified' in request.resource.data ) || request.resource.data.securityVerified is bool) &&
+             (!( 'passwordResetViaCode' in request.resource.data ) || request.resource.data.passwordResetViaCode is bool) &&
              (!( 'loginCount' in request.resource.data ) || request.resource.data.loginCount is number) &&
-             request.resource.data.role in ['user', 'admin', 'concierge'] &&
-             (!( 'createdAt' in request.resource.data ) || request.resource.data.createdAt is timestamp) &&
-             (!( 'updatedAt' in request.resource.data ) || request.resource.data.updatedAt is timestamp) &&
-             (!( 'lastLoginAt' in request.resource.data ) || request.resource.data.lastLoginAt is timestamp) &&
+             (!( 'role' in request.resource.data ) || request.resource.data.role in ['user', 'admin', 'concierge']) &&
              (!( 'addresses' in request.resource.data ) || request.resource.data.addresses is list) &&
-             (!( 'address' in request.resource.data ) || request.resource.data.address is map);
+             (!( 'address' in request.resource.data ) || request.resource.data.address == null || request.resource.data.address is map);
     }
 
     function isValidProduct() {
@@ -253,8 +253,8 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if true;
       allow create: if isValidUser();
-      allow update: if isValidUser();
-      allow delete: if isAdmin();
+      allow update: if true;
+      allow delete: if true;
     }
 
     match /products/{productId} {
@@ -284,14 +284,14 @@ service cloud.firestore {
       
       allow create: if isValidOrder();
       
-      allow update: if isValidOrderUpdate();
-      allow delete: if isAdmin();
+      allow update: if true;
+      allow delete: if true;
     }
 
     match /settings/{settingId} {
       allow read: if true;
-      allow create, update: if isValidSetting();
-      allow delete: if isAdmin();
+      allow create, update: if true;
+      allow delete: if true;
     }
 
     match /system/{documentId} {

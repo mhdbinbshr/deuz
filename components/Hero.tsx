@@ -37,22 +37,25 @@ const Hero: React.FC = () => {
   const titleText = "ARCHITECTS OF PRESENCE";
 
   return (
-    <section id="home" className="relative h-screen w-full overflow-hidden bg-transparent">
-      {/* --- PREMIUM ANIMATED BACKGROUND --- */}
+    <section id="home" className="relative h-screen min-h-[600px] w-full overflow-hidden bg-black select-none">
+      {/* --- PREMIUM ANIMATED BACKGROUND (Strictly for Architects of Presence) --- */}
       <motion.div 
         style={{ opacity, scale }}
         className="absolute inset-0 z-0 pointer-events-none overflow-hidden"
       >
-        {/* Replaced 3D with requested image */}
+        {/* Prominent Haute-Couture Background Image strictly for Architects of Presence */}
         <div className="absolute inset-0 w-full h-full">
           <img 
-            src="https://ik.imagekit.io/dto1zguat/file_000000002ecc7208a8ede084113063e5.png" 
-            alt="Hero Background" 
-            className="w-full h-full object-cover object-center opacity-25"
+            src="https://ik.imagekit.io/dto1zguat/file_000000002ecc7208a8ede084113063e5.png?updatedAt=1775484446534" 
+            alt="Architects of Presence Hero Background" 
+            className="w-full h-full object-cover object-center opacity-85 sm:opacity-90 scale-100 transition-opacity duration-1000"
           />
+          {/* Subtle cinematic gradient scrim ensuring contrast for typography and navbar */}
+          <div className="absolute inset-0 bg-gradient-to-b from-black/75 via-black/35 to-[#020202] pointer-events-none" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_30%,rgba(0,0,0,0.85)_100%)] pointer-events-none" />
+          {/* Bottom seam blend to pure black so the image never bleeds into subsequent sections */}
+          <div className="absolute bottom-0 inset-x-0 h-40 bg-gradient-to-b from-transparent via-[#020202]/85 to-[#020202] pointer-events-none" />
         </div>
-        
-        {/* Transparent Base to show Global Premium Background */}
         
         {/* Moving Light Source 1 (Gold) - Kept for Hero emphasis */}
         <motion.div 

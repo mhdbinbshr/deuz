@@ -122,7 +122,7 @@ const AdminSetupPage: React.FC<AdminSetupPageProps> = ({ onSuccess, onCancel }) 
                                 value={formData.setupKey}
                                 onChange={(e) => setFormData({...formData, setupKey: e.target.value})}
                                 className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:outline-none focus:border-gold-500 transition-colors placeholder:text-white/10 font-mono tracking-widest"
-                                placeholder="Enter Key (Default: deuz_setup_2024)"
+                                placeholder="Enter Administrative Setup Key"
                                 required
                             />
                         </div>

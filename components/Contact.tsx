@@ -4,6 +4,7 @@ import {
   ArrowRight, 
   Sparkles, 
   Mail, 
+  Phone,
   Check, 
   Copy, 
   ShieldCheck, 
@@ -27,12 +28,20 @@ const ATELIER_CITIES = [
 
 export const Contact: React.FC<ContactProps> = ({ onOpenConcierge }) => {
   const [copiedEmail, setCopiedEmail] = useState(false);
+  const [copiedPhone, setCopiedPhone] = useState(false);
 
   const handleCopyEmail = (e: React.MouseEvent) => {
     e.stopPropagation();
     navigator.clipboard.writeText('deuzandco@gmail.com');
     setCopiedEmail(true);
     setTimeout(() => setCopiedEmail(false), 2500);
+  };
+
+  const handleCopyPhone = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText('+91 920 7676 921');
+    setCopiedPhone(true);
+    setTimeout(() => setCopiedPhone(false), 2500);
   };
 
   return (
@@ -94,17 +103,35 @@ export const Contact: React.FC<ContactProps> = ({ onOpenConcierge }) => {
                 <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
               </button>
 
-              {/* Direct Confidential Desk Email */}
-              <div className="flex items-center gap-2 text-xs font-mono text-white/60 bg-black/60 border border-white/10 px-3.5 py-2 rounded-sm">
-                <Mail size={13} className="text-gold-400" />
-                <span className="text-white/80">deuzandco@gmail.com</span>
-                <button
-                  onClick={handleCopyEmail}
-                  className="ml-1 text-gold-400 hover:text-white transition-colors cursor-pointer"
-                  title="Copy Concierge Email"
-                >
-                  {copiedEmail ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
-                </button>
+              {/* Direct Confidential Desk Email & Phone */}
+              <div className="flex flex-col sm:flex-row items-center gap-2.5 w-full sm:w-auto">
+                <div className="flex items-center gap-2 text-xs font-mono text-white/60 bg-black/60 border border-white/10 px-3.5 py-2 rounded-sm w-full sm:w-auto justify-between sm:justify-start">
+                  <div className="flex items-center gap-2">
+                    <Mail size={13} className="text-gold-400" />
+                    <span className="text-white/80">deuzandco@gmail.com</span>
+                  </div>
+                  <button
+                    onClick={handleCopyEmail}
+                    className="ml-1 text-gold-400 hover:text-white transition-colors cursor-pointer"
+                    title="Copy Concierge Email"
+                  >
+                    {copiedEmail ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2 text-xs font-mono text-white/60 bg-black/60 border border-white/10 px-3.5 py-2 rounded-sm w-full sm:w-auto justify-between sm:justify-start">
+                  <div className="flex items-center gap-2">
+                    <Phone size={13} className="text-gold-400" />
+                    <a href="tel:+919207676921" className="text-white/80 hover:text-gold-400 transition-colors">+91 920 7676 921</a>
+                  </div>
+                  <button
+                    onClick={handleCopyPhone}
+                    className="ml-1 text-gold-400 hover:text-white transition-colors cursor-pointer"
+                    title="Copy Phone Number"
+                  >
+                    {copiedPhone ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                  </button>
+                </div>
               </div>
 
               <div className="flex items-center gap-2 text-[9px] font-mono text-white/40">

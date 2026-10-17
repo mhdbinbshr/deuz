@@ -1,345 +1,250 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { motion, AnimatePresence, useScroll, useSpring, useTransform } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowUpRight, MousePointer2 } from 'lucide-react';
 import { useSettings } from '../context/SettingsContext';
-import { db, INITIAL_PRODUCTS } from '../utils/db';
-import { Product } from '../types';
-import { getProductImageSet } from '../utils/productImages';
-import { RefreshCw, Sparkles, Layers } from 'lucide-react';
 
 interface FashionStoreProps {
   onEnterStore: () => void;
 }
 
+const AFTERLIGHT_PRIMARY = "https://ik.imagekit.io/dto1zguat/Afterlight_1.png";
+const AFTERLIGHT_SECONDARY = "https://ik.imagekit.io/dto1zguat/Afterlight_2.png";
+
 const FashionStore: React.FC<FashionStoreProps> = ({ onEnterStore }) => {
   const containerRef = useRef<HTMLElement>(null);
   const [isWalkingIn, setIsWalkingIn] = useState(false);
   const { content } = useSettings();
-  
-  // Initialize with initial apparel products from database seeds
-  const initialApparel = INITIAL_PRODUCTS.filter(p => p.category !== 'card' && (p as any).category !== 'Cards') as unknown as Product[];
-  const [products, setProducts] = useState<Product[]>(initialApparel);
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
-  // Fetch live products from DB
+  // Perspective cycling between Afterlight 1 and 2
+  const [autoPerspective, setAutoPerspective] = useState(0);
+
   useEffect(() => {
-    let isMounted = true;
-    const fetchProducts = async () => {
-      try {
-        const fetchedProducts = await db.getProducts();
-        const availableProducts = fetchedProducts.filter(p => !p.isArchived && p.category !== 'card' && p.category !== 'Cards' && (p as any).productType !== 'CARD');
-        if (availableProducts.length > 0 && isMounted) {
-          setProducts(availableProducts);
-        }
-      } catch (error) {
-        console.error("Error fetching products for FashionStore:", error);
-      }
-    };
-    fetchProducts();
-    return () => { isMounted = false; };
+    const interval = setInterval(() => {
+      setAutoPerspective(prev => (prev === 0 ? 1 : 0));
+    }, 4500);
+    return () => clearInterval(interval);
   }, []);
 
-  // Determine the featured latest drop decided by Admin or automatic newest
-  const chosenProduct = React.useMemo(() => {
-    if (products.length === 0) return null;
-
-    // 1. If admin explicitly selected a product ID in site settings:
-    if (content.latestDropProductId && content.latestDropProductId !== 'auto') {
-      const matched = products.find(p => p._id === content.latestDropProductId || p.id === content.latestDropProductId);
-      if (matched) return matched;
-    }
-
-    // 2. Otherwise (auto mode or match not found), select the latest drop:
-    // Sort by createdAt descending if present, or take the first in catalog
-    const sorted = [...products].sort((a: any, b: any) => {
-      const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
-      const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
-      return timeB - timeA;
-    });
-
-    return sorted[0] || products[0];
-  }, [products, content.latestDropProductId]);
-
-  // Priority: Custom admin overrides from settings -> Chosen product fields -> House defaults
-  const displayTitle = content.latestDropTitle || chosenProduct?.title || "DEUZ FORM 01 — SOVEREIGN";
-  const displayImage = content.latestDropImage || chosenProduct?.image || (content.storeImage || "https://ik.imagekit.io/dto1zguat/Evolve_1.jpg");
-  // Fixed forever as requested
-  const displayDesc = "A study in structure and restraint. Precision-cut silhouettes designed for enduring presence.";
-  const displayCategory = content.latestDropCategory || (chosenProduct ? chosenProduct.category : (content.sovereignCategory || "APPAREL"));
-  const displayPrice = content.latestDropPrice || (chosenProduct ? `₹${chosenProduct.price.toLocaleString('en-IN')}` : (content.sovereignPrice || "₹12,000"));
-
-  const isProductActive = content.latestDropStatus 
-    ? (content.latestDropStatus.toLowerCase() !== 'exhausted')
-    : (chosenProduct ? chosenProduct.countInStock > 0 : (content.sovereignStatus?.toLowerCase() !== 'exhausted'));
-
-  const displayStatus = content.latestDropStatus || (isProductActive ? "Active" : "Exhausted");
-
-  // Parallax on scroll
-  const { scrollYProgress } = useScroll({
-    target: containerRef,
-    offset: ["start start", "end end"]
-  });
-  const smoothProgress = useSpring(scrollYProgress, { stiffness: 40, damping: 20 });
-  const yPos = useTransform(smoothProgress, [0, 1], [50, 0]);
-  const atmosphereOpacity = useTransform(smoothProgress, [0.1, 0.8], [0, 1]);
-
-  const [isHoveredCard, setIsHoveredCard] = useState(false);
-  const [manualPerspective, setManualPerspective] = useState<number | null>(null);
-
-  // Compute image pairing for the displayed garment (Front and Reverse silhouette)
-  const imageSet = React.useMemo(() => {
-    return getProductImageSet({
-      image: displayImage,
-      gallery: chosenProduct?.gallery,
-      title: displayTitle,
-      houseCode: chosenProduct?.houseCode
-    });
-  }, [displayImage, chosenProduct, displayTitle]);
-
-  const activeIndex = manualPerspective !== null ? manualPerspective : (isHoveredCard ? 1 : 0);
-  const currentDisplayImage = activeIndex === 0 ? imageSet.primary : imageSet.secondary;
+  // Use previous Afterlight product image as requested
+  const displayImage = autoPerspective === 0 ? AFTERLIGHT_PRIMARY : AFTERLIGHT_SECONDARY;
+  const displayDesc = content.latestDropDescription || "A study in structure and restraint. Heavyweight French terry designed for enduring presence.";
+  const displayCategory = content.latestDropCategory || "TEE";
+  const displayPrice = content.latestDropPrice || "₹2,999";
+  const displayStatus = content.latestDropStatus || "Active";
 
   const handleEnterClick = () => {
     setIsWalkingIn(true);
     setTimeout(() => {
       onEnterStore();
       setIsWalkingIn(false);
-    }, 350);
+    }, 400);
   };
 
   return (
     <section 
       ref={containerRef} 
       id="collection-section"
-      className="relative h-[105vh] bg-transparent flex flex-col items-center overflow-hidden select-none"
+      className="relative min-h-screen py-16 sm:py-24 md:py-28 bg-[#020202] flex items-center justify-center select-none px-4 sm:px-6 overflow-hidden"
     >
-      {/* Background ambient lighting */}
-      <div className="fixed inset-0 pointer-events-none bg-gradient-to-b from-blue-900/5 via-transparent to-gold-900/5 z-0" />
+      {/* Background Radial Glow & Vignette */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] md:w-[1000px] h-[700px] bg-[radial-gradient(circle_at_center,rgba(212,175,55,0.04)_0%,transparent_70%)] blur-[100px] pointer-events-none z-0" />
 
-      <div className="sticky top-0 h-screen w-full flex items-center justify-center perspective-[1200px] overflow-hidden">
-        {/* Atmosphere light beams */}
+      {/* Subtle Background Perspective Depth Cards */}
+      <div className="absolute -left-16 sm:-left-20 top-1/2 -translate-y-1/2 w-64 sm:w-80 h-96 sm:h-[480px] bg-white/[0.015] border border-white/[0.04] rounded-2xl rotate-[-8deg] pointer-events-none hidden sm:block opacity-30 blur-[0.5px]" />
+      <div className="absolute -right-16 sm:-right-20 top-1/2 -translate-y-1/2 w-64 sm:w-80 h-96 sm:h-[480px] bg-white/[0.015] border border-white/[0.04] rounded-2xl rotate-[8deg] pointer-events-none hidden sm:block opacity-30 blur-[0.5px]" />
+
+      {/* Composition Container */}
+      <div className="relative w-full max-w-lg sm:max-w-xl md:max-w-2xl flex items-center justify-center my-auto">
+        {/* Main Photo Card */}
         <motion.div 
-          style={{ opacity: isWalkingIn ? 0 : atmosphereOpacity }}
-          animate={isWalkingIn ? { opacity: 0 } : {}}
-          transition={{ duration: 1 }}
-          className="absolute inset-0 pointer-events-none z-10"
+          initial={{ opacity: 0, scale: 0.96 }}
+          whileInView={{ opacity: 1, scale: 1 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
+          animate={isWalkingIn ? { scale: 1.08, opacity: 0 } : {}}
+          className="relative w-full max-w-[340px] xs:max-w-[380px] sm:max-w-[420px] aspect-[1122/1402] rounded-xl sm:rounded-2xl overflow-hidden border border-white/10 bg-[#070709] shadow-[0_30px_90px_rgba(0,0,0,0.95)] z-10"
         >
-          <div className="absolute top-[-20%] left-[20%] w-[200px] h-[150vh] bg-gradient-to-b from-white/5 to-transparent rotate-[15deg] blur-[30px]" />
-          <div className="absolute top-[-20%] left-[40%] w-[100px] h-[150vh] bg-gradient-to-b from-white/3 to-transparent rotate-[15deg] blur-[20px]" />
-        </motion.div>
+          {/* Top-Left Circular Target Reticle (Subtle corner anchor) */}
+          <div className="absolute top-5 left-5 z-20 flex items-center justify-center w-7 h-7 rounded-full border border-white/35 pointer-events-none">
+            <div className="w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_6px_#fff]" />
+          </div>
 
-        {/* Center 3D Stage with z-depth animation */}
-        <motion.div
-          initial={false}
-          animate={isWalkingIn ? { z: 1000, opacity: 0 } : {}}
-          transition={{ duration: 2.5, ease: [0.65, 0, 0.35, 1] }}
-          style={{ y: isWalkingIn ? 0 : yPos, transformStyle: "preserve-3d" }}
-          className="relative w-full max-w-5xl h-[70vh] flex items-center justify-center"
-        >
-          {/* Main Center Garment Image Card with Animated Alternate Image View */}
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.9 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 1, ease: "easeOut" }}
-            onMouseEnter={() => {
-              setIsHoveredCard(true);
-              setManualPerspective(null);
+          {/* (Top labelling 'DEUZ & CO' and 'COLLECTION I' removed as requested) */}
+
+          {/* Moving Green 'New Drop' Cursor */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{
+              opacity: 1,
+              scale: 1,
+              x: [0, 24, -16, 12, -4, 0],
+              y: [0, -26, 14, -18, 6, 0]
             }}
-            onMouseLeave={() => {
-              setIsHoveredCard(false);
-              setManualPerspective(null);
+            transition={{
+              opacity: { duration: 0.6, delay: 0.2 },
+              x: { repeat: Infinity, duration: 6.5, ease: "easeInOut" },
+              y: { repeat: Infinity, duration: 5.5, ease: "easeInOut" }
             }}
-            className="relative w-[320px] md:w-[400px] aspect-[3/4] bg-[#050505] rounded-none overflow-hidden border border-white/10 hover:border-gold-500/40 transition-colors duration-500 shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-10 group cursor-pointer"
+            className="absolute top-[20%] left-[24%] sm:left-[28%] z-30 pointer-events-none flex items-start gap-1 drop-shadow-[0_8px_25px_rgba(0,0,0,0.9)]"
           >
+            <MousePointer2 size={19} className="text-emerald-400 fill-emerald-400 -rotate-12 shrink-0 drop-shadow-[0_0_12px_rgba(52,211,153,0.95)]" />
+            <span className="px-2.5 py-1 bg-emerald-500 text-black text-[9.5px] sm:text-[10px] font-mono font-black uppercase tracking-wider rounded-sm shadow-[0_0_12px_rgba(16,185,129,0.5)]">
+              New Drop
+            </span>
+          </motion.div>
+
+          {/* Garment Image Canvas with Afterlight Product Image (Fitting fully to border) */}
+          <div className="relative w-full h-full bg-[#050505] overflow-hidden">
             <AnimatePresence mode="wait">
               <motion.img 
-                key={currentDisplayImage}
-                initial={{ opacity: 0, scale: 1.05, filter: 'blur(2px)' }}
-                animate={{ opacity: 0.9, scale: isHoveredCard ? 1.04 : 1, filter: 'blur(0px)' }}
-                exit={{ opacity: 0, scale: 0.98, filter: 'blur(2px)' }}
-                transition={{ duration: 0.75, ease: [0.22, 1, 0.36, 1] }}
-                src={currentDisplayImage}
-                className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-[1.5s]"
-                alt={displayTitle}
+                key={displayImage}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+                src={displayImage}
+                className="w-full h-full object-cover object-center"
+                alt="Afterlight — DEUZ New Drop"
               />
             </AnimatePresence>
 
-            {/* Specular light sheen on transition */}
-            <motion.div
-              key={`sheen-${activeIndex}`}
-              initial={{ x: '-100%', opacity: 0.35 }}
-              animate={{ x: '200%', opacity: 0 }}
-              transition={{ duration: 1.1, ease: "easeOut" }}
-              className="absolute inset-0 bg-gradient-to-r from-transparent via-gold-300/20 to-transparent skew-x-[-20deg] pointer-events-none z-20"
+            {/* Subtle Gold Sheen Wave on Perspective Transition */}
+            <motion.div 
+              key={`sheen-${autoPerspective}`}
+              initial={{ x: "-100%", opacity: 0.35 }}
+              animate={{ x: "200%", opacity: 0 }}
+              transition={{ duration: 1.5, ease: "easeOut" }}
+              className="absolute inset-0 bg-gradient-to-r from-transparent via-gold-300/20 to-transparent skew-x-[-22deg] pointer-events-none z-20"
             />
 
-            {/* Perspective Switcher Controls */}
-            <div className="absolute top-4 left-4 right-4 z-30 flex items-center justify-between pointer-events-auto">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setManualPerspective(prev => prev === 1 ? 0 : 1);
-                }}
-                className="flex items-center gap-1.5 px-2.5 py-1 bg-black/80 backdrop-blur-md border border-gold-500/30 hover:border-gold-400 text-white text-[8.5px] font-mono tracking-[0.25em] uppercase rounded-none transition-all duration-300 shadow-lg cursor-pointer"
-              >
-                <RefreshCw size={10} className={`text-gold-400 ${activeIndex === 1 ? 'rotate-180' : ''} transition-transform duration-500`} />
-                <span className="text-gold-300">
-                  {activeIndex === 0 ? "PERSPECTIVE 01 // FRONT" : "PERSPECTIVE 02 // REVERSE"}
-                </span>
-              </button>
+            {/* Top scrim for clean contrast without hiding the garment */}
+            <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-black/40 to-transparent pointer-events-none" />
 
-              <div className="flex items-center gap-1 bg-black/60 backdrop-blur-md px-2 py-1 border border-white/10 text-[8px] font-mono text-white/50 tracking-widest rounded-none">
-                <span className={activeIndex === 0 ? "text-gold-400 font-bold" : "text-white/30"}>01</span>
-                <span>/</span>
-                <span className={activeIndex === 1 ? "text-gold-400 font-bold" : "text-white/30"}>02</span>
+            {/* Subtle bottom gradient scrim that doesn't bury the garment */}
+            <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-black/75 via-black/25 to-transparent pointer-events-none z-10" />
+          </div>
+
+          {/* Bottom Card Content: Caption, Timeline Bar, and Domain */}
+          <div className="absolute inset-x-0 bottom-0 pt-24 pb-20 sm:pb-22 px-5 sm:px-6 pointer-events-none z-10 flex flex-col justify-end">
+            <p className="text-white/75 text-[10px] sm:text-[11px] font-sans font-light leading-relaxed max-w-[240px] sm:max-w-[280px] mb-2.5">
+              {displayDesc}
+            </p>
+
+            {/* Progress Bar & Domain */}
+            <div className="w-full">
+              <div className="w-full h-[2px] bg-white/15 rounded-full overflow-hidden flex">
+                <div className="w-1/2 h-full bg-gold-400 shadow-[0_0_6px_#D4AF37]" />
+                <div className="w-1/2 h-full bg-white/15" />
               </div>
+              <p className="text-[7.5px] sm:text-[8px] font-mono tracking-[0.25em] text-white/40 text-center uppercase mt-1">
+                www.deuzandco.com
+              </p>
             </div>
-
-            {/* Subtle Interactive Instruction Pill */}
-            <div className="absolute top-12 left-4 z-20 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-              <span className="text-[7.5px] font-mono tracking-[0.25em] uppercase text-white/80 bg-black/70 px-2 py-0.5 border border-white/15">
-                {activeIndex === 0 ? "HOVER / TAP TO REVEAL REVERSE" : "VIEWING REVERSE PERSPECTIVE"}
-              </span>
-            </div>
-
-            <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-90 pointer-events-none" />
-
-            {/* Bottom text & progress bar inside Card */}
-            <div className="absolute bottom-6 sm:bottom-8 left-6 sm:left-8 right-6 sm:right-8 pointer-events-none z-20">
-              <div className="mb-3 sm:mb-4">
-                <p className="text-white/60 text-[11px] sm:text-xs font-light leading-relaxed line-clamp-2">
-                  {displayDesc}
-                </p>
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <div className="h-[2px] w-full bg-white/20 rounded-full overflow-hidden">
-                  <motion.div 
-                    initial={{ x: "-100%" }}
-                    whileInView={{ x: "0%" }}
-                    transition={{ duration: 1.5, delay: 0.5 }}
-                    className="h-full bg-gold-500 w-2/3"
-                  />
-                </div>
-                <div className="text-center text-[8px] font-mono text-white/30 tracking-[0.2em]">
-                  www.deuzandco.com
-                </div>
-              </div>
-            </div>
-          </motion.div>
-
-          {/* Floating Properties Box on right */}
-          <motion.div 
-            initial={{ opacity: 0, y: 70 }}
-            whileInView={{ opacity: 1, y: 50 }}
-            transition={{ duration: 1.2, delay: 0.2, ease: "easeOut" }}
-            className="absolute right-4 md:right-auto md:left-[50%] md:ml-[100px] w-48 md:w-64 bg-black/80 backdrop-blur-md border border-white/10 rounded-sm p-4 md:p-6 z-20 shadow-[0_20px_40px_rgba(0,0,0,0.6)]"
-          >
-            <div className="flex items-center justify-between mb-4 pb-2 border-b border-white/10">
-              <span className="text-[9px] uppercase tracking-widest text-gold-500 font-mono font-medium">
-                PROPERTIES
-              </span>
-              <div className="flex gap-1.5">
-                <div className="w-2 h-2 bg-red-500 rounded-full" />
-                <div className="w-2 h-2 bg-yellow-500 rounded-full" />
-                <div className="w-2 h-2 bg-green-500 rounded-full" />
-              </div>
-            </div>
-
-            <div className="space-y-3 font-mono text-[10px] text-white/60">
-              <div className="flex justify-between items-center gap-2">
-                <span>Drop</span>
-                <span className="text-gold-400 uppercase font-medium truncate max-w-[120px]" title={displayTitle}>
-                  {displayTitle.replace(/^DEUZ FORM \d+\s*[—–-]\s*/i, '')}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span>Category</span>
-                <span className="text-white uppercase font-medium">
-                  {displayCategory}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span>Price</span>
-                <span className="text-white font-medium">
-                  {displayPrice}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span>Status</span>
-                <span className={isProductActive ? "text-green-500 font-medium" : "text-red-500 font-medium"}>
-                  {displayStatus}
-                </span>
-              </div>
-            </div>
-
-            {/* You Pointer indicator */}
-            <motion.div 
-              animate={{ x: [0, -30, 0], y: [0, 20, 0] }}
-              transition={{ duration: 4, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-              className="absolute -bottom-8 -left-8 flex items-center gap-2 pointer-events-none"
-            >
-              <MousePointer2 size={16} className="text-green-500 fill-green-500 -rotate-90" />
-              <span className="bg-green-500 text-[9px] text-black px-1.5 py-0.5 rounded-sm uppercase tracking-wider font-bold">
-                You
-              </span>
-            </motion.div>
-          </motion.div>
+          </div>
         </motion.div>
 
-        {/* Centered EXPLORE COLLECTION I button */}
-        <AnimatePresence>
-          {!isWalkingIn && (
-            <motion.div 
-              initial={{ opacity: 0, y: 50 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 100, transition: { duration: 0.5 } }}
-              className="absolute bottom-12 md:bottom-24 z-50 flex flex-col items-center gap-6 w-full px-4"
-            >
-              <div className="w-full max-w-[800px] h-32 bg-gradient-to-t from-black via-black/80 to-transparent absolute -top-20 pointer-events-none" />
-              <motion.button 
-                onClick={handleEnterClick}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="group relative px-6 py-4 md:px-12 md:py-5 overflow-hidden bg-white/5 border border-white/10 backdrop-blur-md rounded-none hover:border-gold-500/50 transition-all duration-500 shadow-[0_20px_40px_rgba(0,0,0,0.4)] w-full max-w-sm md:max-w-md"
-              >
-                <div className="absolute inset-0 bg-gradient-to-r from-gold-600/20 to-transparent translate-x-[-100%] group-hover:translate-x-0 transition-transform duration-700 ease-out" />
-                <div className="relative flex flex-col items-center gap-1">
-                  <div className="flex items-center justify-center gap-3 w-full">
-                    <span className="text-xs md:text-sm uppercase tracking-[0.2em] md:tracking-[0.3em] text-white font-medium group-hover:text-gold-200 transition-colors text-center font-mono">
-                      EXPLORE COLLECTION I
-                    </span>
-                    <ArrowUpRight size={16} className="text-gold-500 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform duration-300 flex-shrink-0" />
-                  </div>
-                  <div className="w-full h-[1px] bg-white/20 mt-1 group-hover:bg-gold-500 transition-colors duration-500 scale-x-0 group-hover:scale-x-100 origin-left" />
-                </div>
-              </motion.button>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* macOS PROPERTIES Tab (Permanently visible with continuous animation, slightly overlapping with explore button) */}
+        <motion.div
+          animate={{ 
+            y: [-5, 6, -5],
+            x: [0, 2.5, -2, 0],
+            rotate: [-0.6, 0.6, -0.6]
+          }}
+          transition={{
+            duration: 6,
+            repeat: Infinity,
+            ease: "easeInOut"
+          }}
+          className="absolute -right-2 xs:right-0 sm:-right-4 md:-right-6 bottom-7 sm:bottom-9 md:bottom-10 w-48 xs:w-52 sm:w-60 bg-[#09090c]/95 border border-white/20 backdrop-blur-2xl rounded-xl p-3.5 sm:p-4 md:p-5 shadow-[0_25px_60px_rgba(0,0,0,0.95)] z-20 pointer-events-auto"
+        >
+          {/* Header with macOS Traffic Lights on the Left & PROPERTIES Title */}
+          <div className="flex items-center justify-between pb-2 sm:pb-2.5 border-b border-white/10 mb-2.5 sm:mb-3">
+            <div className="flex items-center gap-2">
+              {/* macOS Red, Yellow, Green Traffic Light Dots */}
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#FF5F56] shadow-sm inline-block" />
+                <span className="w-2.5 h-2.5 rounded-full bg-[#FFBD2E] shadow-sm inline-block" />
+                <span className="w-2.5 h-2.5 rounded-full bg-[#27C93F] shadow-sm inline-block" />
+              </div>
+              <span className="text-[10px] sm:text-[10.5px] font-mono uppercase tracking-[0.22em] text-white/80 font-bold ml-1">
+                PROPERTIES
+              </span>
+            </div>
+            <span className="text-[8.5px] font-mono uppercase tracking-widest text-gold-400/80 font-semibold">
+              SPEC
+            </span>
+          </div>
 
-        {/* Walk-in screen transition */}
-        {isWalkingIn && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 1.5, delay: 0.5 }}
-            className="absolute inset-0 pointer-events-none z-[100] bg-black"
+          {/* Properties Rows */}
+          <div className="space-y-2.5 sm:space-y-3 font-mono text-[9.5px] sm:text-[11px]">
+            <div className="flex justify-between items-baseline">
+              <span className="text-white/45">Category</span>
+              <span className="text-white font-bold uppercase tracking-wider">{displayCategory}</span>
+            </div>
+            <div className="flex justify-between items-baseline">
+              <span className="text-white/45">Price</span>
+              <span className="text-gold-400 font-bold tracking-wider">{displayPrice}</span>
+            </div>
+            <div className="flex justify-between items-baseline">
+              <span className="text-white/45">Status</span>
+              <span className="inline-flex items-center gap-1.5 text-emerald-400 font-semibold tracking-wider">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                {displayStatus}
+              </span>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Floating EXPLORE COLLECTION Tab (Positioned at Bottom Center with slight overlap over the Properties box) */}
+        <motion.div 
+          animate={{ 
+            y: [-3, 3, -3] 
+          }}
+          transition={{
+            duration: 4.5,
+            repeat: Infinity,
+            ease: "easeInOut"
+          }}
+          className="absolute bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 z-30 pointer-events-auto"
+        >
+          {/* Green ambient backlight glow */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 sm:w-56 h-12 bg-emerald-500/25 blur-2xl pointer-events-none" />
+
+          <motion.button 
+            onClick={handleEnterClick}
+            whileHover={{ scale: 1.04 }}
+            whileTap={{ scale: 0.97 }}
+            className="group relative px-6 xs:px-8 sm:px-10 py-3 sm:py-3.5 bg-[#09090c]/92 hover:bg-black border border-white/25 hover:border-gold-400/90 backdrop-blur-2xl rounded-full transition-all duration-300 shadow-[0_20px_50px_rgba(0,0,0,0.95),0_0_25px_rgba(16,185,129,0.15)] flex items-center justify-center gap-2.5 sm:gap-3 cursor-pointer"
           >
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 1 }}
-              className="absolute inset-0 flex items-center justify-center px-4"
-            >
-              <h1 className="text-2xl sm:text-4xl font-serif text-transparent bg-clip-text bg-gradient-to-r from-gold-300 to-gold-600 tracking-[0.2em] sm:tracking-[0.5em] text-center">
-                DEUZ & CO
-              </h1>
-            </motion.div>
-          </motion.div>
-        )}
+            <span className="text-xs sm:text-[13px] uppercase tracking-[0.28em] text-white font-mono font-medium group-hover:text-gold-200 transition-colors whitespace-nowrap">
+              EXPLORE COLLECTION
+            </span>
+            <ArrowUpRight size={17} className="text-gold-400 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform duration-300 shrink-0" />
+          </motion.button>
+        </motion.div>
       </div>
+
+      {/* Walk-in screen transition */}
+      {isWalkingIn && (
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 1.2, delay: 0.2 }}
+          className="fixed inset-0 pointer-events-none z-[100] bg-black flex items-center justify-center px-4"
+        >
+          <motion.h1 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.4 }}
+            className="text-2xl sm:text-4xl font-serif text-transparent bg-clip-text bg-gradient-to-r from-gold-300 via-gold-100 to-gold-600 tracking-[0.3em] sm:tracking-[0.5em] text-center uppercase"
+          >
+            DEUZ & CO
+          </motion.h1>
+        </motion.div>
+      )}
     </section>
   );
 };

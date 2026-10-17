@@ -23,7 +23,9 @@ import {
   Activity,
   Zap,
   Download,
-  Gauge
+  Gauge,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import { useAuth } from '../context/AuthContext';
@@ -42,20 +44,27 @@ export const CustomerProfileChamber: React.FC<CustomerProfileChamberProps> = ({
   onClose,
   onOpenConcierge
 }) => {
-  const { user, updatePassword } = useAuth();
+  const { user, updatePassword, forgotPassword, sendVerificationEmail, refreshUser } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [showCurrentPwd, setShowCurrentPwd] = useState(false);
+  const [showNewPwd, setShowNewPwd] = useState(false);
+  const [showConfirmPwd, setShowConfirmPwd] = useState(false);
   const [passwordError, setPasswordError] = useState('');
   const [passwordSuccess, setPasswordSuccess] = useState('');
   const [passwordLoading, setPasswordLoading] = useState(false);
+  const [isVerifyingIdentity, setIsVerifyingIdentity] = useState(false);
+  const [identityVerifyMsg, setIdentityVerifyMsg] = useState('');
+  const [identityVerifyErr, setIdentityVerifyErr] = useState('');
+  const [identityVerifyLoading, setIdentityVerifyLoading] = useState(false);
   const [mobileInput, setMobileInput] = useState(user?.mobile || '');
   const [fullNameInput, setFullNameInput] = useState(user?.fullName || '');
-  const [addressInput, setAddressInput] = useState(user?.address?.address || '');
+  const [addressInput, setAddressInput] = useState((user?.address as any)?.addressLine1 || user?.address?.address || '');
   const [cityInput, setCityInput] = useState(user?.address?.city || '');
-  const [postalInput, setPostalInput] = useState(user?.address?.pincode || '');
+  const [postalInput, setPostalInput] = useState((user?.address as any)?.postalCode || user?.address?.pincode || '');
   const [countryInput, setCountryInput] = useState(user?.address?.country || '');
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -64,6 +73,19 @@ export const CustomerProfileChamber: React.FC<CustomerProfileChamberProps> = ({
   const [copiedDossierId, setCopiedDossierId] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [userOrders, setUserOrders] = useState<any[]>([]);
+
+  // Synchronize form inputs whenever user or modal open state changes
+  useEffect(() => {
+    if (user) {
+      setFullNameInput(user.fullName || '');
+      setMobileInput(user.mobile || '');
+      const addr: any = user.address || {};
+      setAddressInput(addr.addressLine1 || addr.address || '');
+      setCityInput(addr.city || '');
+      setPostalInput(addr.postalCode || addr.pincode || '');
+      setCountryInput(addr.country || '');
+    }
+  }, [user, isOpen]);
 
   useEffect(() => {
     if (isOpen && user) {
@@ -85,16 +107,22 @@ export const CustomerProfileChamber: React.FC<CustomerProfileChamberProps> = ({
     e.preventDefault();
     setSaving(true);
     try {
+      const updatedAddress = {
+        address: addressInput.trim(),
+        addressLine1: addressInput.trim(),
+        city: cityInput.trim(),
+        pincode: postalInput.trim(),
+        postalCode: postalInput.trim(),
+        country: countryInput.trim()
+      };
       await db.updateUserProfile(user.id, {
         fullName: fullNameInput.trim(),
+        displayName: fullNameInput.trim(),
         mobile: mobileInput.trim(),
-        address: {
-          addressLine1: addressInput.trim(),
-          city: cityInput.trim(),
-          postalCode: postalInput.trim(),
-          country: countryInput.trim()
-        }
+        address: updatedAddress,
+        addresses: [updatedAddress]
       });
+      await refreshUser();
       setSaveSuccess(true);
       setIsEditing(false);
       setTimeout(() => setSaveSuccess(false), 3000);
@@ -227,17 +255,67 @@ export const CustomerProfileChamber: React.FC<CustomerProfileChamberProps> = ({
     }
   };
 
+  const handleSendPasswordResetEmail = async () => {
+    setPasswordError('');
+    setPasswordSuccess('');
+    setPasswordLoading(true);
+    try {
+      const res = await forgotPassword(user.email);
+      if (res.success) {
+        setPasswordSuccess(`Password reset link dispatched to ${user.email}. Check your Inbox and Spam/Junk folder.`);
+      } else {
+        setPasswordError(res.message || 'Unable to send password reset email.');
+      }
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
+
+  const handleSendVerificationLink = async () => {
+    setIdentityVerifyErr('');
+    setIdentityVerifyMsg('');
+    setIsVerifyingIdentity(true);
+    setIdentityVerifyLoading(true);
+    try {
+      const res = await sendVerificationEmail();
+      if (res.success) {
+        setIdentityVerifyMsg(res.message || `Verification link sent to ${user.email}.`);
+        await refreshUser();
+      } else {
+        setIdentityVerifyErr(res.message || 'Failed to dispatch verification email.');
+      }
+    } finally {
+      setIdentityVerifyLoading(false);
+    }
+  };
+
+  const handleRefreshVerificationStatus = async () => {
+    setIdentityVerifyErr('');
+    setIdentityVerifyMsg('');
+    setIdentityVerifyLoading(true);
+    try {
+      await refreshUser();
+      setIdentityVerifyMsg('Verification status synchronized with your Dossier.');
+    } finally {
+      setIdentityVerifyLoading(false);
+    }
+  };
+
   const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setPasswordError('');
     setPasswordSuccess('');
 
+    if (!currentPassword) {
+      setPasswordError('Please enter your current password, or click "Send Password Reset Email" if you forgot it.');
+      return;
+    }
     if (newPassword.length < 6) {
       setPasswordError('New password must contain at least 6 characters.');
       return;
     }
     if (newPassword !== confirmNewPassword) {
-      setPasswordError('Passwords do not match.');
+      setPasswordError('New passwords do not match.');
       return;
     }
 
@@ -245,14 +323,14 @@ export const CustomerProfileChamber: React.FC<CustomerProfileChamberProps> = ({
     try {
       const res = await updatePassword(currentPassword, newPassword);
       if (res.success) {
-        setPasswordSuccess('Password successfully updated.');
+        setPasswordSuccess('Password updated & synchronized with Atelier Cloud.');
         setCurrentPassword('');
         setNewPassword('');
         setConfirmNewPassword('');
         setTimeout(() => {
           setIsChangingPassword(false);
           setPasswordSuccess('');
-        }, 2000);
+        }, 2200);
       } else {
         setPasswordError(res.message || 'Failed to update password.');
       }
@@ -379,6 +457,14 @@ export const CustomerProfileChamber: React.FC<CustomerProfileChamberProps> = ({
                 </div>
 
                 <div className="flex items-center gap-2">
+                  <span className={`px-2.5 py-0.5 rounded text-[9px] font-mono uppercase tracking-widest border font-bold flex items-center gap-1.5 ${
+                    user.emailVerified
+                      ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/40'
+                      : 'bg-amber-500/15 text-amber-300 border-amber-500/40'
+                  }`}>
+                    <ShieldCheck size={11} />
+                    {user.emailVerified ? 'EMAIL VERIFIED' : 'EMAIL UNVERIFIED'}
+                  </span>
                   <span className="px-2.5 py-0.5 rounded text-[9px] font-mono uppercase tracking-widest bg-gold-500/15 text-gold-400 border border-gold-500/40 font-bold shadow-[0_0_10px_rgba(212,175,55,0.2)]">
                     {user.role === 'admin' ? 'ROOT EXECUTIVE ADMINISTRATOR' : 'AUTHENTICATED PATRON'}
                   </span>
@@ -395,7 +481,7 @@ export const CustomerProfileChamber: React.FC<CustomerProfileChamberProps> = ({
                     <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-gold-500 via-amber-400 to-yellow-200 p-[2px] shadow-[0_0_30px_rgba(212,175,55,0.4)]">
                       <div className="w-full h-full rounded-full bg-[#0a0a0a] flex items-center justify-center relative overflow-hidden">
                         <span className="font-serif text-3xl font-bold bg-gradient-to-b from-white via-gold-200 to-gold-400 bg-clip-text text-transparent">
-                          {user.fullName.charAt(0).toUpperCase()}
+                          {(user.fullName || 'P').charAt(0).toUpperCase()}
                         </span>
                         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(212,175,55,0.3),transparent_70%)]" />
                       </div>
@@ -442,10 +528,8 @@ export const CustomerProfileChamber: React.FC<CustomerProfileChamberProps> = ({
 
                 {/* Right: Aeronautical Flight Status HUD (5 cols) */}
                 <div className="lg:col-span-5 bg-gradient-to-br from-black/90 via-[#0a0805] to-black/95 border border-gold-500/40 rounded-xl p-4 sm:p-5 shadow-[0_0_35px_rgba(212,175,55,0.15)] relative overflow-hidden group">
-                  {/* Atmospheric gold blur */}
                   <div className="absolute top-0 right-0 w-32 h-32 bg-gold-500/10 rounded-full blur-2xl pointer-events-none" />
                   
-                  {/* Top HUD Bar */}
                   <div className="flex items-center justify-between pb-3 border-b border-white/10 relative z-10">
                     <div className="flex items-center gap-2">
                       <div className="p-1.5 rounded bg-gold-500/20 text-gold-400 animate-pulse shadow-[0_0_12px_rgba(212,175,55,0.4)]">
@@ -473,9 +557,7 @@ export const CustomerProfileChamber: React.FC<CustomerProfileChamberProps> = ({
                     </span>
                   </div>
 
-                  {/* Avionics Telemetry Grid & Mini Animated Radar */}
                   <div className="pt-3.5 grid grid-cols-12 gap-3 items-center relative z-10">
-                    {/* Left: Stats (8 cols) */}
                     <div className="col-span-8 space-y-2.5">
                       <div>
                         <div className="flex items-center gap-1.5">
@@ -505,30 +587,20 @@ export const CustomerProfileChamber: React.FC<CustomerProfileChamberProps> = ({
                       </div>
                     </div>
 
-                    {/* Right: Sweeping Radar Scope (4 cols) */}
                     <div className="col-span-4 flex flex-col items-center justify-center">
                       <div className="relative w-16 h-16 rounded-full border border-gold-500/40 bg-black/90 p-1 shadow-[0_0_20px_rgba(212,175,55,0.2)] flex items-center justify-center overflow-hidden">
-                        {/* Concentric rings */}
                         <div className="absolute inset-1.5 rounded-full border border-gold-500/20" />
                         <div className="absolute inset-3.5 rounded-full border border-gold-500/15" />
-                        
-                        {/* Crosshairs */}
                         <div className="absolute top-0 bottom-0 left-1/2 w-[0.5px] bg-gold-500/25 -translate-x-1/2" />
                         <div className="absolute left-0 right-0 top-1/2 h-[0.5px] bg-gold-500/25 -translate-y-1/2" />
-
-                        {/* Sweeping Beam */}
                         <motion.div
                           animate={{ rotate: 360 }}
                           transition={{ repeat: Infinity, duration: 3.5, ease: "linear" }}
                           className="absolute inset-0 bg-[conic-gradient(from_0deg,transparent_0deg,transparent_300deg,rgba(212,175,55,0.5)_360deg)] pointer-events-none rounded-full"
                         />
-
-                        {/* Center Target Ping */}
                         <div className="relative z-10 w-2 h-2 rounded-full bg-gold-400 shadow-[0_0_8px_#D4AF37] flex items-center justify-center">
                           <span className="w-1 h-1 rounded-full bg-white" />
                         </div>
-
-                        {/* Distant Target Blip */}
                         <div className="absolute top-3 right-3 w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
                       </div>
                       <span className="text-[7.5px] font-mono text-gold-400/80 uppercase tracking-widest mt-1.5 font-bold">
@@ -537,7 +609,6 @@ export const CustomerProfileChamber: React.FC<CustomerProfileChamberProps> = ({
                     </div>
                   </div>
 
-                  {/* Satellite Uplink & Coordinates Bar */}
                   <div className="mt-3.5 pt-2.5 border-t border-white/10 flex items-center justify-between text-[9px] font-mono text-white/50 relative z-10">
                     <span className="flex items-center gap-1.5">
                       <Compass size={11} className="text-gold-400 shrink-0" />
@@ -549,14 +620,17 @@ export const CustomerProfileChamber: React.FC<CustomerProfileChamberProps> = ({
 
               </div>
 
-              {/* Dossier Control Panel: Edit Profile, Password & PDF Export */}
+              {/* Dossier Control Panel: Edit Profile, Password, Email Verification & PDF Export */}
               <div className="mt-6 pt-5 border-t border-white/10 flex flex-wrap items-center justify-between gap-3 relative z-10">
-                <div className="flex flex-wrap items-center gap-2.5 sm:gap-4">
+                <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
                   <button
                     type="button"
                     onClick={() => {
                       setIsEditing(!isEditing);
-                      if (!isEditing) setIsChangingPassword(false);
+                      if (!isEditing) {
+                        setIsChangingPassword(false);
+                        setIsVerifyingIdentity(false);
+                      }
                     }}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono uppercase tracking-wider transition-all cursor-pointer border ${
                       isEditing 
@@ -572,7 +646,12 @@ export const CustomerProfileChamber: React.FC<CustomerProfileChamberProps> = ({
                     type="button"
                     onClick={() => {
                       setIsChangingPassword(!isChangingPassword);
-                      if (!isChangingPassword) setIsEditing(false);
+                      setPasswordError('');
+                      setPasswordSuccess('');
+                      if (!isChangingPassword) {
+                        setIsEditing(false);
+                        setIsVerifyingIdentity(false);
+                      }
                     }}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono uppercase tracking-wider transition-all cursor-pointer border ${
                       isChangingPassword 
@@ -582,6 +661,29 @@ export const CustomerProfileChamber: React.FC<CustomerProfileChamberProps> = ({
                   >
                     <Lock size={13} />
                     <span>{isChangingPassword ? 'Cancel Password Change' : 'Update Password'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!isVerifyingIdentity) {
+                        setIsEditing(false);
+                        setIsChangingPassword(false);
+                        setIsVerifyingIdentity(true);
+                        setIdentityVerifyErr('');
+                        setIdentityVerifyMsg('');
+                      } else {
+                        setIsVerifyingIdentity(false);
+                      }
+                    }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono uppercase tracking-wider transition-all cursor-pointer border ${
+                      isVerifyingIdentity
+                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50'
+                        : 'bg-white/5 text-white/70 hover:text-white border-white/10 hover:border-emerald-500/30'
+                    }`}
+                  >
+                    <ShieldCheck size={13} className="text-emerald-400" />
+                    <span>{isVerifyingIdentity ? 'Close Verification' : 'Email Verification'}</span>
                   </button>
 
                   {/* Export Classified Dossier PDF */}
@@ -603,13 +705,68 @@ export const CustomerProfileChamber: React.FC<CustomerProfileChamberProps> = ({
                       <CheckCircle2 size={14} /> Coordinates Synchronized
                     </span>
                   )}
-                  {passwordSuccess && (
+                  {passwordSuccess && !isChangingPassword && (
                     <span className="text-xs font-mono text-emerald-400 flex items-center gap-1.5">
-                      <CheckCircle2 size={14} /> Password Updated
+                      <CheckCircle2 size={14} /> {passwordSuccess}
                     </span>
                   )}
                 </div>
               </div>
+
+              {/* EMAIL VERIFICATION PANEL */}
+              {isVerifyingIdentity && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="mt-5 pt-5 border-t border-white/10 space-y-4 relative z-10"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-[10px] font-mono uppercase tracking-widest text-emerald-400 flex items-center gap-1.5 font-bold">
+                      <ShieldCheck size={14} className="text-emerald-400" /> ATELIER EMAIL VERIFICATION STATUS
+                    </span>
+                    <span className="text-[10px] font-mono text-white/60">
+                      Registered Email: <span className="text-gold-400">{user.email}</span>
+                    </span>
+                  </div>
+
+                  {identityVerifyErr && (
+                    <div className="p-3 bg-red-950/40 border border-red-500/40 rounded text-red-300 text-xs font-mono flex items-center gap-2">
+                      <AlertTriangle size={14} className="shrink-0 text-red-400" />
+                      <span>{identityVerifyErr}</span>
+                    </div>
+                  )}
+
+                  {identityVerifyMsg && (
+                    <div className="p-3 bg-emerald-950/40 border border-emerald-500/40 rounded text-emerald-300 text-xs font-mono flex items-center gap-2">
+                      <CheckCircle2 size={14} className="shrink-0 text-emerald-400" />
+                      <span>{identityVerifyMsg}</span>
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={handleSendVerificationLink}
+                      disabled={identityVerifyLoading}
+                      className="px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-black text-xs font-mono uppercase tracking-widest font-bold rounded flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+                    >
+                      <Mail size={14} />
+                      <span>{identityVerifyLoading ? 'Sending...' : 'Send Verification Link to Email'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleRefreshVerificationStatus}
+                      disabled={identityVerifyLoading}
+                      className="px-4 py-2.5 bg-white/5 hover:bg-white/10 border border-white/15 text-white text-xs font-mono uppercase tracking-widest rounded flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+                    >
+                      <ShieldCheck size={14} className="text-gold-400" />
+                      <span>Refresh Verification Status</span>
+                    </button>
+                  </div>
+                </motion.div>
+              )}
 
               {/* SECURE PASSWORD UPDATE FORM */}
               {isChangingPassword && (
@@ -620,10 +777,18 @@ export const CustomerProfileChamber: React.FC<CustomerProfileChamberProps> = ({
                   onSubmit={handleUpdatePassword}
                   className="mt-5 pt-5 border-t border-white/10 space-y-4 relative z-10"
                 >
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="text-[10px] font-mono uppercase tracking-widest text-gold-400 flex items-center gap-1.5 font-bold">
-                      <ShieldCheck size={14} className="text-gold-400" /> SECURE CREDENTIALS CONFIGURATION // 256-BIT ENCRYPTION
+                      <ShieldCheck size={14} className="text-gold-400" /> SECURE CREDENTIALS CONFIGURATION // CLOUD REGISTRY SYNC
                     </span>
+                    <button
+                      type="button"
+                      onClick={handleSendPasswordResetEmail}
+                      disabled={passwordLoading}
+                      className="text-[10px] font-mono text-gold-400 hover:text-gold-300 underline cursor-pointer"
+                    >
+                      Forgot Current Password? Send Password Reset Link to Email
+                    </button>
                   </div>
 
                   {passwordError && (
@@ -633,55 +798,105 @@ export const CustomerProfileChamber: React.FC<CustomerProfileChamberProps> = ({
                     </div>
                   )}
 
+                  {passwordSuccess && (
+                    <div className="p-3 bg-emerald-950/40 border border-emerald-500/40 rounded text-emerald-300 text-xs font-mono flex items-center gap-2">
+                      <CheckCircle2 size={14} className="shrink-0 text-emerald-400" />
+                      <span>{passwordSuccess}</span>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
                       <label className="block text-[9px] font-mono uppercase tracking-widest text-white/50 mb-1">
                         Current Password
                       </label>
-                      <input
-                        type="password"
-                        value={currentPassword}
-                        onChange={(e) => setCurrentPassword(e.target.value)}
-                        placeholder="Current password"
-                        className="w-full bg-black/80 border border-white/15 rounded px-3 py-2 text-xs text-white focus:border-gold-400 outline-none font-mono"
-                      />
+                      <div className="relative">
+                        <input
+                          type={showCurrentPwd ? "text" : "password"}
+                          value={currentPassword}
+                          onChange={(e) => setCurrentPassword(e.target.value)}
+                          placeholder="Current password"
+                          required
+                          className="w-full bg-black/80 border border-white/15 rounded pl-3 pr-9 py-2 text-xs text-white focus:border-gold-400 outline-none font-mono"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowCurrentPwd(!showCurrentPwd)}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/40 hover:text-white cursor-pointer"
+                        >
+                          {showCurrentPwd ? <EyeOff size={13} /> : <Eye size={13} />}
+                        </button>
+                      </div>
                     </div>
+
                     <div>
                       <label className="block text-[9px] font-mono uppercase tracking-widest text-white/50 mb-1">
                         New Password (6+ chars)
                       </label>
-                      <input
-                        type="password"
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        placeholder="Min 6 characters"
-                        required
-                        className="w-full bg-black/80 border border-white/15 rounded px-3 py-2 text-xs text-white focus:border-gold-400 outline-none font-mono"
-                      />
+                      <div className="relative">
+                        <input
+                          type={showNewPwd ? "text" : "password"}
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          placeholder="Min 6 characters"
+                          required
+                          className="w-full bg-black/80 border border-white/15 rounded pl-3 pr-9 py-2 text-xs text-white focus:border-gold-400 outline-none font-mono"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowNewPwd(!showNewPwd)}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/40 hover:text-white cursor-pointer"
+                        >
+                          {showNewPwd ? <EyeOff size={13} /> : <Eye size={13} />}
+                        </button>
+                      </div>
                     </div>
+
                     <div>
                       <label className="block text-[9px] font-mono uppercase tracking-widest text-white/50 mb-1">
-                        Confirm Password
+                        Confirm New Password
                       </label>
-                      <input
-                        type="password"
-                        value={confirmNewPassword}
-                        onChange={(e) => setConfirmNewPassword(e.target.value)}
-                        placeholder="Re-enter password"
-                        required
-                        className="w-full bg-black/80 border border-white/15 rounded px-3 py-2 text-xs text-white focus:border-gold-400 outline-none font-mono"
-                      />
+                      <div className="relative">
+                        <input
+                          type={showConfirmPwd ? "text" : "password"}
+                          value={confirmNewPassword}
+                          onChange={(e) => setConfirmNewPassword(e.target.value)}
+                          placeholder="Re-enter new password"
+                          required
+                          className="w-full bg-black/80 border border-white/15 rounded pl-3 pr-9 py-2 text-xs text-white focus:border-gold-400 outline-none font-mono"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPwd(!showConfirmPwd)}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/40 hover:text-white cursor-pointer"
+                        >
+                          {showConfirmPwd ? <EyeOff size={13} /> : <Eye size={13} />}
+                        </button>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex justify-end gap-3 pt-2">
+                  <div className="flex items-center justify-between pt-2">
+                    <div className="text-[10px] font-mono">
+                      {confirmNewPassword.length > 0 && (
+                        newPassword === confirmNewPassword ? (
+                          <span className="text-emerald-400 flex items-center gap-1">
+                            <CheckCircle2 size={12} /> Passwords match &amp; ready for encryption
+                          </span>
+                        ) : (
+                          <span className="text-red-400 flex items-center gap-1">
+                            <AlertTriangle size={12} /> Passwords do not match
+                          </span>
+                        )
+                      )}
+                    </div>
                     <button
                       type="submit"
                       disabled={passwordLoading}
                       className="px-5 py-2.5 bg-gradient-to-r from-gold-500 to-amber-400 hover:from-gold-400 hover:to-amber-300 text-black text-xs font-mono uppercase tracking-widest font-bold rounded flex items-center gap-2 transition-all disabled:opacity-50 cursor-pointer shadow-[0_0_20px_rgba(212,175,55,0.3)]"
                     >
                       <KeyRound size={13} />
-                      <span>{passwordLoading ? 'Updating Password...' : 'Save New Password'}</span>
+                      <span>{passwordLoading ? 'Synchronizing Password...' : 'Save & Sync New Password'}</span>
                     </button>
                   </div>
                 </motion.form>

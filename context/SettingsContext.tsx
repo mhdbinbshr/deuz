@@ -28,6 +28,8 @@ export interface SiteContent {
 interface ConciergeConfig {
   instagramHandle: string;
   whatsappNumber: string;
+  phoneNumber?: string;
+  displayPhone?: string;
   emailAddress: string;
   businessHours: string;
   dmTemplate: string;
@@ -65,7 +67,9 @@ const DEFAULT_CONTENT: SiteContent = {
 
 const DEFAULT_CONCIERGE: ConciergeConfig = {
   instagramHandle: 'deuzandco',
-  whatsappNumber: '918848918633',
+  whatsappNumber: '919207676921',
+  phoneNumber: '+91 920 7676 921',
+  displayPhone: '920 7676 921',
   emailAddress: 'deuzandco@gmail.com',
   businessHours: '9 AM - 9 PM IST',
   dmTemplate: 'Greetings from DEUZ & CO.'
@@ -96,6 +100,16 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
 
   useEffect(() => {
     fetchSettings();
+    const unsub = db.subscribeSystemSettings((data) => {
+      if (data) {
+        if (data.siteContent) setContent({ ...DEFAULT_CONTENT, ...data.siteContent });
+        if (data.conciergeConfig) setConcierge({ ...DEFAULT_CONCIERGE, ...data.conciergeConfig });
+        setLoading(false);
+      }
+    });
+    return () => {
+      try { unsub(); } catch {}
+    };
   }, []);
 
   return (

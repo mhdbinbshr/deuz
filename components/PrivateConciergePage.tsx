@@ -444,6 +444,13 @@ export const PrivateConciergePage: React.FC<PrivateConciergePageProps> = ({ onCl
     setTimeout(() => setCopiedEmail(false), 2500);
   };
 
+  const [copiedPhone, setCopiedPhone] = useState(false);
+  const handleCopyPhone = () => {
+    navigator.clipboard.writeText('+91 920 7676 921');
+    setCopiedPhone(true);
+    setTimeout(() => setCopiedPhone(false), 2500);
+  };
+
   const handleAppointmentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setCityValidationError('');
@@ -1120,6 +1127,20 @@ export const PrivateConciergePage: React.FC<PrivateConciergePageProps> = ({ onCl
                     title="Copy Email"
                   >
                     {copiedEmail ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                  </button>
+                </div>
+
+                <div className="p-3.5 bg-black/80 border border-white/10 rounded-sm flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <PhoneCall size={14} className="text-gold-400" />
+                    <a href="tel:+919207676921" className="text-xs font-mono text-white/90 hover:text-gold-400 transition-colors">+91 920 7676 921</a>
+                  </div>
+                  <button
+                    onClick={handleCopyPhone}
+                    className="p-1.5 text-gold-400 hover:text-white transition-colors cursor-pointer"
+                    title="Copy Phone Number"
+                  >
+                    {copiedPhone ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
                   </button>
                 </div>
 

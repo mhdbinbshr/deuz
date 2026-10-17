@@ -139,32 +139,6 @@ const Portfolio: React.FC<PortfolioProps> = ({ onEnterShop }) => {
     }
   }, [pieces.length, activeIndex]);
 
-  // Motion values for real-time 3D cursor perspective
-  const mouseX = useMotionValue(0);
-  const mouseY = useMotionValue(0);
-
-  // Responsive 3D springs
-  const springX = useSpring(mouseX, { stiffness: 90, damping: 20 });
-  const springY = useSpring(mouseY, { stiffness: 90, damping: 20 });
-
-  // Map mouse coordinate to 3D rotation angles
-  const rotateX = useTransform(springY, [-0.5, 0.5], [16, -16]);
-  const rotateY = useTransform(springX, [-0.5, 0.5], [-22, 22]);
-
-  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (!stageRef.current) return;
-    const rect = stageRef.current.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / rect.width - 0.5;
-    const y = (e.clientY - rect.top) / rect.height - 0.5;
-    mouseX.set(x);
-    mouseY.set(y);
-  }, [mouseX, mouseY]);
-
-  const handleMouseLeave = useCallback(() => {
-    mouseX.set(0);
-    mouseY.set(0);
-  }, [mouseX, mouseY]);
-
   // Handle navigation
   const nextPiece = useCallback(() => {
     setActiveIndex((prev) => (prev + 1) % pieces.length);
@@ -174,14 +148,69 @@ const Portfolio: React.FC<PortfolioProps> = ({ onEnterShop }) => {
     setActiveIndex((prev) => (prev - 1 + pieces.length) % pieces.length);
   }, [pieces.length]);
 
-  // Auto-play: Automatically advance through the images of DEUZ FORM 01
+  // Perspective looping within the active product (Front, Reverse, Detail perspectives)
+  const [perspectiveIndex, setPerspectiveIndex] = useState(0);
+
+  const activePiece = pieces[activeIndex] || pieces[0];
+  const prevPieceIndex = (activeIndex - 1 + pieces.length) % pieces.length;
+  const nextPieceIndex = (activeIndex + 1) % pieces.length;
+
+  // Multi-perspective image set for the active product
+  const activeImages = React.useMemo(() => {
+    if (activePiece.allImages && activePiece.allImages.length > 0) {
+      return activePiece.allImages;
+    }
+    const fallback = [activePiece.imgUrl, activePiece.secondaryImgUrl].filter(Boolean);
+    return fallback.length > 0 ? fallback : [activePiece.imgUrl];
+  }, [activePiece]);
+
+  // Reset perspective to first view whenever product changes
+  useEffect(() => {
+    setPerspectiveIndex(0);
+  }, [activeIndex]);
+
+  // Requirement 5: Show the different perspective images of the product in Form 01, come as loop
+  useEffect(() => {
+    if (isPaused || activeImages.length <= 1) return;
+    const perspectiveTimer = setInterval(() => {
+      setPerspectiveIndex(prev => (prev + 1) % activeImages.length);
+    }, 2800);
+    return () => clearInterval(perspectiveTimer);
+  }, [isPaused, activeImages.length, activeIndex]);
+
+  // Requirement 2: Change the product after some seconds of Form 01 (7.5s cycle allows full perspective viewing)
   useEffect(() => {
     if (isPaused || pieces.length <= 1) return;
-    const interval = setInterval(() => {
-      setActiveIndex((prev) => (prev + 1) % pieces.length);
-    }, 4000);
-    return () => clearInterval(interval);
+    const productInterval = setInterval(() => {
+      setActiveIndex(prev => (prev + 1) % pieces.length);
+    }, 7500);
+    return () => clearInterval(productInterval);
   }, [isPaused, pieces.length, activeIndex]);
+
+  // Requirement 3: Cinematic 3D Animation with Interactive Spring Physics
+  const mouseX = useMotionValue(0);
+  const mouseY = useMotionValue(0);
+
+  const rotateX = useSpring(useTransform(mouseY, [-0.5, 0.5], [14, -14]), { stiffness: 180, damping: 24 });
+  const rotateY = useSpring(useTransform(mouseX, [-0.5, 0.5], [-18, 18]), { stiffness: 180, damping: 24 });
+  const translateZ = useSpring(useTransform(mouseX, [-0.5, 0.5], [35, 35]), { stiffness: 180, damping: 24 });
+  const shadowX = useSpring(useTransform(mouseX, [-0.5, 0.5], [30, -30]), { stiffness: 180, damping: 24 });
+  const shadowY = useSpring(useTransform(mouseY, [-0.5, 0.5], [35, 12]), { stiffness: 180, damping: 24 });
+
+  const handleStageMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!stageRef.current) return;
+    const rect = stageRef.current.getBoundingClientRect();
+    const xPct = (e.clientX - rect.left) / rect.width - 0.5;
+    const yPct = (e.clientY - rect.top) / rect.height - 0.5;
+    mouseX.set(xPct);
+    mouseY.set(yPct);
+  };
+
+  const handleStageMouseLeave = () => {
+    setIsPaused(false);
+    mouseX.set(0);
+    mouseY.set(0);
+  };
 
   // Keyboard navigation
   useEffect(() => {
@@ -193,26 +222,7 @@ const Portfolio: React.FC<PortfolioProps> = ({ onEnterShop }) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [nextPiece, prevPiece]);
 
-  const [centerHovered, setCenterHovered] = useState(false);
-  const [manualCenterPerspective, setManualCenterPerspective] = useState<number | null>(null);
-
-  // Reset perspective when active index changes
-  useEffect(() => {
-    setCenterHovered(false);
-    setManualCenterPerspective(null);
-  }, [activeIndex]);
-
-  const activePiece = pieces[activeIndex] || pieces[0];
-  const prevPieceIndex = (activeIndex - 1 + pieces.length) % pieces.length;
-  const nextPieceIndex = (activeIndex + 1) % pieces.length;
-
-  const isShowingCenterAlternate = manualCenterPerspective !== null
-    ? manualCenterPerspective === 1
-    : centerHovered;
-
-  const centerDisplayImg = isShowingCenterAlternate
-    ? (activePiece.secondaryImgUrl || activePiece.imgUrl)
-    : activePiece.imgUrl;
+  const centerDisplayImg = activeImages[perspectiveIndex] || activePiece.imgUrl;
 
   return (
     <section id="works" className="relative bg-black/40 py-20 md:py-28 overflow-hidden select-none">
@@ -303,12 +313,9 @@ const Portfolio: React.FC<PortfolioProps> = ({ onEnterShop }) => {
       {/* 3D Interactive Exhibition Stage */}
       <div 
         ref={stageRef}
-        onMouseMove={handleMouseMove}
+        onMouseMove={handleStageMouseMove}
         onMouseEnter={() => setIsPaused(true)}
-        onMouseLeave={() => {
-          handleMouseLeave();
-          setIsPaused(false);
-        }}
+        onMouseLeave={handleStageMouseLeave}
         onTouchStart={(e) => {
           setIsPaused(true);
           setTouchStartX(e.touches[0].clientX);
@@ -322,36 +329,21 @@ const Portfolio: React.FC<PortfolioProps> = ({ onEnterShop }) => {
           }
           setIsPaused(false);
         }}
-        className="relative z-10 w-full max-w-7xl mx-auto h-[520px] md:h-[660px] flex items-center justify-center cursor-grab active:cursor-grabbing"
-        style={{ perspective: 1200 }}
+        className="relative z-10 w-full max-w-7xl mx-auto h-[530px] md:h-[670px] flex items-center justify-center cursor-pointer select-none"
+        style={{ perspective: 1400 }}
       >
-        {/* 3D Rotational Stage Anchor */}
-        <motion.div
-          style={{
-            rotateX,
-            rotateY,
-            transformStyle: 'preserve-3d',
-          }}
-          className="relative w-full h-full flex items-center justify-center"
-        >
-          {/* LEFT RECESSED PIECE (3D Ghost Preview with Soft Edge Fade for ALL Screens) */}
+        {/* Stage Anchor */}
+        <div className="relative w-full h-full flex items-center justify-center">
+          {/* LEFT RECESSED PIECE (Preview with Full Silhouette) */}
           <div
             onClick={prevPiece}
-            className="flex absolute -left-8 sm:left-[1%] md:left-[3%] lg:left-[6%] xl:left-[8%] top-1/2 -translate-y-1/2 w-[160px] sm:w-[220px] md:w-[280px] lg:w-[340px] h-[260px] sm:h-[340px] md:h-[400px] lg:h-[460px] cursor-pointer items-center justify-center transition-all duration-700 select-none group z-10"
-            style={{
-              transform: 'translateZ(-140px) rotateY(32deg)',
-              transformStyle: 'preserve-3d',
-            }}
+            className="flex absolute -left-8 sm:left-[1%] md:left-[3%] lg:left-[6%] xl:left-[8%] top-1/2 -translate-y-1/2 w-[160px] sm:w-[220px] md:w-[280px] lg:w-[340px] h-[280px] sm:h-[360px] md:h-[420px] lg:h-[480px] cursor-pointer items-center justify-center transition-all duration-700 select-none group z-10"
           >
-            <div className="relative w-full h-full flex items-center justify-center opacity-35 group-hover:opacity-65 transition-opacity duration-500">
+            <div className="relative w-full h-full flex items-center justify-center opacity-30 group-hover:opacity-60 transition-opacity duration-500">
               <img
                 src={pieces[prevPieceIndex]?.imgUrl}
                 alt={pieces[prevPieceIndex]?.title}
-                className="max-w-full max-h-full object-contain pointer-events-none filter grayscale contrast-125"
-                style={{
-                  WebkitMaskImage: 'radial-gradient(ellipse 70% 70% at 50% 50%, black 30%, transparent 85%)',
-                  maskImage: 'radial-gradient(ellipse 70% 70% at 50% 50%, black 30%, transparent 85%)',
-                }}
+                className="max-w-full max-h-full object-contain pointer-events-none filter grayscale contrast-125 drop-shadow-xl"
               />
               <div className="absolute bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 text-center whitespace-nowrap opacity-70 sm:opacity-0 group-hover:opacity-100 transition-all duration-300 transform group-hover:-translate-y-1">
                 <span className="text-[7px] sm:text-[8px] font-mono tracking-[0.35em] text-gold-400 uppercase block mb-0.5">
@@ -364,24 +356,16 @@ const Portfolio: React.FC<PortfolioProps> = ({ onEnterShop }) => {
             </div>
           </div>
 
-          {/* RIGHT RECESSED PIECE (3D Ghost Preview with Soft Edge Fade for ALL Screens) */}
+          {/* RIGHT RECESSED PIECE (Preview with Full Silhouette) */}
           <div
             onClick={nextPiece}
-            className="flex absolute -right-8 sm:right-[1%] md:right-[3%] lg:right-[6%] xl:right-[8%] top-1/2 -translate-y-1/2 w-[160px] sm:w-[220px] md:w-[280px] lg:w-[340px] h-[260px] sm:h-[340px] md:h-[400px] lg:h-[460px] cursor-pointer items-center justify-center transition-all duration-700 select-none group z-10"
-            style={{
-              transform: 'translateZ(-140px) rotateY(-32deg)',
-              transformStyle: 'preserve-3d',
-            }}
+            className="flex absolute -right-8 sm:right-[1%] md:right-[3%] lg:right-[6%] xl:right-[8%] top-1/2 -translate-y-1/2 w-[160px] sm:w-[220px] md:w-[280px] lg:w-[340px] h-[280px] sm:h-[360px] md:h-[420px] lg:h-[480px] cursor-pointer items-center justify-center transition-all duration-700 select-none group z-10"
           >
-            <div className="relative w-full h-full flex items-center justify-center opacity-35 group-hover:opacity-65 transition-opacity duration-500">
+            <div className="relative w-full h-full flex items-center justify-center opacity-30 group-hover:opacity-60 transition-opacity duration-500">
               <img
                 src={pieces[nextPieceIndex]?.imgUrl}
                 alt={pieces[nextPieceIndex]?.title}
-                className="max-w-full max-h-full object-contain pointer-events-none filter grayscale contrast-125"
-                style={{
-                  WebkitMaskImage: 'radial-gradient(ellipse 70% 70% at 50% 50%, black 30%, transparent 85%)',
-                  maskImage: 'radial-gradient(ellipse 70% 70% at 50% 50%, black 30%, transparent 85%)',
-                }}
+                className="max-w-full max-h-full object-contain pointer-events-none filter grayscale contrast-125 drop-shadow-xl"
               />
               <div className="absolute bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 text-center whitespace-nowrap opacity-70 sm:opacity-0 group-hover:opacity-100 transition-all duration-300 transform group-hover:-translate-y-1">
                 <span className="text-[7px] sm:text-[8px] font-mono tracking-[0.35em] text-gold-400 uppercase block mb-0.5">
@@ -394,111 +378,85 @@ const Portfolio: React.FC<PortfolioProps> = ({ onEnterShop }) => {
             </div>
           </div>
 
-          {/* CENTER 3D HERO PIECE (Free-floating, completely unboxed, edge-faded) */}
+          {/* CENTER HERO PIECE (Free-floating with Real Cinematic 3D Physics and Full Product Visibility) */}
           <AnimatePresence mode="wait">
             <motion.div
               key={activePiece.id}
-              initial={{ opacity: 0, scale: 0.88, z: -100, rotateY: 18 }}
-              animate={{ opacity: 1, scale: 1, z: 40, rotateY: 0 }}
-              exit={{ opacity: 0, scale: 0.9, z: 80, rotateY: -18 }}
+              initial={{ opacity: 0, scale: 0.92 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.94 }}
               transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
-              style={{
-                transformStyle: 'preserve-3d',
-              }}
-              className="relative w-[92vw] sm:w-[540px] md:w-[640px] h-[480px] md:h-[580px] flex flex-col items-center justify-center z-20"
+              className="relative w-[92vw] sm:w-[560px] md:w-[660px] h-[520px] md:h-[620px] flex flex-col items-center justify-center z-20"
+              style={{ transformStyle: 'preserve-3d' }}
             >
-              {/* Backlight Volumetric Depth Glow (Zero solid border) */}
+              {/* Backlight Volumetric Depth Glow */}
               <motion.div
                 animate={{
                   scale: [1, 1.15, 1],
                   opacity: [0.35, 0.55, 0.35],
                 }}
                 transition={{ duration: 4.8, repeat: Infinity, ease: 'easeInOut' }}
-                style={{
-                  transform: 'translateZ(-60px)',
-                }}
-                className="absolute w-[340px] md:w-[480px] h-[340px] md:h-[480px] rounded-full bg-gradient-to-tr from-gold-500/25 via-amber-600/15 to-transparent blur-[90px] pointer-events-none"
+                className="absolute w-[360px] md:w-[500px] h-[360px] md:h-[500px] rounded-full bg-gradient-to-tr from-gold-500/25 via-amber-600/15 to-transparent blur-[90px] pointer-events-none"
               />
 
-              {/* Free-floating 3D Oscillating Image Container with Soft Feather Edge-Fading & Perspective Animation */}
+              {/* Free-floating 3D Oscillating Image Container with Dynamic Mouse Physics */}
               <motion.div
+                style={{
+                  rotateX,
+                  rotateY,
+                  z: translateZ,
+                  transformStyle: 'preserve-3d',
+                }}
                 animate={{
-                  y: [-12, 12, -12],
-                  rotateZ: [-1.2, 1.2, -1.2],
-                  z: [30, 50, 30],
+                  y: [-8, 8, -8],
+                  rotateZ: [-0.6, 0.6, -0.6],
                 }}
                 transition={{
-                  duration: 6,
+                  duration: 6.5,
                   repeat: Infinity,
                   ease: 'easeInOut',
                 }}
-                style={{
-                  transformStyle: 'preserve-3d',
-                }}
-                className="relative w-full h-[360px] md:h-[440px] flex items-center justify-center cursor-pointer group"
-                onMouseEnter={() => {
-                  setCenterHovered(true);
-                  setManualCenterPerspective(null);
-                }}
-                onMouseLeave={() => {
-                  setCenterHovered(false);
-                  setManualCenterPerspective(null);
-                }}
+                className="relative w-full h-[400px] sm:h-[460px] md:h-[500px] flex items-center justify-center cursor-pointer group"
                 onClick={onEnterShop}
               >
-                {/* The Unboxed Image with Gradient Feather Mask (No solid borders) */}
+                {/* Fully Visible Product Image Frame (No Edge-cutting masks) */}
                 <div 
-                  className="relative w-full h-full flex items-center justify-center"
-                  style={{
-                    WebkitMaskImage: 'radial-gradient(ellipse 75% 82% at 50% 50%, rgba(0,0,0,1) 45%, rgba(0,0,0,0.7) 70%, rgba(0,0,0,0) 100%)',
-                    maskImage: 'radial-gradient(ellipse 75% 82% at 50% 50%, rgba(0,0,0,1) 45%, rgba(0,0,0,0.7) 70%, rgba(0,0,0,0) 100%)',
-                  }}
+                  className="relative w-full h-full flex items-center justify-center p-2 sm:p-4"
                 >
                   <AnimatePresence mode="wait">
                     <motion.img
-                      key={centerDisplayImg}
-                      initial={{ opacity: 0, scale: 0.94, filter: 'blur(3px)' }}
-                      animate={{ opacity: 1, scale: isShowingCenterAlternate ? 1.03 : 1, filter: 'blur(0px)' }}
-                      exit={{ opacity: 0, scale: 1.04, filter: 'blur(3px)' }}
-                      transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
+                      key={`${activePiece.id}-p${perspectiveIndex}`}
+                      initial={{ opacity: 0, rotateY: 26, scale: 0.94, filter: 'blur(3px)' }}
+                      animate={{ opacity: 1, rotateY: 0, scale: 1, filter: 'blur(0px)' }}
+                      exit={{ opacity: 0, rotateY: -26, scale: 0.95, filter: 'blur(3px)' }}
+                      transition={{ duration: 0.75, ease: [0.16, 1, 0.3, 1] }}
                       src={centerDisplayImg}
                       alt={activePiece.title}
-                      className="max-w-full max-h-full object-contain filter contrast-[1.08] brightness-105 drop-shadow-[0_20px_50px_rgba(0,0,0,0.9)]"
+                      className="max-w-full max-h-full object-contain filter contrast-[1.08] brightness-105 drop-shadow-[0_25px_60px_rgba(0,0,0,0.95)]"
                     />
                   </AnimatePresence>
                   
-                  {/* Gentle Shimmer Sheen across the unboxed silhouette */}
+                  {/* Gentle Shimmer Sheen across the silhouette on perspective flip */}
                   <motion.div
                     key={`sheen-${centerDisplayImg}`}
                     initial={{ x: '-150%' }}
                     animate={{ x: '150%' }}
-                    transition={{ duration: 1.2, ease: 'easeOut' }}
-                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent skew-x-[-25deg] pointer-events-none"
+                    transition={{ duration: 1.1, ease: 'easeOut' }}
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-[-25deg] pointer-events-none"
                   />
                 </div>
 
-                {/* Perspective Angle Switcher Hologram Button */}
+                {/* Dynamic 3D Depth Shadow responding to tilt */}
                 <motion.div
                   style={{
-                    transform: 'translateZ(65px)',
+                    x: shadowX,
+                    y: shadowY,
                   }}
-                  className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-1 bg-black/80 backdrop-blur-md border border-gold-400/40 text-[8px] md:text-[9px] font-mono tracking-[0.25em] text-gold-300 uppercase shadow-2xl pointer-events-auto cursor-pointer"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setManualCenterPerspective(prev => prev === 1 ? 0 : 1);
-                  }}
-                >
-                  <RefreshCw size={10} className={`text-gold-400 ${isShowingCenterAlternate ? 'rotate-180' : ''} transition-transform duration-500`} />
-                  <span>{isShowingCenterAlternate ? 'VIEW FRONT' : 'VIEW REVERSE'}</span>
-                  <span className="text-white/40">|</span>
-                  <span className="text-white/60">{isShowingCenterAlternate ? '02' : '01'}</span>
-                </motion.div>
+                  className="absolute -bottom-6 w-3/5 h-6 bg-black/80 blur-xl rounded-full pointer-events-none"
+                />
 
-                {/* Floating 3D Metadata Hologram Badge */}
+                {/* Floating Metadata Hologram Badge */}
                 <motion.div
-                  style={{
-                    transform: 'translateZ(65px)',
-                  }}
                   animate={{
                     y: [-2, 2, -2],
                     opacity: [0.85, 1, 0.85],
@@ -515,6 +473,35 @@ const Portfolio: React.FC<PortfolioProps> = ({ onEnterShop }) => {
                   <span>{activePiece.code}</span>
                 </motion.div>
               </motion.div>
+
+              {/* Requirement 5: Looping Perspective Indicator Badge */}
+              {activeImages.length > 1 && (
+                <div className="z-30 pointer-events-auto flex items-center justify-center my-1">
+                  <div className="flex items-center gap-2 px-3 py-1 bg-black/70 border border-white/15 rounded-full backdrop-blur-md shadow-lg">
+                    <RefreshCw size={9} className="text-gold-400 animate-spin" style={{ animationDuration: '6s' }} />
+                    <span className="text-[7.5px] sm:text-[8px] font-mono tracking-[0.25em] text-white/80 uppercase font-medium">
+                      {perspectiveIndex === 0 ? 'FRONT PERSPECTIVE' : (perspectiveIndex === 1 ? 'REVERSE PERSPECTIVE' : 'ATELIER DETAIL')}
+                    </span>
+                    <div className="flex items-center gap-1.5 ml-1">
+                      {activeImages.map((_, pIdx) => (
+                        <button
+                          key={pIdx}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPerspectiveIndex(pIdx);
+                          }}
+                          aria-label={`View perspective ${pIdx + 1}`}
+                          className={`w-1.5 h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
+                            pIdx === perspectiveIndex
+                              ? 'bg-gold-400 scale-125 shadow-[0_0_8px_#D4AF37]'
+                              : 'bg-white/25 hover:bg-white/60'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Unboxed 3D Focal Information Card */}
               <motion.div
@@ -576,7 +563,7 @@ const Portfolio: React.FC<PortfolioProps> = ({ onEnterShop }) => {
               </motion.div>
             </motion.div>
           </AnimatePresence>
-        </motion.div>
+        </div>
       </div>
     </section>
   );

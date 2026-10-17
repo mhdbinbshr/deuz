@@ -209,7 +209,6 @@ function AppContent() {
       {!loading && <CustomCursor />}
       
       <AuthModal />
-      <SecurityNotificationBanner />
 
       <AnimatePresence>
         {showWelcome && user && <WelcomeToast name={user.fullName.split(' ')[0]} />}

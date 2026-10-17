@@ -1,5 +1,7 @@
 export const CONCIERGE_CONFIG = {
-  whatsappNumber: '918848918633', // Official WhatsApp concierge
+  whatsappNumber: '919207676921', // Official WhatsApp concierge
+  phoneNumber: '+91 920 7676 921', // Official Contact line
+  displayPhone: '920 7676 921',
   instagramHandle: 'deuzandco', // Official Instagram handle
   emailAddress: 'deuzandco@gmail.com'
 };

@@ -24,41 +24,16 @@ interface ProductCardProps {
   onToggleWishlist?: (e: React.MouseEvent) => void;
 }
 
-const ProductCard: React.FC<ProductCardProps> = ({ 
-  product, 
-  onClick, 
+const ProductCard: React.FC<ProductCardProps> = ({
+  product,
+  onClick,
   itemVariants,
   isWishlisted,
   onToggleWishlist
 }) => {
-  const cardRef = useRef<HTMLDivElement>(null);
   const [isHovered, setIsHovered] = useState(false);
-  const [manualIndex, setManualIndex] = useState<number | null>(null);
+  const [autoIndex, setAutoIndex] = useState(0);
 
-  // 3D Tilt Spring Physics
-  const mouseX = useMotionValue(0);
-  const mouseY = useMotionValue(0);
-  const rotateX = useSpring(useTransform(mouseY, [-0.5, 0.5], [10, -10]), { stiffness: 220, damping: 22 });
-  const rotateY = useSpring(useTransform(mouseX, [-0.5, 0.5], [-10, 10]), { stiffness: 220, damping: 22 });
-  const glareX = useTransform(mouseX, [-0.5, 0.5], ['0%', '100%']);
-  const glareY = useTransform(mouseY, [-0.5, 0.5], ['0%', '100%']);
-
-  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (!cardRef.current) return;
-    const rect = cardRef.current.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / rect.width - 0.5;
-    const y = (e.clientY - rect.top) / rect.height - 0.5;
-    mouseX.set(x);
-    mouseY.set(y);
-  }, [mouseX, mouseY]);
-
-  const handleMouseLeave = useCallback(() => {
-    mouseX.set(0);
-    mouseY.set(0);
-    setIsHovered(false);
-    setManualIndex(null);
-  }, [mouseX, mouseY]);
-  
   // Guarantee paired primary and secondary views for every product
   const imageSet = useMemo(() => {
     return getProductImageSet({
@@ -70,10 +45,26 @@ const ProductCard: React.FC<ProductCardProps> = ({
   }, [product.image, product.gallery, product.title, product.houseCode]);
 
   const allImages = imageSet.allImages;
-  const currentImageIndex = manualIndex !== null 
-    ? manualIndex 
-    : (isHovered && allImages.length > 1 ? 1 : 0);
 
+  // Requirement 4: Auto change the product perspective in the Fashion House
+  useEffect(() => {
+    if (allImages.length <= 1) return;
+    // Stagger slightly per product so cards alternate organically across the Fashion House grid
+    const seed = typeof product.id === 'number'
+      ? product.id
+      : (product.id ? String(product.id).split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) : 0);
+    const delay = 3500 + (seed % 4) * 600;
+
+    const interval = setInterval(() => {
+      setAutoIndex(prev => (prev + 1) % allImages.length);
+    }, delay);
+
+    return () => clearInterval(interval);
+  }, [allImages.length, product.id]);
+
+  const currentImageIndex = isHovered 
+    ? (autoIndex === 0 ? 1 : 0) 
+    : autoIndex;
   const activeImage = allImages[currentImageIndex] || imageSet.primary;
 
   return (
@@ -81,68 +72,58 @@ const ProductCard: React.FC<ProductCardProps> = ({
       layout
       variants={itemVariants}
       onClick={onClick}
-      ref={cardRef}
-      onMouseMove={handleMouseMove}
-      onMouseEnter={() => {
-        setIsHovered(true);
-        setManualIndex(null);
-      }}
-      onMouseLeave={handleMouseLeave}
-      className="group cursor-pointer flex flex-col perspective-[1000px]"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      className="group cursor-pointer flex flex-col"
     >
-      <motion.div
-        style={{
-          rotateX,
-          rotateY,
-          transformStyle: "preserve-3d",
-        }}
-        whileHover={{ scale: 1.02 }}
-        transition={{ type: "spring", stiffness: 250, damping: 22 }}
-        className="w-full aspect-[3/4] overflow-hidden bg-[#0A0A0A] relative mb-5 rounded-none border border-white/10 group-hover:border-gold-400/50 transition-colors duration-500 shadow-[0_15px_35px_rgba(0,0,0,0.6)] group-hover:shadow-[0_20px_50px_rgba(212,175,55,0.15)]"
+      <div
+        className="w-full aspect-[3/4] overflow-hidden bg-[#0A0A0A] relative mb-5 rounded-none border border-white/10 group-hover:border-gold-400/50 transition-all duration-500 shadow-[0_20px_50px_rgba(0,0,0,0.6)] group-hover:shadow-[0_25px_60px_rgba(212,175,55,0.12)]"
       >
-        {/* Animated Alternate Product Image View */}
+        {/* Animated Alternate Product Image View with auto-perspective */}
         <AnimatePresence mode="wait">
           <motion.img 
             key={activeImage}
             layoutId={currentImageIndex === 0 ? `product-image-${product.id}` : undefined}
             src={activeImage} 
             alt={product.title} 
-            initial={{ opacity: 0, scale: 1.05, filter: 'blur(2px)' }}
+            initial={{ opacity: 0, scale: 1.03 }}
             animate={{ 
               opacity: product.inStock ? 1 : 0.45,
               scale: isHovered ? 1.04 : 1,
-              filter: 'blur(0px)'
             }}
-            exit={{ opacity: 0, scale: 0.98, filter: 'blur(2px)' }}
+            exit={{ opacity: 0, scale: 0.98 }}
             transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
-            className={`absolute inset-0 w-full h-full object-cover transition-transform duration-700 ${!product.inStock ? 'grayscale' : ''}`} 
+            className={`absolute inset-0 w-full h-full object-cover object-center transition-transform duration-700 ${!product.inStock ? 'grayscale' : ''}`} 
           />
         </AnimatePresence>
 
         {/* Dynamic Light Sweep on Image Change */}
         <motion.div
           key={`flare-${currentImageIndex}`}
-          initial={{ x: '-100%', opacity: 0.35 }}
+          initial={{ x: '-100%', opacity: 0.3 }}
           animate={{ x: '200%', opacity: 0 }}
           transition={{ duration: 0.9, ease: 'easeOut' }}
           className="absolute inset-0 bg-gradient-to-r from-transparent via-gold-300/20 to-transparent skew-x-[-20deg] pointer-events-none z-20"
         />
 
-        {/* Dynamic Interactive Specular Glare */}
-        <motion.div 
-          className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-35 transition-opacity duration-500 z-20"
-          style={{
-            background: `radial-gradient(circle 280px at ${glareX} ${glareY}, rgba(255,255,255,0.3), transparent 70%)`,
-            mixBlendMode: "overlay",
-          }}
-        />
-
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20 group-hover:opacity-80 transition-opacity duration-500 z-20 pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/10 group-hover:opacity-75 transition-opacity duration-500 z-20 pointer-events-none" />
 
         {/* Corner Reticles */}
-        <div className="absolute top-2 left-2 text-gold-400/30 font-mono text-[8px] z-30 pointer-events-none">+</div>
-        <div className="absolute top-2 right-2 text-gold-400/30 font-mono text-[8px] z-30 pointer-events-none">+</div>
+        <div className="absolute top-2.5 left-2.5 text-gold-400/30 font-mono text-[8px] z-30 pointer-events-none">+</div>
+        <div className="absolute top-2.5 right-2.5 text-gold-400/30 font-mono text-[8px] z-30 pointer-events-none">+</div>
         
+        {/* Auto Perspective Indicator - Cinematic Obsidian Pill */}
+        {allImages.length > 1 && (
+          <div className="absolute bottom-3 left-3 z-30 pointer-events-none flex items-center gap-2 px-2.5 py-1 bg-[#060608]/85 border border-white/15 backdrop-blur-xl shadow-[0_8px_24px_rgba(0,0,0,0.85)]">
+            <span className="absolute top-0 left-0 w-1 h-1 border-t border-l border-gold-400/70" />
+            <span className="absolute bottom-0 right-0 w-1 h-1 border-b border-r border-gold-400/70" />
+            <span className="w-1.5 h-1.5 rounded-full bg-gold-400 animate-pulse shadow-[0_0_6px_#D4AF37]" />
+            <span className="text-[7.5px] font-mono tracking-[0.24em] text-white/90 uppercase font-medium">
+              {currentImageIndex === 0 ? 'FRONT' : (currentImageIndex === 1 ? 'REVERSE' : 'DETAIL')}
+            </span>
+          </div>
+        )}
+
         {!product.inStock && (
           <div className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none">
             <div className="bg-black/85 px-4 py-2 text-white text-xs uppercase tracking-widest border border-white/20 backdrop-blur-sm">
@@ -151,15 +132,16 @@ const ProductCard: React.FC<ProductCardProps> = ({
           </div>
         )}
         
-        {/* Badge in 3D Space */}
+        {/* House Tag Badge */}
         {product.imageTag && (
           <div 
-            style={{ transform: "translateZ(30px)" }}
-            className="absolute top-3.5 left-3.5 bg-black/70 border border-gold-400/25 backdrop-blur-md px-2.5 py-1 z-30 rounded-none pointer-events-none"
+            className="absolute top-3.5 left-3.5 bg-gradient-to-r from-[#141109]/90 via-[#0a0906]/90 to-[#141109]/90 border border-gold-400/35 backdrop-blur-xl px-3 py-1.5 z-30 rounded-none pointer-events-none shadow-[0_10px_25px_rgba(0,0,0,0.8)]"
           >
+            <span className="absolute top-0 left-0 w-1.5 h-1.5 border-t border-l border-gold-400/80" />
+            <span className="absolute bottom-0 right-0 w-1.5 h-1.5 border-b border-r border-gold-400/80" />
             <div className="flex items-center gap-1.5">
               <Sparkles size={9} className="text-gold-400 animate-pulse" />
-              <span className="text-[8px] uppercase tracking-[0.25em] text-gold-300 font-mono font-medium">{product.imageTag}</span>
+              <span className="text-[8px] uppercase tracking-[0.26em] text-gold-300 font-mono font-semibold">{product.imageTag}</span>
             </div>
           </div>
         )}
@@ -171,51 +153,39 @@ const ProductCard: React.FC<ProductCardProps> = ({
             e.stopPropagation();
             onToggleWishlist?.(e);
           }}
-          className={`absolute top-3 right-3 z-40 w-8 h-8 rounded-none border backdrop-blur-md flex items-center justify-center transition-all duration-300 cursor-pointer ${
+          className={`absolute top-3.5 right-3.5 z-40 w-9 h-9 rounded-none border backdrop-blur-xl flex items-center justify-center transition-all duration-300 cursor-pointer group/fav hover:scale-105 active:scale-95 ${
             isWishlisted
-              ? 'bg-red-500/20 border-red-500/60 text-red-400 scale-105 opacity-100 shadow-[0_0_15px_rgba(239,68,68,0.4)]'
-              : 'bg-black/60 border-white/20 text-white/70 hover:text-red-400 hover:border-red-400/50 opacity-90 sm:opacity-0 group-hover:opacity-100'
+              ? 'bg-gradient-to-b from-rose-950/85 via-red-950/90 to-black border-rose-500/80 text-rose-300 shadow-[0_0_22px_rgba(244,63,94,0.55)]'
+              : 'bg-[#070709]/85 border-white/20 text-white/75 hover:text-rose-400 hover:border-gold-400/70 shadow-[0_10px_25px_rgba(0,0,0,0.85)] hover:shadow-[0_0_18px_rgba(212,175,55,0.3)] opacity-90 sm:opacity-0 group-hover:opacity-100'
           }`}
           aria-label="Save to Favourites"
           title={isWishlisted ? "Remove from Favourites" : "Save to Favourites"}
         >
-          <Heart size={14} fill={isWishlisted ? "currentColor" : "none"} strokeWidth={1.8} />
+          {/* Subtle Corner Accents */}
+          <div className="absolute top-0 left-0 w-1.5 h-1.5 border-t border-l border-gold-400/60" />
+          <div className="absolute top-0 right-0 w-1.5 h-1.5 border-t border-r border-gold-400/60" />
+          <div className="absolute bottom-0 left-0 w-1.5 h-1.5 border-b border-l border-gold-400/60" />
+          <div className="absolute bottom-0 right-0 w-1.5 h-1.5 border-b border-r border-gold-400/60" />
+          <Heart 
+            size={15} 
+            fill={isWishlisted ? "currentColor" : "none"} 
+            strokeWidth={1.8} 
+            className={`transition-transform duration-300 ${isWishlisted ? 'scale-110 drop-shadow-[0_0_6px_rgba(244,63,94,0.8)]' : 'group-hover/fav:scale-110'}`} 
+          />
         </button>
-
-        {/* Multi-angle Interactive Perspective Indicator Pill */}
-        {allImages.length > 1 && (
-          <div 
-            style={{ transform: "translateZ(32px)" }}
-            className="absolute top-3.5 right-12 flex items-center gap-1 z-30 pointer-events-auto"
-            onClick={(e) => {
-              e.stopPropagation();
-              setManualIndex(prev => prev === 1 ? 0 : 1);
-            }}
-          >
-            <button
-              type="button"
-              className="px-2 py-0.5 bg-black/80 hover:bg-black border border-white/20 hover:border-gold-400/60 text-[7.5px] font-mono tracking-widest uppercase text-white/80 rounded-none flex items-center gap-1 transition-all duration-300 shadow-md"
-              title="Click to toggle perspective"
-            >
-              <RefreshCw size={8} className={`text-gold-400 ${currentImageIndex === 1 ? 'rotate-180' : ''} transition-transform duration-500`} />
-              <span>{currentImageIndex === 0 ? '01 FRONT' : '02 REVERSE'}</span>
-            </button>
-          </div>
-        )}
 
         {product.inStock && (
           <div 
-            style={{ transform: "translateZ(35px)" }}
-            className="absolute bottom-0 left-0 right-0 p-3.5 translate-y-full group-hover:translate-y-0 transition-transform duration-400 ease-[0.22,1,0.36,1] flex justify-between items-center bg-gradient-to-t from-black via-black/80 to-transparent z-30 pointer-events-none border-t border-gold-400/20"
+            className="absolute bottom-0 left-0 right-0 px-4 py-3.5 translate-y-full group-hover:translate-y-0 transition-transform duration-400 ease-[0.22,1,0.36,1] flex justify-between items-center bg-gradient-to-t from-[#050507]/95 via-[#09090c]/90 to-black/60 backdrop-blur-xl z-30 pointer-events-none border-t border-gold-400/35 shadow-[0_-10px_30px_rgba(0,0,0,0.8)]"
           >
-            <span className="text-[9px] uppercase tracking-[0.25em] text-white font-mono flex items-center gap-1.5">
+            <span className="text-[9px] uppercase tracking-[0.28em] text-gold-200 font-mono font-medium flex items-center gap-2">
               <Eye size={11} className="text-gold-400" />
-              {currentImageIndex === 1 ? 'Viewing Reverse' : 'Examine Artifact'}
+              Examine Artifact
             </span>
-            <ArrowUpRight size={13} className="text-gold-400" />
+            <ArrowUpRight size={14} className="text-gold-400 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform duration-300" />
           </div>
         )}
-      </motion.div>
+      </div>
       
       <div className="flex flex-col gap-1.5 px-1">
         <div className="flex justify-between items-start gap-4">
@@ -384,9 +354,7 @@ const ProductPage: React.FC<ProductPageProps> = ({
       setError('Size selection required.');
       return;
     }
-    const maxStock = selectedSize && selectedProduct.sizeStock && typeof selectedProduct.sizeStock[selectedSize] === 'number' 
-        ? selectedProduct.sizeStock[selectedSize] 
-        : selectedProduct.countInStock;
+    const maxStock = selectedProduct.countInStock || 99;
         
     await addToCart({ 
         ...selectedProduct, 
@@ -403,9 +371,7 @@ const ProductPage: React.FC<ProductPageProps> = ({
       setError('Size selection required.');
       return;
     }
-    const maxStock = selectedSize && selectedProduct.sizeStock && typeof selectedProduct.sizeStock[selectedSize] === 'number' 
-        ? selectedProduct.sizeStock[selectedSize] 
-        : selectedProduct.countInStock;
+    const maxStock = selectedProduct.countInStock || 99;
         
     await addToCart({ ...selectedProduct, selectedSize, maxStock }, false);
     
@@ -473,20 +439,20 @@ const ProductPage: React.FC<ProductPageProps> = ({
       className="fixed inset-0 z-50 bg-[#050505] overflow-y-auto overflow-x-hidden"
     >
       {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 flex justify-between items-center p-6 md:p-10 bg-gradient-to-b from-black/80 to-transparent pointer-events-none">
+      <nav className="fixed top-0 left-0 right-0 z-50 flex justify-between items-center px-3.5 sm:px-8 md:px-10 py-3 sm:py-5 bg-gradient-to-b from-black/90 via-black/60 to-transparent pointer-events-none">
         <div className="pointer-events-auto">
           <button 
             onClick={() => selectedProduct ? setSelectedProduct(null) : onBack()}
-            className="flex items-center gap-2 text-white/60 hover:text-white transition-colors group"
+            className="flex items-center gap-2 px-2.5 sm:px-3.5 py-1.5 bg-black/75 border border-white/15 hover:border-gold-400/60 text-white/80 hover:text-white rounded-none backdrop-blur-md transition-all duration-300 group shadow-lg cursor-pointer"
           >
-            <ArrowLeft size={14} className="group-hover:-translate-x-1 transition-transform duration-300 ease-out" />
-            <span className="uppercase tracking-[0.2em] text-[9px] md:text-[10px] font-medium">
+            <ArrowLeft size={13} className="text-gold-400 group-hover:-translate-x-1 transition-transform duration-300 ease-out" />
+            <span className="uppercase tracking-[0.2em] sm:tracking-[0.25em] text-[8px] sm:text-[9.5px] font-mono font-medium truncate max-w-[130px] sm:max-w-none">
               {selectedProduct ? 'Back to Collection' : 'Return to Surface'}
             </span>
           </button>
         </div>
-        <div className="text-xs sm:text-sm md:text-base font-serif text-white tracking-[0.15em] sm:tracking-[0.2em] whitespace-nowrap pointer-events-auto">DEUZ & CO</div>
-        <div className="w-6" /> 
+        <div className="text-xs sm:text-sm md:text-base font-serif text-white tracking-[0.2em] sm:tracking-[0.3em] uppercase whitespace-nowrap pointer-events-auto">DEUZ & CO</div>
+        <div className="w-6 hidden xs:block" /> 
       </nav>
 
       <AnimatePresence mode="wait">
@@ -500,8 +466,8 @@ const ProductPage: React.FC<ProductPageProps> = ({
             transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
             className="min-h-screen flex flex-col md:flex-row md:h-screen md:overflow-hidden"
           >
-            {/* Left: 3D Cinematic Product Visual Showcase */}
-            <div className="w-full md:w-1/2 lg:w-1/2 relative bg-[#060606] flex items-center justify-center shrink-0 pt-20 pb-8 sm:py-10 md:py-0 md:h-full border-b md:border-b-0 md:border-r border-white/10">
+            {/* Left: Cinematic Product Visual Showcase */}
+            <div className="w-full md:w-1/2 lg:w-1/2 relative bg-[#060606] flex flex-col items-center justify-center shrink-0 pt-16 sm:pt-18 md:pt-16 pb-3 md:pb-4 md:h-full border-b md:border-b-0 md:border-r border-white/10 overflow-y-auto">
               <ProductShowcase3D
                 product={selectedProduct}
                 currentImageIndex={currentImageIndex}
@@ -522,17 +488,17 @@ const ProductPage: React.FC<ProductPageProps> = ({
                   <div className="flex items-center gap-2">
                     <Compass size={13} className="text-gold-400 animate-spin-slow" />
                     <span className="text-[10px] sm:text-xs font-mono tracking-[0.25em] text-gold-400 uppercase font-semibold">
-                      TEES
+                      {selectedProduct.category ? selectedProduct.category.toUpperCase() : 'ATELIER'}
                     </span>
                   </div>
                   <div className="flex items-center gap-2 text-[9px] sm:text-[10px] font-mono uppercase tracking-widest">
                     {selectedProduct.inStock ? (
-                      <span className="inline-flex items-center gap-1.5 text-emerald-400 bg-emerald-400/10 px-2 sm:px-2.5 py-0.5 border border-emerald-400/25 rounded-sm">
+                      <span className="inline-flex items-center gap-1.5 text-emerald-400 bg-emerald-400/10 px-2 sm:px-2.5 py-0.5 border border-emerald-400/25 rounded-none">
                         <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse shadow-[0_0_6px_#22c55e]" />
                         Active Allocation
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1.5 text-red-400 bg-red-400/10 px-2 sm:px-2.5 py-0.5 border border-red-400/25 rounded-sm">
+                      <span className="inline-flex items-center gap-1.5 text-red-400 bg-red-400/10 px-2 sm:px-2.5 py-0.5 border border-red-400/25 rounded-none">
                         <AlertCircle size={12} />
                         Vault Closed
                       </span>
@@ -543,12 +509,12 @@ const ProductPage: React.FC<ProductPageProps> = ({
                 {/* Artifact House Code & Image Tag */}
                 <div className="flex items-center gap-2 mb-3">
                   {selectedProduct.houseCode && (
-                    <div className="px-2.5 py-1 bg-white/[0.04] border border-white/15 rounded-sm text-[9px] sm:text-[10px] font-mono tracking-[0.2em] text-white/90 uppercase">
+                    <div className="px-2.5 py-1 bg-white/[0.04] border border-white/15 rounded-none text-[9px] sm:text-[10px] font-mono tracking-[0.2em] text-white/90 uppercase">
                       {selectedProduct.houseCode}
                     </div>
                   )}
                   {selectedProduct.imageTag && (
-                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-gold-500/10 border border-gold-400/30 rounded-sm text-[8.5px] sm:text-[9.5px] font-mono tracking-[0.2em] text-gold-300 uppercase">
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-gold-500/10 border border-gold-400/30 rounded-none text-[8.5px] sm:text-[9.5px] font-mono tracking-[0.2em] text-gold-300 uppercase">
                       <Sparkles size={10} className="text-gold-400 animate-pulse" />
                       {selectedProduct.imageTag}
                     </div>
@@ -565,7 +531,7 @@ const ProductPage: React.FC<ProductPageProps> = ({
 
                 <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-5">
                   <span className="text-[9.5px] sm:text-[11px] text-white/50 uppercase tracking-[0.25em] font-mono">
-                    CATEGORY: TEES
+                    CATEGORY: {selectedProduct.category ? selectedProduct.category.toUpperCase() : 'GARMENT'}
                   </span>
                   <span className="text-white/20 hidden sm:inline">•</span>
                   <span className="text-[9.5px] sm:text-[11px] text-gold-400/80 uppercase tracking-[0.25em] font-mono">
@@ -573,15 +539,27 @@ const ProductPage: React.FC<ProductPageProps> = ({
                   </span>
                 </div>
 
-                {/* Description */}
-                <p className="text-xs sm:text-sm text-white/60 font-light leading-relaxed mb-6">
-                  {selectedProduct.description}
-                </p>
+                {/* Product Description divided into paragraphs as provided by the admin */}
+                <div className="space-y-3.5 mb-6 text-xs sm:text-sm text-white/75 font-light leading-relaxed tracking-wide font-sans">
+                  {selectedProduct.description ? (
+                    selectedProduct.description
+                      .split(/\r?\n+/)
+                      .map((para: string) => para.trim())
+                      .filter((para: string) => para.length > 0)
+                      .map((para: string, idx: number) => (
+                        <p key={idx} className="leading-relaxed">
+                          {para}
+                        </p>
+                      ))
+                  ) : (
+                    <p>A study in structure and restraint. Precision-cut silhouettes designed for enduring presence.</p>
+                  )}
+                </div>
 
                 {/* Price & Taxation Indicator */}
-                <div className="p-3.5 sm:p-4 bg-white/[0.02] border border-white/10 rounded-sm mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
+                <div className="p-4 sm:p-5 bg-gradient-to-r from-white/[0.03] to-transparent border border-white/10 rounded-none mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
                   <div>
-                    <span className="text-[8px] sm:text-[8.5px] font-mono text-white/40 uppercase tracking-[0.25em] block mb-0.5">
+                    <span className="text-[8px] sm:text-[8.5px] font-mono text-white/40 uppercase tracking-[0.28em] block mb-0.5">
                       ACQUISITION VALUE
                     </span>
                     <motion.span 
@@ -592,10 +570,10 @@ const ProductPage: React.FC<ProductPageProps> = ({
                     </motion.span>
                   </div>
                   <div className="text-left sm:text-right">
-                    <span className="text-[8px] sm:text-[8.5px] text-gold-400/90 uppercase tracking-[0.2em] font-mono block">
+                    <span className="text-[8px] sm:text-[8.5px] text-gold-400/90 uppercase tracking-[0.22em] font-mono block">
                       TAXES INCLUDED (PAN-INDIA)
                     </span>
-                    <span className="text-[7.5px] sm:text-[8px] text-white/30 uppercase tracking-widest font-mono">
+                    <span className="text-[7.5px] sm:text-[8px] text-white/35 uppercase tracking-widest font-mono">
                       COMPLIMENTARY INSURED EXPRESS FREIGHT
                     </span>
                   </div>
@@ -604,40 +582,34 @@ const ProductPage: React.FC<ProductPageProps> = ({
                 {/* Size Configuration Matrix */}
                 {selectedProduct.sizes && selectedProduct.sizes.length > 0 && (
                   <div className="mb-6 sm:mb-8">
-                    <div className="flex justify-between items-center mb-2.5 sm:mb-3">
-                      <span className="text-[9.5px] sm:text-[10px] uppercase tracking-[0.25em] font-mono text-white/60">
+                    <div className="flex justify-between items-center mb-3">
+                      <span className="text-[9.5px] sm:text-[10px] uppercase tracking-[0.25em] font-mono text-white/70">
                         SILHOUETTE SIZE SELECTION
                       </span>
-                      <span className="text-[8.5px] sm:text-[9px] text-gold-400 uppercase tracking-[0.25em] font-mono px-2 py-0.5 bg-gold-400/10 border border-gold-400/20 rounded">
+                      <span className="text-[8.5px] sm:text-[9px] text-gold-400 uppercase tracking-[0.25em] font-mono px-2 py-0.5 bg-gold-400/10 border border-gold-400/20 rounded-none">
                         {selectedProduct.fit === 'oversized' ? 'Oversized Silhouette' : 'Standard Architectural Drape'}
                       </span>
                     </div>
 
-                    {/* Premium Size Matrix */}
-                    <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
+                    {/* Premium Cinematic Size Matrix */}
+                    <div className="grid grid-cols-5 gap-2 sm:gap-2.5">
                       {selectedProduct.sizes.map((size: string) => {
-                        const isSizeOutOfStock = selectedProduct.outOfStockSizes?.includes(size);
                         const isSelected = selectedSize === size;
                         return (
                           <button
                             key={size}
                             onClick={() => { setSelectedSize(size); setError(''); }}
-                            disabled={!selectedProduct.inStock || isSizeOutOfStock}
+                            disabled={!selectedProduct.inStock}
                             className={`
-                              h-11 sm:h-12 flex flex-col items-center justify-center text-xs sm:text-sm font-mono font-medium uppercase tracking-widest transition-all duration-300 border rounded-sm relative overflow-hidden
+                              h-12 sm:h-13 flex flex-col items-center justify-center text-xs sm:text-sm font-mono uppercase tracking-widest transition-all duration-300 border rounded-none relative overflow-hidden cursor-pointer
                               ${isSelected 
-                                ? 'bg-gold-400 text-black border-gold-400 font-bold shadow-[0_0_20px_rgba(212,175,55,0.4)]' 
-                                : 'bg-black/60 text-white/60 border-white/10 hover:border-gold-400/60 hover:text-white'
+                                ? 'bg-gradient-to-r from-[#DFBA53] via-[#FFE5A3] to-[#B88728] text-black border-amber-200 font-bold shadow-[0_0_24px_rgba(212,175,55,0.45)] scale-[1.02]' 
+                                : 'bg-[#0A0A0A]/90 text-white/70 border-white/15 hover:border-gold-400/60 hover:text-white hover:bg-white/[0.04]'
                               }
                               disabled:opacity-25 disabled:cursor-not-allowed
                             `}
                           >
                             <span>{size}</span>
-                            {isSizeOutOfStock && (
-                              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                <div className="w-full h-[1px] bg-red-500/70 rotate-45 absolute" />
-                              </div>
-                            )}
                           </button>
                         );
                       })}
@@ -650,15 +622,10 @@ const ProductPage: React.FC<ProductPageProps> = ({
                           initial={{ opacity: 0, height: 0 }} 
                           animate={{ opacity: 1, height: 'auto' }} 
                           exit={{ opacity: 0, height: 0 }}
-                          className="mt-2.5 sm:mt-3 text-[9px] sm:text-[9.5px] text-white/60 font-mono uppercase tracking-widest border border-white/10 p-2.5 sm:p-3 bg-white/[0.03] rounded-sm flex flex-col gap-1.5"
+                          className="mt-3 text-[9px] sm:text-[9.5px] text-white/60 font-mono uppercase tracking-widest border border-white/10 p-3 bg-white/[0.03] rounded-none flex flex-col gap-1.5"
                         >
                           <div className="flex justify-between items-center text-gold-300">
                             <span>MEASUREMENTS</span>
-                            {selectedProduct.sizeStock && typeof selectedProduct.sizeStock[selectedSize] === 'number' && (
-                              <span className="font-bold text-emerald-400">
-                                {selectedProduct.sizeStock[selectedSize]} PIECES RESERVED
-                              </span>
-                            )}
                           </div>
                           <span className="text-white/80 font-mono text-[8.5px] sm:text-[9px]">
                             {getSizeDetails(selectedProduct.fit, selectedSize)}
@@ -668,7 +635,7 @@ const ProductPage: React.FC<ProductPageProps> = ({
                     </AnimatePresence>
 
                     {error && (
-                      <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="text-gold-400 text-xs mt-2.5 sm:mt-3 flex items-center gap-2 font-mono">
+                      <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="text-gold-400 text-xs mt-3 flex items-center gap-2 font-mono">
                         <AlertCircle size={13} className="text-gold-400 shrink-0" />
                         <span className="uppercase tracking-widest text-[8.5px] sm:text-[9px] font-bold">Action Required:</span> {error}
                       </motion.div>
@@ -679,7 +646,7 @@ const ProductPage: React.FC<ProductPageProps> = ({
                 {/* Primary Acquisition Controls */}
                 <div className="flex flex-col gap-3 sm:gap-4 mb-6 sm:mb-8">
                   {!selectedProduct.inStock ? (
-                    <div className="w-full py-5 sm:py-6 bg-black/60 border border-white/10 rounded-sm text-center flex flex-col items-center justify-center gap-2 cursor-not-allowed opacity-75">
+                    <div className="w-full py-5 sm:py-6 bg-black/60 border border-white/10 rounded-none text-center flex flex-col items-center justify-center gap-2 cursor-not-allowed opacity-75">
                       <Lock size={18} className="text-gold-400" />
                       <span className="text-white/60 text-[9.5px] sm:text-[10px] uppercase tracking-[0.3em] font-mono">
                         ACQUISITION PROTOCOL CLOSED • EXHAUSTED
@@ -692,12 +659,12 @@ const ProductPage: React.FC<ProductPageProps> = ({
                         onClick={handleBuyNow}
                         disabled={!selectedProduct.inStock}
                         aria-label="Acquire Now"
-                        className="group relative flex-[2.2] overflow-hidden rounded-sm bg-gradient-to-r from-[#DFBA53] via-[#FFF2C2] to-[#B88728] px-4 sm:px-8 border border-amber-200/90 shadow-[0_4px_24px_rgba(212,175,55,0.45)] hover:shadow-[0_0_45px_rgba(212,175,55,0.75)] hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.985] transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+                        className="group relative flex-[2.2] overflow-hidden rounded-none bg-gradient-to-r from-[#DFBA53] via-[#FFF2C2] to-[#B88728] px-4 sm:px-8 border border-amber-200/90 shadow-[0_4px_24px_rgba(212,175,55,0.45)] hover:shadow-[0_0_45px_rgba(212,175,55,0.75)] hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.985] transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
                       >
                         {/* Shimmer light sweep */}
                         <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-out bg-gradient-to-r from-transparent via-white/80 to-transparent pointer-events-none" />
                         
-                        {/* Subtle top rim light */}
+                        {/* Top rim highlight */}
                         <div className="absolute top-0 left-0 right-0 h-[1.5px] bg-white/80 pointer-events-none" />
 
                         <span className="relative z-10 flex items-center justify-center gap-2 sm:gap-3 text-black font-mono">
@@ -714,7 +681,7 @@ const ProductPage: React.FC<ProductPageProps> = ({
                         onClick={handleAddToCart}
                         disabled={!selectedProduct.inStock}
                         aria-label="Add to Vault"
-                        className={`group relative flex-[1.4] overflow-hidden rounded-sm px-3 sm:px-6 transition-all duration-300 border-2 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer ${
+                        className={`group relative flex-[1.4] overflow-hidden rounded-none px-3 sm:px-6 transition-all duration-300 border-2 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer ${
                           addedToVault
                             ? 'bg-emerald-950/90 border-emerald-400 text-emerald-300 shadow-[0_0_28px_rgba(16,185,129,0.4)]'
                             : 'bg-gradient-to-b from-[#141414] via-[#0A0A0A] to-[#040404] border-gold-500/60 hover:border-gold-300 hover:bg-gold-500/10 hover:shadow-[0_0_32px_rgba(212,175,55,0.35)]'
@@ -743,8 +710,10 @@ const ProductPage: React.FC<ProductPageProps> = ({
                         </span>
                       </button>
 
-                      {/* Wishlist Button */}
-                      <button 
+                      {/* Premium & Cinematic Wishlist / Favourite Button */}
+                      <motion.button 
+                        whileHover={{ scale: 1.04 }}
+                        whileTap={{ scale: 0.94 }}
                         onClick={() => onToggleWishlist({
                           id: selectedProduct.id,
                           title: selectedProduct.title,
@@ -756,19 +725,50 @@ const ProductPage: React.FC<ProductPageProps> = ({
                         })}
                         aria-label="Save to Wishlist"
                         title={isInWishlist(selectedProduct.id) ? "Remove from Favourites" : "Save to Favourites"}
-                        className={`group relative flex w-13 sm:w-15 items-center justify-center border rounded-sm transition-all duration-300 shrink-0 cursor-pointer hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.985] ${
+                        className={`group relative flex w-14 sm:w-16 items-center justify-center rounded-none transition-all duration-500 shrink-0 cursor-pointer overflow-hidden border-2 shadow-2xl ${
                           isInWishlist(selectedProduct.id)
-                            ? 'border-red-500 bg-red-500/20 text-red-400 shadow-[0_0_20px_rgba(239,68,68,0.4)]' 
-                            : 'border-white/20 bg-black/50 text-white hover:border-gold-400 hover:text-gold-400 hover:shadow-[0_0_20px_rgba(212,175,55,0.2)]'
+                            ? 'bg-gradient-to-b from-[#2d070d] via-[#1b0307] to-[#0a0103] border-rose-500/80 text-rose-300 shadow-[0_0_35px_rgba(244,63,94,0.5)]' 
+                            : 'bg-gradient-to-b from-[#181818] via-[#0d0d0d] to-[#040404] border-gold-500/40 text-white/80 hover:border-gold-300 hover:text-gold-300 hover:shadow-[0_0_30px_rgba(212,175,55,0.4)]'
                         }`}
                       >
-                        <Heart 
-                          size={18} 
-                          fill={isInWishlist(selectedProduct.id) ? "currentColor" : "none"} 
-                          strokeWidth={1.75}
-                          className={`transition-transform duration-300 ${isInWishlist(selectedProduct.id) ? 'scale-110' : 'group-hover:scale-110'}`}
-                        />
-                      </button>
+                        {/* Gold Atelier Corner Hairlines */}
+                        <div className={`absolute top-0 left-0 w-2 h-2 border-t-2 border-l-2 transition-colors ${isInWishlist(selectedProduct.id) ? 'border-rose-400' : 'border-gold-400/70'}`} />
+                        <div className={`absolute top-0 right-0 w-2 h-2 border-t-2 border-r-2 transition-colors ${isInWishlist(selectedProduct.id) ? 'border-rose-400' : 'border-gold-400/70'}`} />
+                        <div className={`absolute bottom-0 left-0 w-2 h-2 border-b-2 border-l-2 transition-colors ${isInWishlist(selectedProduct.id) ? 'border-rose-400' : 'border-gold-400/70'}`} />
+                        <div className={`absolute bottom-0 right-0 w-2 h-2 border-b-2 border-r-2 transition-colors ${isInWishlist(selectedProduct.id) ? 'border-rose-400' : 'border-gold-400/70'}`} />
+
+                        {/* Radiant pulsing halo when wishlisted */}
+                        {isInWishlist(selectedProduct.id) && (
+                          <motion.div 
+                            animate={{ scale: [1, 1.4, 1], opacity: [0.35, 0.7, 0.35] }} 
+                            transition={{ repeat: Infinity, duration: 2.2, ease: "easeInOut" }}
+                            className="absolute inset-0 bg-rose-500/25 blur-md pointer-events-none"
+                          />
+                        )}
+
+                        {/* Light shimmer swipe on hover */}
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-out pointer-events-none" />
+
+                        {/* Heart Icon with Micro-Interactions */}
+                        <div className="relative z-10 flex items-center justify-center">
+                          <Heart 
+                            size={20} 
+                            fill={isInWishlist(selectedProduct.id) ? "currentColor" : "none"} 
+                            strokeWidth={1.8}
+                            className={`transition-all duration-300 ${
+                              isInWishlist(selectedProduct.id) 
+                                ? 'scale-110 text-rose-400 drop-shadow-[0_0_10px_rgba(244,63,94,0.9)]' 
+                                : 'text-white/70 group-hover:scale-115 group-hover:text-gold-300 drop-shadow-[0_0_8px_rgba(212,175,55,0.4)]'
+                            }`}
+                          />
+                          {isInWishlist(selectedProduct.id) && (
+                            <span className="absolute -top-1.5 -right-1.5 flex h-2 w-2">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500" />
+                            </span>
+                          )}
+                        </div>
+                      </motion.button>
                     </div>
                   )}
                 </div>
@@ -884,16 +884,18 @@ const ProductPage: React.FC<ProductPageProps> = ({
                <div className="flex flex-col md:flex-row justify-center md:justify-end gap-6 w-full">
                  {/* Sort Dropdown */}
                  <div className="relative group z-30">
-                    <button className="flex items-center gap-2 text-xs uppercase tracking-widest text-white/70 hover:text-white transition-colors">
-                      Sort: {sortOption} <ChevronDown size={14} />
+                    <button className="flex items-center gap-2 px-3.5 py-1.5 bg-black/70 border border-white/15 hover:border-gold-400/60 text-white/80 hover:text-white transition-all text-[9.5px] font-mono uppercase tracking-[0.2em] rounded-none shadow-md cursor-pointer">
+                      <span className="text-white/40">SORT:</span>
+                      <span className="text-gold-300 font-medium">{sortOption}</span>
+                      <ChevronDown size={12} className="text-gold-400 group-hover:rotate-180 transition-transform duration-300" />
                     </button>
-                    <div className="absolute right-0 top-full mt-2 w-56 bg-[#0A0A0A] border border-white/10 opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none group-hover:pointer-events-auto shadow-2xl translate-y-2 group-hover:translate-y-0">
+                    <div className="absolute right-0 top-full mt-1.5 w-60 bg-[#0A0A0A]/95 border border-gold-500/25 backdrop-blur-xl opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none group-hover:pointer-events-auto shadow-[0_20px_50px_rgba(0,0,0,0.85)] translate-y-1 group-hover:translate-y-0 rounded-none overflow-hidden z-40">
                        {sortOptions.map(opt => (
                          <button 
                            key={opt}
                            onClick={() => setSortOption(opt)}
-                           className={`block w-full text-left px-6 py-3 text-xs uppercase tracking-widest transition-colors ${
-                             sortOption === opt ? 'bg-white/10 text-gold-500' : 'text-white/50 hover:bg-white/5 hover:text-white'
+                           className={`block w-full text-left px-5 py-2.5 text-[9px] font-mono uppercase tracking-[0.2em] transition-all cursor-pointer ${
+                             sortOption === opt ? 'bg-gold-500/15 text-gold-300 font-bold border-l-2 border-gold-400' : 'text-white/60 hover:bg-white/[0.04] hover:text-white'
                            }`}
                          >
                            {opt}
@@ -905,9 +907,9 @@ const ProductPage: React.FC<ProductPageProps> = ({
                  {/* Mobile Filter Toggle */}
                  <button 
                    onClick={() => setIsFilterOpen(!isFilterOpen)}
-                   className="md:hidden flex items-center gap-2 text-xs uppercase tracking-widest text-gold-500"
+                   className="md:hidden flex items-center gap-2 px-3.5 py-1.5 bg-black/70 border border-gold-400/40 text-[9.5px] font-mono uppercase tracking-[0.2em] text-gold-300 rounded-none cursor-pointer"
                  >
-                   <Filter size={14} /> Filters
+                   <Filter size={12} /> Categories
                  </button>
                </div>
              </div>
