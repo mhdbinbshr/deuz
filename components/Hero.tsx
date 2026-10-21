@@ -37,7 +37,7 @@ const Hero: React.FC = () => {
   const titleText = "ARCHITECTS OF PRESENCE";
 
   return (
-    <section id="home" className="relative h-screen min-h-[600px] w-full overflow-hidden bg-black select-none">
+    <section id="home" className="relative min-h-screen min-h-[100dvh] h-screen h-[100dvh] w-full max-w-[100vw] overflow-hidden bg-black select-none">
       {/* --- PREMIUM ANIMATED BACKGROUND (Strictly for Architects of Presence) --- */}
       <motion.div 
         style={{ opacity, scale }}
@@ -102,34 +102,31 @@ const Hero: React.FC = () => {
       >
          {/* Main Beam - Volumetric */}
          <div 
-            className="absolute top-0 left-1/2 -translate-x-1/2 w-[400px] md:w-[800px] h-full bg-gradient-to-b from-white/10 via-gold-100/5 to-transparent blur-[50px] mix-blend-overlay"
+            className="absolute top-0 left-1/2 -translate-x-1/2 w-[280px] sm:w-[400px] md:w-[800px] h-full bg-gradient-to-b from-white/10 via-gold-100/5 to-transparent blur-[50px] mix-blend-overlay"
             style={{ clipPath: "polygon(20% 0%, 80% 0%, 100% 100%, 0% 100%)" }}
          />
          
          {/* Core Shaft - Sharper */}
          <div 
-            className="absolute top-0 left-1/2 -translate-x-1/2 w-[200px] md:w-[400px] h-[90%] bg-gradient-to-b from-white/15 to-transparent blur-[30px]"
+            className="absolute top-0 left-1/2 -translate-x-1/2 w-[160px] sm:w-[200px] md:w-[400px] h-[90%] bg-gradient-to-b from-white/15 to-transparent blur-[30px]"
             style={{ clipPath: "polygon(10% 0%, 90% 0%, 100% 100%, 0% 100%)" }}
          />
 
          {/* Source Hotspot */}
-         <div className="absolute top-[-50px] left-1/2 -translate-x-1/2 w-[600px] h-[200px] bg-gold-200/20 blur-[80px] rounded-full mix-blend-screen" />
+         <div className="absolute top-[-50px] left-1/2 -translate-x-1/2 w-[320px] sm:w-[600px] h-[200px] bg-gold-200/20 blur-[80px] rounded-full mix-blend-screen" />
       </motion.div>
 
       {/* Content */}
       <motion.div 
         style={{ y, opacity }}
-        className="relative z-10 h-full flex flex-col items-center justify-center text-center px-4 pt-10 gap-0"
+        className="relative z-10 h-full flex flex-col items-center justify-center text-center px-4 pt-16 pb-24 sm:pt-20 sm:pb-32 gap-0"
       >
-
-
         {/* Staggered Title Reveal */}
-        {/* Responsive vertical padding and scaling to fix overlap/clipping across all screens */}
         <motion.h1
           variants={letterContainer}
           initial="hidden"
           animate="show"
-          className="text-2xl xs:text-3xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl font-serif text-white tracking-[0.08em] xs:tracking-[0.15em] sm:tracking-widest leading-[1.15] mix-blend-screen overflow-hidden max-w-6xl drop-shadow-2xl py-4 sm:py-8"
+          className="text-2xl xs:text-3xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl font-serif text-white tracking-[0.08em] xs:tracking-[0.15em] sm:tracking-widest leading-[1.15] mix-blend-screen overflow-hidden max-w-6xl drop-shadow-2xl py-2 sm:py-4"
         >
           <div className="flex justify-center flex-wrap overflow-hidden gap-x-2 xs:gap-x-3 sm:gap-x-4">
             {titleText.split(" ").map((word, wIdx) => (
@@ -144,12 +141,12 @@ const Hero: React.FC = () => {
           </div>
         </motion.h1>
 
-        {/* Responsive top margin to create luxurious whitespace on desktop and balanced fit on mobile */}
+        {/* Balanced top margin so subtitle stays well above the bottom scroll indicator */}
         <motion.p
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 1, delay: 1.4, ease }}
-          className="mt-8 sm:mt-16 md:mt-24 max-w-lg text-xs xs:text-sm md:text-base text-gray-400 font-light tracking-wide leading-relaxed mix-blend-plus-lighter relative z-20"
+          className="mt-3 sm:mt-6 md:mt-8 max-w-lg text-xs xs:text-sm md:text-base text-gray-400 font-light tracking-wide leading-relaxed mix-blend-plus-lighter relative z-20"
         >
           Designed to Outlast
         </motion.p>
@@ -161,10 +158,10 @@ const Hero: React.FC = () => {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 2, duration: 1 }}
-        className="absolute bottom-12 left-1/2 -translate-x-1/2 flex flex-col items-center gap-4 z-20"
+        className="absolute bottom-4 sm:bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 z-20 pointer-events-none"
       >
-        <span className="text-[10px] uppercase tracking-[0.3em] text-white/40">Scroll</span>
-        <div className="w-[1px] h-12 bg-gradient-to-b from-white/0 via-white/40 to-white/0 overflow-hidden relative">
+        <span className="text-[9px] sm:text-[10px] uppercase tracking-[0.3em] text-white/40">Scroll</span>
+        <div className="w-[1px] h-7 sm:h-10 bg-gradient-to-b from-white/0 via-white/40 to-white/0 overflow-hidden relative">
           <motion.div
             className="absolute top-0 left-0 w-full h-1/2 bg-gold-500"
             animate={{ y: ["-100%", "200%"] }}

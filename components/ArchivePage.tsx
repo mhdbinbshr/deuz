@@ -53,30 +53,19 @@ export const ArchivePage: React.FC<ArchivePageProps> = ({ onBack }) => {
   }, [mouseX, mouseY]);
 
   useEffect(() => {
-    const fetchArchived = async () => {
-      try {
-        const allProducts = await db.getProducts() as any[];
-        const safeProducts = Array.isArray(allProducts) ? allProducts : [];
-        
-        // Products strictly transferred from collection to archive by admin
-        let archived = safeProducts.filter((p: any) => p.isArchived === true);
+    const unsub = db.subscribeProducts((allProducts) => {
+      const safeProducts = Array.isArray(allProducts) ? allProducts : [];
+      
+      // Show products in Vault Archive strictly after admin adds/transfers them
+      const archived = safeProducts.filter((p: any) => p.isArchived === true);
 
-        // Fallback for demonstration if admin has not yet archived items
-        if (archived.length === 0 && safeProducts.length > 0) {
-          archived = safeProducts.slice(0, 4).map((p: any) => ({
-            ...p,
-            isArchived: true
-          }));
-        }
+      setItems(archived);
+      setLoading(false);
+    });
 
-        setItems(archived);
-      } catch (e) {
-        console.error('Failed to load archive artifacts:', e);
-      } finally {
-        setLoading(false);
-      }
+    return () => {
+      try { unsub(); } catch {}
     };
-    fetchArchived();
   }, []);
 
   return (
@@ -117,25 +106,25 @@ export const ArchivePage: React.FC<ArchivePageProps> = ({ onBack }) => {
       </div>
 
       {/* Classical Museum Top Header & Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 px-6 sm:px-12 py-6 sm:py-8 flex justify-between items-center backdrop-blur-md bg-black/40 border-b border-[#c5a059]/20">
+      <nav className="fixed top-0 left-0 right-0 z-50 px-4 sm:px-12 py-4 sm:py-8 flex justify-between items-center backdrop-blur-md bg-black/40 border-b border-[#c5a059]/20">
         <button 
           onClick={onBack}
-          className="flex items-center gap-3 sm:gap-4 group cursor-pointer"
+          className="flex items-center gap-2.5 sm:gap-4 group cursor-pointer"
         >
-          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full border border-[#c5a059]/40 flex items-center justify-center bg-[#0a0a0a] group-hover:bg-[#c5a059] group-hover:border-[#c5a059] transition-all duration-500 shadow-[0_0_15px_rgba(197,160,89,0.1)]">
+          <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-full border border-[#c5a059]/40 flex items-center justify-center bg-[#0a0a0a] group-hover:bg-[#c5a059] group-hover:border-[#c5a059] transition-all duration-500 shadow-[0_0_15px_rgba(197,160,89,0.1)] shrink-0">
             <ArrowLeft size={16} className="text-[#c5a059] group-hover:text-black transition-colors" />
           </div>
           <div className="text-left">
-            <span className="block text-[8px] sm:text-[9px] uppercase tracking-[0.3em] text-[#c5a059]/70 group-hover:text-[#c5a059] transition-colors font-mono">
+            <span className="block text-[7.5px] sm:text-[9px] uppercase tracking-[0.25em] sm:tracking-[0.3em] text-[#c5a059]/70 group-hover:text-[#c5a059] transition-colors font-mono">
               Exit Conservatoire
             </span>
-            <span className="block text-xs sm:text-sm font-serif tracking-[0.2em] text-[#f4ecd8]">
+            <span className="block text-[11px] sm:text-sm font-serif tracking-[0.15em] sm:tracking-[0.2em] text-[#f4ecd8]">
               SALON DES ARCHIVES
             </span>
           </div>
         </button>
 
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-4 sm:gap-6">
           <div className="text-right hidden md:block">
             <div className="text-[#c5a059] font-serif text-xs tracking-[0.3em] uppercase">
               DEUZ & CO. ARCHIVAL COLLECTION
@@ -144,41 +133,41 @@ export const ArchivePage: React.FC<ArchivePageProps> = ({ onBack }) => {
               Permanently Retired Artifacts • Curated Preservation
             </div>
           </div>
-          <div className="w-9 h-9 rounded-full border border-[#c5a059]/30 flex items-center justify-center text-[#c5a059]">
+          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full border border-[#c5a059]/30 flex items-center justify-center text-[#c5a059] shrink-0">
             <Compass size={16} />
           </div>
         </div>
       </nav>
 
       {/* Classical Museum Wing Entrance / Hero */}
-      <section className="relative z-10 pt-40 pb-20 sm:pt-48 sm:pb-28 px-6 text-center max-w-5xl mx-auto">
+      <section className="relative z-10 pt-28 pb-14 sm:pt-48 sm:pb-28 px-4 sm:px-6 text-center max-w-5xl mx-auto">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
-          className="space-y-6"
+          className="space-y-5 sm:space-y-6"
         >
-          <div className="inline-flex items-center gap-3 px-5 py-2 border border-[#c5a059]/30 rounded-full bg-[#0a0a0a]/60 shadow-[0_0_20px_rgba(197,160,89,0.15)]">
-            <Sparkles size={12} className="text-[#c5a059] animate-pulse" />
-            <span className="text-[9px] uppercase font-mono tracking-[0.35em] text-[#c5a059] font-medium">
+          <div className="inline-flex items-center gap-2 sm:gap-3 px-4 sm:px-5 py-1.5 sm:py-2 border border-[#c5a059]/30 rounded-full bg-[#0a0a0a]/60 shadow-[0_0_20px_rgba(197,160,89,0.15)] max-w-full">
+            <Sparkles size={12} className="text-[#c5a059] animate-pulse shrink-0" />
+            <span className="text-[8px] sm:text-[9px] uppercase font-mono tracking-[0.2em] sm:tracking-[0.35em] text-[#c5a059] font-medium truncate">
               Conservatoire & Historic Register
             </span>
           </div>
 
-          <h1 className="text-4xl sm:text-6xl md:text-8xl font-serif text-[#f4ecd8] tracking-[0.1em] uppercase drop-shadow-[0_4px_30px_rgba(0,0,0,0.9)] leading-tight">
+          <h1 className="text-3xl xs:text-4xl sm:text-6xl md:text-8xl font-serif text-[#f4ecd8] tracking-[0.08em] sm:tracking-[0.1em] uppercase drop-shadow-[0_4px_30px_rgba(0,0,0,0.9)] leading-tight">
             The Museum Archive
           </h1>
 
-          <p className="text-xs sm:text-sm md:text-base font-serif italic text-[#c5a059]/80 max-w-2xl mx-auto tracking-widest leading-relaxed">
+          <p className="text-xs sm:text-sm md:text-base font-serif italic text-[#c5a059]/80 max-w-2xl mx-auto tracking-wider sm:tracking-widest leading-relaxed px-2">
             "A permanent sanctuary for retired silhouettes, singular prototypes, and historical editions withdrawn from active circulation."
           </p>
 
-          <div className="flex items-center justify-center gap-4 pt-4">
-            <div className="w-16 h-[1px] bg-gradient-to-r from-transparent via-[#c5a059]/50 to-transparent" />
-            <span className="text-[9px] uppercase font-mono tracking-[0.4em] text-[#e8e0d5]/40">
+          <div className="flex items-center justify-center gap-3 sm:gap-4 pt-2 sm:pt-4">
+            <div className="w-10 sm:w-16 h-[1px] bg-gradient-to-r from-transparent via-[#c5a059]/50 to-transparent" />
+            <span className="text-[8px] sm:text-[9px] uppercase font-mono tracking-[0.25em] sm:tracking-[0.4em] text-[#e8e0d5]/40">
               Historical Catalogue • {items.length} Exhibits Preserved
             </span>
-            <div className="w-16 h-[1px] bg-gradient-to-r from-transparent via-[#c5a059]/50 to-transparent" />
+            <div className="w-10 sm:w-16 h-[1px] bg-gradient-to-r from-transparent via-[#c5a059]/50 to-transparent" />
           </div>
         </motion.div>
       </section>
@@ -192,7 +181,7 @@ export const ArchivePage: React.FC<ArchivePageProps> = ({ onBack }) => {
       )}
 
       {/* Classical Grand Vitrine Gallery Section */}
-      <section className="relative z-10 max-w-7xl mx-auto px-6 sm:px-12 pb-36">
+      <section className="relative z-10 max-w-7xl mx-auto px-4 sm:px-12 pb-28 sm:pb-36">
         {loading ? (
           <div className="py-32 text-center">
             <div className="w-12 h-12 rounded-full border border-[#c5a059]/40 border-t-[#c5a059] animate-spin mx-auto mb-4" />
@@ -515,7 +504,7 @@ const InspectionModal: React.FC<InspectionModalProps> = ({ artifact, index, onCl
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.92, y: 20 }}
         transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-        className="relative max-w-4xl w-full bg-[#080808] border-2 border-[#c5a059]/40 p-6 sm:p-8 shadow-[0_0_100px_rgba(0,0,0,0.95)] overflow-hidden"
+        className="relative max-w-4xl w-full max-h-[92vh] overflow-y-auto bg-[#080808] border-2 border-[#c5a059]/40 p-4 sm:p-8 shadow-[0_0_100px_rgba(0,0,0,0.95)]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Classical Filigree Corners */}
@@ -527,23 +516,23 @@ const InspectionModal: React.FC<InspectionModalProps> = ({ artifact, index, onCl
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-6 right-6 p-2 text-[#c5a059]/70 hover:text-[#c5a059] transition-colors z-20 cursor-pointer"
+          className="absolute top-3 right-3 sm:top-6 sm:right-6 p-2 text-[#c5a059]/70 hover:text-[#c5a059] transition-colors z-20 cursor-pointer"
           aria-label="Close Inspection"
         >
           <X size={24} />
         </button>
 
-        <div className="text-center mb-6">
-          <span className="text-[9px] uppercase font-mono tracking-[0.35em] text-[#c5a059] block mb-1">
+        <div className="text-center mb-4 sm:mb-6 pr-6 sm:pr-0">
+          <span className="text-[8px] sm:text-[9px] uppercase font-mono tracking-[0.25em] sm:tracking-[0.35em] text-[#c5a059] block mb-1">
             Exhibition Catalogue • Exhibit {ROMAN_NUMERALS[index % ROMAN_NUMERALS.length]}
           </span>
-          <h3 className="text-2xl sm:text-3xl font-serif text-[#f4ecd8] tracking-widest uppercase">
+          <h3 className="text-xl sm:text-3xl font-serif text-[#f4ecd8] tracking-widest uppercase">
             Curatorial Inspection Reel
           </h3>
         </div>
 
         {/* COMPLETE PRODUCT IMAGES WITH AUTO ANIMATED SCROLL */}
-        <div className="relative aspect-[3/4] max-h-[50vh] sm:max-h-[55vh] mx-auto rounded-sm overflow-hidden border border-[#c5a059]/30 bg-black shadow-2xl">
+        <div className="relative aspect-[3/4] max-h-[45vh] sm:max-h-[55vh] mx-auto rounded-sm overflow-hidden border border-[#c5a059]/30 bg-black shadow-2xl">
           <AnimatePresence initial={false} mode="wait">
             <motion.img
               key={images[currentIdx]}
@@ -553,7 +542,7 @@ const InspectionModal: React.FC<InspectionModalProps> = ({ artifact, index, onCl
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0.3, x: -20 }}
               transition={{ duration: 0.8, ease: "easeInOut" }}
-              className="w-full h-full object-contain p-4"
+              className="w-full h-full object-contain p-2 sm:p-4"
             />
           </AnimatePresence>
 
@@ -562,29 +551,29 @@ const InspectionModal: React.FC<InspectionModalProps> = ({ artifact, index, onCl
             <>
               <button
                 onClick={() => setCurrentIdx((prev) => (prev - 1 + images.length) % images.length)}
-                className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/70 border border-[#c5a059]/40 flex items-center justify-center text-[#c5a059] hover:bg-[#c5a059] hover:text-black transition-colors cursor-pointer"
+                className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-black/70 border border-[#c5a059]/40 flex items-center justify-center text-[#c5a059] hover:bg-[#c5a059] hover:text-black transition-colors cursor-pointer"
                 title="Previous Image"
               >
-                <ChevronLeft size={18} />
+                <ChevronLeft size={16} />
               </button>
               <button
                 onClick={() => setCurrentIdx((prev) => (prev + 1) % images.length)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/70 border border-[#c5a059]/40 flex items-center justify-center text-[#c5a059] hover:bg-[#c5a059] hover:text-black transition-colors cursor-pointer"
+                className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-black/70 border border-[#c5a059]/40 flex items-center justify-center text-[#c5a059] hover:bg-[#c5a059] hover:text-black transition-colors cursor-pointer"
                 title="Next Image"
               >
-                <ChevronRight size={18} />
+                <ChevronRight size={16} />
               </button>
 
-              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-3 bg-black/80 px-4 py-1.5 rounded-full border border-[#c5a059]/40 backdrop-blur-md">
+              <div className="absolute bottom-2 sm:bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 sm:gap-3 bg-black/80 px-3 sm:px-4 py-1 sm:py-1.5 rounded-full border border-[#c5a059]/40 backdrop-blur-md whitespace-nowrap">
                 <button
                   onClick={() => setAutoPlay(!autoPlay)}
-                  className="text-[#c5a059] hover:text-white transition-colors cursor-pointer flex items-center gap-1 text-[9px] font-mono uppercase tracking-widest"
+                  className="text-[#c5a059] hover:text-white transition-colors cursor-pointer flex items-center gap-1 text-[8px] sm:text-[9px] font-mono uppercase tracking-widest"
                 >
-                  {autoPlay ? <Pause size={12} /> : <Play size={12} />}
-                  <span>{autoPlay ? 'Auto Scroll Active' : 'Paused'}</span>
+                  {autoPlay ? <Pause size={11} /> : <Play size={11} />}
+                  <span>{autoPlay ? 'Auto Scroll' : 'Paused'}</span>
                 </button>
                 <span className="text-white/30">|</span>
-                <span className="text-[10px] font-mono text-[#c5a059] font-bold">
+                <span className="text-[9px] sm:text-[10px] font-mono text-[#c5a059] font-bold">
                   {currentIdx + 1} / {images.length}
                 </span>
               </div>
@@ -602,7 +591,7 @@ const InspectionModal: React.FC<InspectionModalProps> = ({ artifact, index, onCl
                   setCurrentIdx(idx);
                   setAutoPlay(false);
                 }}
-                className={`w-12 h-12 rounded-sm overflow-hidden border transition-all cursor-pointer ${
+                className={`w-10 h-10 sm:w-12 sm:h-12 shrink-0 rounded-sm overflow-hidden border transition-all cursor-pointer ${
                   idx === currentIdx
                     ? 'border-[#c5a059] ring-2 ring-[#c5a059]/40 scale-105'
                     : 'border-white/10 opacity-50 hover:opacity-100'
@@ -615,27 +604,27 @@ const InspectionModal: React.FC<InspectionModalProps> = ({ artifact, index, onCl
         )}
 
         {/* Brass Engraved Plaque - ONLY SHOWS EDITION NAME & HOUSE CODE */}
-        <div className="mt-6 mx-auto max-w-md bg-gradient-to-b from-[#18140e] to-[#0c0a07] border-2 border-[#c5a059]/60 p-5 text-center shadow-lg relative">
+        <div className="mt-4 sm:mt-6 mx-auto max-w-md bg-gradient-to-b from-[#18140e] to-[#0c0a07] border-2 border-[#c5a059]/60 p-4 sm:p-5 text-center shadow-lg relative">
           <div className="absolute top-2 left-2 w-2 h-2 rounded-full border border-[#c5a059]/60 bg-[#c5a059]/20" />
           <div className="absolute top-2 right-2 w-2 h-2 rounded-full border border-[#c5a059]/60 bg-[#c5a059]/20" />
           <div className="absolute bottom-2 left-2 w-2 h-2 rounded-full border border-[#c5a059]/60 bg-[#c5a059]/20" />
           <div className="absolute bottom-2 right-2 w-2 h-2 rounded-full border border-[#c5a059]/60 bg-[#c5a059]/20" />
 
           {/* Edition Name */}
-          <p className="text-[9px] uppercase font-mono tracking-[0.3em] text-[#c5a059]/70 mb-0.5">
+          <p className="text-[8px] sm:text-[9px] uppercase font-mono tracking-[0.3em] text-[#c5a059]/70 mb-0.5">
             Edition Name
           </p>
-          <h4 className="text-xl sm:text-2xl font-serif text-[#f4ecd8] tracking-[0.15em] uppercase mb-3">
+          <h4 className="text-lg sm:text-2xl font-serif text-[#f4ecd8] tracking-[0.12em] sm:tracking-[0.15em] uppercase mb-2 sm:mb-3 break-words">
             {artifact.title}
           </h4>
 
           <div className="w-16 h-[1px] bg-[#c5a059]/40 mx-auto mb-2" />
 
           {/* House Code */}
-          <p className="text-[9px] uppercase font-mono tracking-[0.3em] text-[#c5a059]/70 mb-0.5">
+          <p className="text-[8px] sm:text-[9px] uppercase font-mono tracking-[0.3em] text-[#c5a059]/70 mb-0.5">
             House Code
           </p>
-          <p className="text-sm font-mono tracking-[0.25em] text-[#c5a059] font-bold">
+          <p className="text-xs sm:text-sm font-mono tracking-[0.2em] sm:tracking-[0.25em] text-[#c5a059] font-bold">
             {houseCode}
           </p>
         </div>

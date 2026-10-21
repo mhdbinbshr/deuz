@@ -24,12 +24,12 @@ const TermsPage: React.FC<TermsPageProps> = ({ onClose }) => {
         </button>
       </nav>
 
-      <div className="max-w-4xl mx-auto px-6 py-20 relative z-10">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-12 sm:py-20 relative z-10">
         <motion.div
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.2, duration: 0.8 }}
-          className="text-center mb-16"
+          className="text-center mb-12 sm:mb-16"
         >
           <div className="w-16 h-16 mx-auto bg-gold-900/10 border border-gold-500/20 rounded-full flex items-center justify-center mb-6">
              <Scale size={24} className="text-gold-500" strokeWidth={1} />
@@ -42,21 +42,21 @@ const TermsPage: React.FC<TermsPageProps> = ({ onClose }) => {
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.4, duration: 0.8 }}
-          className="space-y-8"
+          className="space-y-6 sm:space-y-8"
         >
-          <div className="bg-white/5 p-8 md:p-12 border border-white/10 relative overflow-hidden mb-12">
+          <div className="bg-white/5 p-6 sm:p-8 md:p-12 border border-white/10 relative overflow-hidden mb-8 sm:mb-12">
              <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
                 <FileText size={120} />
              </div>
-             <h2 className="text-xl font-serif text-white mb-4">Concierge Retail Model</h2>
-             <p className="text-white/60 text-sm font-light leading-relaxed">
+             <h2 className="text-lg sm:text-xl font-serif text-white mb-3 sm:mb-4">Concierge Retail Model</h2>
+             <p className="text-white/60 text-xs sm:text-sm font-light leading-relaxed">
                DEUZ & CO operates under a private concierge retail model.
                All orders are confirmed manually through official communication channels. Submission of an enquiry does not guarantee order confirmation until explicitly approved by DEUZ & CO.
              </p>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-8">
-             <div className="bg-[#0A0A0A] p-8 border border-white/5 hover:border-gold-500/30 transition-colors group">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
+             <div className="bg-[#0A0A0A] p-6 sm:p-8 border border-white/5 hover:border-gold-500/30 transition-colors group">
                 <div className="mb-4 text-gold-500 group-hover:scale-110 transition-transform origin-left">
                    <Box size={20} />
                 </div>
@@ -66,7 +66,7 @@ const TermsPage: React.FC<TermsPageProps> = ({ onClose }) => {
                 </p>
              </div>
 
-             <div className="bg-[#0A0A0A] p-8 border border-white/5 hover:border-gold-500/30 transition-colors group">
+             <div className="bg-[#0A0A0A] p-6 sm:p-8 border border-white/5 hover:border-gold-500/30 transition-colors group">
                 <div className="mb-4 text-gold-500 group-hover:scale-110 transition-transform origin-left">
                    <CreditCard size={20} />
                 </div>
@@ -79,7 +79,7 @@ const TermsPage: React.FC<TermsPageProps> = ({ onClose }) => {
                 </p>
              </div>
 
-             <div className="bg-[#0A0A0A] p-8 border border-white/5 hover:border-gold-500/30 transition-colors group">
+             <div className="bg-[#0A0A0A] p-6 sm:p-8 border border-white/5 hover:border-gold-500/30 transition-colors group">
                 <div className="mb-4 text-gold-500 group-hover:scale-110 transition-transform origin-left">
                    <Copyright size={20} />
                 </div>
@@ -89,7 +89,7 @@ const TermsPage: React.FC<TermsPageProps> = ({ onClose }) => {
                 </p>
              </div>
 
-             <div className="bg-[#0A0A0A] p-8 border border-white/5 hover:border-gold-500/30 transition-colors group">
+             <div className="bg-[#0A0A0A] p-6 sm:p-8 border border-white/5 hover:border-gold-500/30 transition-colors group">
                 <div className="mb-4 text-gold-500 group-hover:scale-110 transition-transform origin-left">
                    <ShieldAlert size={20} />
                 </div>
@@ -100,8 +100,8 @@ const TermsPage: React.FC<TermsPageProps> = ({ onClose }) => {
              </div>
           </div>
 
-          <div className="mt-16 pt-16 border-t border-white/10 text-center">
-             <p className="text-white text-sm font-serif italic tracking-wide">
+          <div className="mt-12 sm:mt-16 pt-12 sm:pt-16 border-t border-white/10 text-center">
+             <p className="text-white text-xs sm:text-sm font-serif italic tracking-wide">
                By engaging with DEUZ & CO, you agree to these terms.
              </p>
           </div>

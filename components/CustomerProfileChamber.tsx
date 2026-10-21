@@ -44,9 +44,21 @@ export const CustomerProfileChamber: React.FC<CustomerProfileChamberProps> = ({
   onClose,
   onOpenConcierge
 }) => {
-  const { user, updatePassword, forgotPassword, sendVerificationEmail, refreshUser } = useAuth();
+  const {
+    user,
+    updatePassword,
+    forgotPassword,
+    sendVerificationEmail,
+    linkGoogleAccount,
+    unlinkAuthProvider,
+    refreshUser
+  } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [isManagingProviders, setIsManagingProviders] = useState(false);
+  const [providerMessage, setProviderMessage] = useState('');
+  const [providerError, setProviderError] = useState('');
+  const [providerLoading, setProviderLoading] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
@@ -102,6 +114,48 @@ export const CustomerProfileChamber: React.FC<CustomerProfileChamberProps> = ({
   const hasFirstOrder = userOrders.length > 0;
   const stageMeta = CUSTOMER_STAGES.find(s => s.id === currentStage) || CUSTOMER_STAGES[0];
   const dossierId = `DEUZ-ARCHIVE-0${stageMeta.level}-${(user.id || '777').slice(0, 6).toUpperCase()}`;
+  const linkedProviders = user.linkedProviders && user.linkedProviders.length > 0
+    ? user.linkedProviders
+    : (user.authProvider === 'google' ? ['google.com'] : ['password']);
+  const hasGoogleLinked = linkedProviders.includes('google.com');
+  const hasPasswordLinked = linkedProviders.includes('password');
+  const isGoogleOnlyUser = hasGoogleLinked && !hasPasswordLinked;
+
+  const handleLinkGoogle = async () => {
+    setProviderError('');
+    setProviderMessage('');
+    setProviderLoading(true);
+    try {
+      const res = await linkGoogleAccount();
+      if (res.success) {
+        setProviderMessage(res.message || 'Google Sign-In linked to your Client Dossier.');
+      } else {
+        setProviderError(res.message || 'Unable to link Google account.');
+      }
+    } finally {
+      setProviderLoading(false);
+    }
+  };
+
+  const handleUnlinkProvider = async (providerId: 'google.com' | 'password') => {
+    setProviderError('');
+    setProviderMessage('');
+    if (linkedProviders.length <= 1) {
+      setProviderError('Cannot remove your only active sign-in method. Link another sign-in method first.');
+      return;
+    }
+    setProviderLoading(true);
+    try {
+      const res = await unlinkAuthProvider(providerId);
+      if (res.success) {
+        setProviderMessage(res.message || 'Sign-in method unlinked.');
+      } else {
+        setProviderError(res.message || 'Unable to unlink sign-in method.');
+      }
+    } finally {
+      setProviderLoading(false);
+    }
+  };
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -120,8 +174,10 @@ export const CustomerProfileChamber: React.FC<CustomerProfileChamberProps> = ({
         displayName: fullNameInput.trim(),
         mobile: mobileInput.trim(),
         address: updatedAddress,
-        addresses: [updatedAddress]
-      });
+        addresses: [updatedAddress],
+        profileCompleted: Boolean(fullNameInput.trim() && mobileInput.trim()),
+        dossierRegistered: true
+      } as any);
       await refreshUser();
       setSaveSuccess(true);
       setIsEditing(false);
@@ -306,7 +362,7 @@ export const CustomerProfileChamber: React.FC<CustomerProfileChamberProps> = ({
     setPasswordError('');
     setPasswordSuccess('');
 
-    if (!currentPassword) {
+    if (!isGoogleOnlyUser && !currentPassword) {
       setPasswordError('Please enter your current password, or click "Send Password Reset Email" if you forgot it.');
       return;
     }
@@ -323,7 +379,7 @@ export const CustomerProfileChamber: React.FC<CustomerProfileChamberProps> = ({
     try {
       const res = await updatePassword(currentPassword, newPassword);
       if (res.success) {
-        setPasswordSuccess('Password updated & synchronized with Atelier Cloud.');
+        setPasswordSuccess(res.message || 'Password updated & synchronized with Atelier Cloud.');
         setCurrentPassword('');
         setNewPassword('');
         setConfirmNewPassword('');
@@ -344,7 +400,7 @@ export const CustomerProfileChamber: React.FC<CustomerProfileChamberProps> = ({
   return (
     <AnimatePresence>
       <div 
-        className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-black/90 backdrop-blur-2xl p-3 sm:p-6 md:p-8 flex items-center justify-center min-h-screen"
+        className="fixed inset-0 z-50 overflow-y-auto overflow-x-hidden overscroll-contain bg-black/90 backdrop-blur-2xl p-2 xs:p-3 sm:p-6 md:p-8 flex items-center justify-center min-h-screen min-h-[100dvh]"
         onClick={(e) => {
           if (e.target === e.currentTarget) onClose();
         }}
@@ -354,7 +410,7 @@ export const CustomerProfileChamber: React.FC<CustomerProfileChamberProps> = ({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 25 }}
           transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-          className="relative w-full max-w-5xl my-auto bg-[#060606] border border-white/15 rounded-xl overflow-hidden shadow-[0_30px_100px_rgba(0,0,0,0.95)] max-h-[92vh] flex flex-col font-sans"
+          className="relative w-full max-w-5xl my-auto bg-[#060606] border border-white/15 rounded-xl overflow-hidden shadow-[0_30px_100px_rgba(0,0,0,0.95)] max-h-[94dvh] sm:max-h-[92dvh] flex flex-col font-sans"
         >
           {/* Top Cinematic Scanning Laser */}
           <div className="absolute top-0 left-0 right-0 h-[2px] overflow-hidden pointer-events-none z-30">
@@ -456,7 +512,7 @@ export const CustomerProfileChamber: React.FC<CustomerProfileChamberProps> = ({
                   </button>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className={`px-2.5 py-0.5 rounded text-[9px] font-mono uppercase tracking-widest border font-bold flex items-center gap-1.5 ${
                     user.emailVerified
                       ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/40'
@@ -476,14 +532,25 @@ export const CustomerProfileChamber: React.FC<CustomerProfileChamberProps> = ({
                 
                 {/* Left: Client Avatar and Bio Details (7 cols) */}
                 <div className="lg:col-span-7 flex flex-col sm:flex-row items-start gap-5">
-                  {/* Concentric Medal Avatar */}
+                  {/* Concentric Medal Avatar with Google Photo Support */}
                   <div className="relative shrink-0">
                     <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-gold-500 via-amber-400 to-yellow-200 p-[2px] shadow-[0_0_30px_rgba(212,175,55,0.4)]">
                       <div className="w-full h-full rounded-full bg-[#0a0a0a] flex items-center justify-center relative overflow-hidden">
-                        <span className="font-serif text-3xl font-bold bg-gradient-to-b from-white via-gold-200 to-gold-400 bg-clip-text text-transparent">
-                          {(user.fullName || 'P').charAt(0).toUpperCase()}
-                        </span>
-                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(212,175,55,0.3),transparent_70%)]" />
+                        {user.photoURL ? (
+                          <img
+                            src={user.photoURL}
+                            alt={user.fullName}
+                            referrerPolicy="no-referrer"
+                            className="w-full h-full object-cover rounded-full"
+                          />
+                        ) : (
+                          <>
+                            <span className="font-serif text-3xl font-bold bg-gradient-to-b from-white via-gold-200 to-gold-400 bg-clip-text text-transparent">
+                              {(user.fullName || 'P').charAt(0).toUpperCase()}
+                            </span>
+                            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(212,175,55,0.3),transparent_70%)]" />
+                          </>
+                        )}
                       </div>
                     </div>
                     <div className="absolute -bottom-1 -right-1 p-1 rounded-full bg-gold-500 text-black shadow-[0_0_10px_#D4AF37]">
@@ -530,16 +597,16 @@ export const CustomerProfileChamber: React.FC<CustomerProfileChamberProps> = ({
                 <div className="lg:col-span-5 bg-gradient-to-br from-black/90 via-[#0a0805] to-black/95 border border-gold-500/40 rounded-xl p-4 sm:p-5 shadow-[0_0_35px_rgba(212,175,55,0.15)] relative overflow-hidden group">
                   <div className="absolute top-0 right-0 w-32 h-32 bg-gold-500/10 rounded-full blur-2xl pointer-events-none" />
                   
-                  <div className="flex items-center justify-between pb-3 border-b border-white/10 relative z-10">
-                    <div className="flex items-center gap-2">
-                      <div className="p-1.5 rounded bg-gold-500/20 text-gold-400 animate-pulse shadow-[0_0_12px_rgba(212,175,55,0.4)]">
+                  <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-white/10 relative z-10">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="p-1.5 rounded bg-gold-500/20 text-gold-400 animate-pulse shadow-[0_0_12px_rgba(212,175,55,0.4)] shrink-0">
                         <Radio size={14} />
                       </div>
-                      <span className="text-[10px] font-mono uppercase tracking-[0.25em] text-gold-400 font-bold">
+                      <span className="text-[9px] sm:text-[10px] font-mono uppercase tracking-[0.18em] sm:tracking-[0.25em] text-gold-400 font-bold truncate">
                         AERONAUTICAL FLIGHT TELEMETRY
                       </span>
                     </div>
-                    <span className={`px-2.5 py-0.5 rounded-full text-[8.5px] font-mono uppercase tracking-widest border flex items-center gap-1.5 font-bold ${
+                    <span className={`px-2.5 py-0.5 rounded-full text-[8.5px] font-mono uppercase tracking-widest border flex items-center gap-1.5 font-bold shrink-0 ${
                       currentStage === 'applicant'
                         ? hasFirstOrder 
                           ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-[0_0_10px_rgba(245,158,11,0.25)]'
@@ -620,7 +687,7 @@ export const CustomerProfileChamber: React.FC<CustomerProfileChamberProps> = ({
 
               </div>
 
-              {/* Dossier Control Panel: Edit Profile, Password, Email Verification & PDF Export */}
+              {/* Dossier Control Panel: Edit Profile, Password, Sign-In Methods, Email Verification & PDF Export */}
               <div className="mt-6 pt-5 border-t border-white/10 flex flex-wrap items-center justify-between gap-3 relative z-10">
                 <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
                   <button
@@ -630,6 +697,7 @@ export const CustomerProfileChamber: React.FC<CustomerProfileChamberProps> = ({
                       if (!isEditing) {
                         setIsChangingPassword(false);
                         setIsVerifyingIdentity(false);
+                        setIsManagingProviders(false);
                       }
                     }}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono uppercase tracking-wider transition-all cursor-pointer border ${
@@ -651,6 +719,7 @@ export const CustomerProfileChamber: React.FC<CustomerProfileChamberProps> = ({
                       if (!isChangingPassword) {
                         setIsEditing(false);
                         setIsVerifyingIdentity(false);
+                        setIsManagingProviders(false);
                       }
                     }}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono uppercase tracking-wider transition-all cursor-pointer border ${
@@ -660,7 +729,35 @@ export const CustomerProfileChamber: React.FC<CustomerProfileChamberProps> = ({
                     }`}
                   >
                     <Lock size={13} />
-                    <span>{isChangingPassword ? 'Cancel Password Change' : 'Update Password'}</span>
+                    <span>
+                      {isChangingPassword
+                        ? 'Cancel Password Setup'
+                        : isGoogleOnlyUser
+                        ? 'Set Dossier Password'
+                        : 'Update Password'}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsManagingProviders(!isManagingProviders);
+                      setProviderError('');
+                      setProviderMessage('');
+                      if (!isManagingProviders) {
+                        setIsEditing(false);
+                        setIsChangingPassword(false);
+                        setIsVerifyingIdentity(false);
+                      }
+                    }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono uppercase tracking-wider transition-all cursor-pointer border ${
+                      isManagingProviders
+                        ? 'bg-gold-500/20 text-gold-300 border-gold-500/50'
+                        : 'bg-white/5 text-white/70 hover:text-white border-white/10 hover:border-gold-500/30'
+                    }`}
+                  >
+                    <KeyRound size={13} className="text-gold-400" />
+                    <span>{isManagingProviders ? 'Close Linked Methods' : 'Linked Sign-In Methods'}</span>
                   </button>
 
                   <button
@@ -669,6 +766,7 @@ export const CustomerProfileChamber: React.FC<CustomerProfileChamberProps> = ({
                       if (!isVerifyingIdentity) {
                         setIsEditing(false);
                         setIsChangingPassword(false);
+                        setIsManagingProviders(false);
                         setIsVerifyingIdentity(true);
                         setIdentityVerifyErr('');
                         setIdentityVerifyMsg('');
@@ -712,6 +810,131 @@ export const CustomerProfileChamber: React.FC<CustomerProfileChamberProps> = ({
                   )}
                 </div>
               </div>
+
+              {/* LINKED SIGN-IN METHODS & ACCOUNT LINKING PANEL */}
+              {isManagingProviders && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="mt-5 pt-5 border-t border-white/10 space-y-4 relative z-10"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-[10px] font-mono uppercase tracking-widest text-gold-400 flex items-center gap-1.5 font-bold">
+                      <KeyRound size={14} className="text-gold-400" /> LINKED AUTHENTICATION PROVIDERS
+                    </span>
+                    <span className="text-[10px] font-mono text-white/50">
+                      At least one active sign-in method is required at all times
+                    </span>
+                  </div>
+
+                  {providerError && (
+                    <div className="p-3 bg-red-950/40 border border-red-500/40 rounded text-red-300 text-xs font-mono flex items-center gap-2">
+                      <AlertTriangle size={14} className="shrink-0 text-red-400" />
+                      <span>{providerError}</span>
+                    </div>
+                  )}
+
+                  {providerMessage && (
+                    <div className="p-3 bg-emerald-950/40 border border-emerald-500/40 rounded text-emerald-300 text-xs font-mono flex items-center gap-2">
+                      <CheckCircle2 size={14} className="shrink-0 text-emerald-400" />
+                      <span>{providerMessage}</span>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* Google Provider Card */}
+                    <div className="p-4 rounded-lg bg-black/70 border border-white/10 flex items-center justify-between gap-3">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-mono uppercase tracking-wider text-white font-bold">
+                            Google OAuth Sign-In
+                          </span>
+                          <span className={`px-2 py-0.5 rounded text-[9px] font-mono uppercase ${
+                            hasGoogleLinked
+                              ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                              : 'bg-white/5 text-white/40 border border-white/10'
+                          }`}>
+                            {hasGoogleLinked ? 'Linked' : 'Not Linked'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-white/50">
+                          {hasGoogleLinked
+                            ? `Connected to ${user.email}`
+                            : 'Link your Google account for one-click sign-in'}
+                        </p>
+                      </div>
+
+                      {hasGoogleLinked ? (
+                        <button
+                          type="button"
+                          disabled={providerLoading || linkedProviders.length <= 1}
+                          onClick={() => handleUnlinkProvider('google.com')}
+                          title={linkedProviders.length <= 1 ? 'Set a password before unlinking Google' : 'Unlink Google'}
+                          className="px-3 py-1.5 rounded bg-white/5 hover:bg-red-500/20 border border-white/10 hover:border-red-500/40 text-white/70 hover:text-red-300 text-[10px] font-mono uppercase tracking-wider cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                        >
+                          Unlink
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={providerLoading}
+                          onClick={handleLinkGoogle}
+                          className="px-3 py-1.5 rounded bg-gold-500/15 hover:bg-gold-500/25 border border-gold-500/40 text-gold-300 text-[10px] font-mono uppercase tracking-wider cursor-pointer disabled:opacity-50 transition-all"
+                        >
+                          Link Google
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Email/Password Provider Card */}
+                    <div className="p-4 rounded-lg bg-black/70 border border-white/10 flex items-center justify-between gap-3">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-mono uppercase tracking-wider text-white font-bold">
+                            Email &amp; Password
+                          </span>
+                          <span className={`px-2 py-0.5 rounded text-[9px] font-mono uppercase ${
+                            hasPasswordLinked
+                              ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                              : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                          }`}>
+                            {hasPasswordLinked ? 'Linked' : 'Google-Only'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-white/50">
+                          {hasPasswordLinked
+                            ? 'Direct email & password login enabled'
+                            : 'Optional: Add a password to sign in without Google'}
+                        </p>
+                      </div>
+
+                      {hasPasswordLinked ? (
+                        <button
+                          type="button"
+                          disabled={providerLoading || linkedProviders.length <= 1}
+                          onClick={() => handleUnlinkProvider('password')}
+                          title={linkedProviders.length <= 1 ? 'Link Google before removing password login' : 'Remove password login'}
+                          className="px-3 py-1.5 rounded bg-white/5 hover:bg-red-500/20 border border-white/10 hover:border-red-500/40 text-white/70 hover:text-red-300 text-[10px] font-mono uppercase tracking-wider cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                        >
+                          Unlink
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsManagingProviders(false);
+                            setIsChangingPassword(true);
+                          }}
+                          className="px-3 py-1.5 rounded bg-gold-500/15 hover:bg-gold-500/25 border border-gold-500/40 text-gold-300 text-[10px] font-mono uppercase tracking-wider cursor-pointer transition-all"
+                        >
+                          Set Password
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
 
               {/* EMAIL VERIFICATION PANEL */}
               {isVerifyingIdentity && (
@@ -768,7 +991,7 @@ export const CustomerProfileChamber: React.FC<CustomerProfileChamberProps> = ({
                 </motion.div>
               )}
 
-              {/* SECURE PASSWORD UPDATE FORM */}
+              {/* SECURE PASSWORD UPDATE / SET PASSWORD FORM */}
               {isChangingPassword && (
                 <motion.form
                   initial={{ opacity: 0, height: 0 }}
@@ -779,16 +1002,21 @@ export const CustomerProfileChamber: React.FC<CustomerProfileChamberProps> = ({
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="text-[10px] font-mono uppercase tracking-widest text-gold-400 flex items-center gap-1.5 font-bold">
-                      <ShieldCheck size={14} className="text-gold-400" /> SECURE CREDENTIALS CONFIGURATION // CLOUD REGISTRY SYNC
+                      <ShieldCheck size={14} className="text-gold-400" />{' '}
+                      {isGoogleOnlyUser
+                        ? 'SET PASSWORD FOR GOOGLE ACCOUNT // ENABLE EMAIL & PASSWORD LOGIN'
+                        : 'SECURE CREDENTIALS CONFIGURATION // CLOUD REGISTRY SYNC'}
                     </span>
-                    <button
-                      type="button"
-                      onClick={handleSendPasswordResetEmail}
-                      disabled={passwordLoading}
-                      className="text-[10px] font-mono text-gold-400 hover:text-gold-300 underline cursor-pointer"
-                    >
-                      Forgot Current Password? Send Password Reset Link to Email
-                    </button>
+                    {!isGoogleOnlyUser && (
+                      <button
+                        type="button"
+                        onClick={handleSendPasswordResetEmail}
+                        disabled={passwordLoading}
+                        className="text-[10px] font-mono text-gold-400 hover:text-gold-300 underline cursor-pointer"
+                      >
+                        Forgot Current Password? Send Password Reset Link to Email
+                      </button>
+                    )}
                   </div>
 
                   {passwordError && (
@@ -805,29 +1033,31 @@ export const CustomerProfileChamber: React.FC<CustomerProfileChamberProps> = ({
                     </div>
                   )}
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div>
-                      <label className="block text-[9px] font-mono uppercase tracking-widest text-white/50 mb-1">
-                        Current Password
-                      </label>
-                      <div className="relative">
-                        <input
-                          type={showCurrentPwd ? "text" : "password"}
-                          value={currentPassword}
-                          onChange={(e) => setCurrentPassword(e.target.value)}
-                          placeholder="Current password"
-                          required
-                          className="w-full bg-black/80 border border-white/15 rounded pl-3 pr-9 py-2 text-xs text-white focus:border-gold-400 outline-none font-mono"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowCurrentPwd(!showCurrentPwd)}
-                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/40 hover:text-white cursor-pointer"
-                        >
-                          {showCurrentPwd ? <EyeOff size={13} /> : <Eye size={13} />}
-                        </button>
+                  <div className={`grid grid-cols-1 ${isGoogleOnlyUser ? 'sm:grid-cols-2' : 'sm:grid-cols-3'} gap-3`}>
+                    {!isGoogleOnlyUser && (
+                      <div>
+                        <label className="block text-[9px] font-mono uppercase tracking-widest text-white/50 mb-1">
+                          Current Password
+                        </label>
+                        <div className="relative">
+                          <input
+                            type={showCurrentPwd ? "text" : "password"}
+                            value={currentPassword}
+                            onChange={(e) => setCurrentPassword(e.target.value)}
+                            placeholder="Current password"
+                            required
+                            className="w-full bg-black/80 border border-white/15 rounded pl-3 pr-9 py-2 text-xs text-white focus:border-gold-400 outline-none font-mono"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowCurrentPwd(!showCurrentPwd)}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/40 hover:text-white cursor-pointer"
+                          >
+                            {showCurrentPwd ? <EyeOff size={13} /> : <Eye size={13} />}
+                          </button>
+                        </div>
                       </div>
-                    </div>
+                    )}
 
                     <div>
                       <label className="block text-[9px] font-mono uppercase tracking-widest text-white/50 mb-1">
@@ -896,7 +1126,13 @@ export const CustomerProfileChamber: React.FC<CustomerProfileChamberProps> = ({
                       className="px-5 py-2.5 bg-gradient-to-r from-gold-500 to-amber-400 hover:from-gold-400 hover:to-amber-300 text-black text-xs font-mono uppercase tracking-widest font-bold rounded flex items-center gap-2 transition-all disabled:opacity-50 cursor-pointer shadow-[0_0_20px_rgba(212,175,55,0.3)]"
                     >
                       <KeyRound size={13} />
-                      <span>{passwordLoading ? 'Synchronizing Password...' : 'Save & Sync New Password'}</span>
+                      <span>
+                        {passwordLoading
+                          ? 'Synchronizing Password...'
+                          : isGoogleOnlyUser
+                          ? 'Link Password to Dossier'
+                          : 'Save & Sync New Password'}
+                      </span>
                     </button>
                   </div>
                 </motion.form>

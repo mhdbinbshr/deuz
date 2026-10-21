@@ -445,6 +445,7 @@ export const PrivateConciergePage: React.FC<PrivateConciergePageProps> = ({ onCl
   };
 
   const [copiedPhone, setCopiedPhone] = useState(false);
+  const [copiedDossierCode, setCopiedDossierCode] = useState(false);
   const handleCopyPhone = () => {
     navigator.clipboard.writeText('+91 920 7676 921');
     setCopiedPhone(true);
@@ -509,6 +510,15 @@ export const PrivateConciergePage: React.FC<PrivateConciergePageProps> = ({ onCl
     e.preventDefault();
     setIsSubmitting(true);
     try {
+      await db.submitAppointment({
+        name: inquiryData.name,
+        email: inquiryData.email,
+        consultationType: inquiryData.subject || 'Direct Concierge Inquiry',
+        location: 'Concierge Desk — Direct Transmission',
+        datePreference: 'Immediate Concierge Review',
+        notes: inquiryData.message,
+        status: 'PENDING'
+      });
       await db.logAuditEvent('CONCIERGE_INQUIRY_TRANSMITTED', 'concierge', 'desk', {
         name: inquiryData.name,
         email: inquiryData.email,
@@ -516,12 +526,6 @@ export const PrivateConciergePage: React.FC<PrivateConciergePageProps> = ({ onCl
         message: inquiryData.message
       });
       setInquirySent(true);
-      // Trigger mailto fallback
-      const sub = encodeURIComponent(`[Concierge Desk] ${inquiryData.subject} - ${inquiryData.name}`);
-      const body = encodeURIComponent(
-        `CLIENT: ${inquiryData.name}\nEMAIL: ${inquiryData.email}\n\nMESSAGE:\n${inquiryData.message}`
-      );
-      window.open(`mailto:deuzandco@gmail.com?subject=${sub}&body=${body}`, '_blank');
     } catch (err) {
       setInquirySent(true);
     } finally {
@@ -556,14 +560,14 @@ export const PrivateConciergePage: React.FC<PrivateConciergePageProps> = ({ onCl
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-      className="fixed inset-0 z-[120] bg-[#030303] text-[#f2efe9] overflow-y-auto font-sans select-none"
+      className="fixed inset-0 z-[120] bg-[#030303] text-[#f2efe9] overflow-y-auto overflow-x-hidden font-sans select-none"
       style={{
         scrollbarWidth: 'thin',
         scrollbarColor: 'rgba(212,175,55,0.3) #030303'
       }}
     >
       {/* Ambient Cinema Lighting & Noise */}
-      <div className="fixed inset-0 pointer-events-none z-0">
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
         <div 
           className="absolute inset-0 opacity-[0.04] mix-blend-overlay"
           style={{
@@ -575,25 +579,25 @@ export const PrivateConciergePage: React.FC<PrivateConciergePageProps> = ({ onCl
       </div>
 
       {/* Top Header */}
-      <header className="sticky top-0 left-0 right-0 z-50 px-6 sm:px-12 py-5 sm:py-6 flex justify-between items-center backdrop-blur-xl bg-black/60 border-b border-white/[0.06]">
+      <header className="sticky top-0 left-0 right-0 z-50 px-4 sm:px-12 py-4 sm:py-6 flex justify-between items-center backdrop-blur-xl bg-black/60 border-b border-white/[0.06]">
         <button
           onClick={onClose}
-          className="flex items-center gap-3 sm:gap-4 group cursor-pointer"
+          className="flex items-center gap-2.5 sm:gap-4 group cursor-pointer min-w-0"
         >
-          <div className="w-10 h-10 rounded-full border border-gold-500/40 flex items-center justify-center bg-[#0a0a0a] group-hover:bg-gold-500 group-hover:border-gold-500 transition-all duration-300 shadow-[0_0_15px_rgba(212,175,55,0.1)]">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-gold-500/40 flex items-center justify-center bg-[#0a0a0a] group-hover:bg-gold-500 group-hover:border-gold-500 transition-all duration-300 shadow-[0_0_15px_rgba(212,175,55,0.1)] shrink-0">
             <ArrowLeft size={16} className="text-gold-400 group-hover:text-black transition-colors" />
           </div>
-          <div className="text-left">
-            <span className="block text-[8px] sm:text-[9px] uppercase tracking-[0.3em] text-gold-400/70 group-hover:text-gold-400 font-mono">
-              Return to Maison
+          <div className="text-left min-w-0">
+            <span className="block text-[7.5px] sm:text-[9px] uppercase tracking-[0.25em] sm:tracking-[0.3em] text-gold-400/70 group-hover:text-gold-400 font-mono truncate">
+              Return to Home
             </span>
-            <span className="block text-xs sm:text-sm font-serif tracking-[0.2em] text-white">
+            <span className="block text-[11px] sm:text-sm font-serif tracking-[0.15em] sm:tracking-[0.2em] text-white truncate">
               PRIVATE CONCIERGE SUITE
             </span>
           </div>
         </button>
 
-        <div className="flex items-center gap-4 sm:gap-6">
+        <div className="flex items-center gap-3 sm:gap-6">
           {user && (
             <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full border border-gold-500/30 bg-gold-500/5">
               <span className="w-1.5 h-1.5 rounded-full bg-gold-400 animate-pulse" />
@@ -605,7 +609,7 @@ export const PrivateConciergePage: React.FC<PrivateConciergePageProps> = ({ onCl
 
           <button
             onClick={onClose}
-            className="w-10 h-10 rounded-full border border-white/10 flex items-center justify-center text-white/60 hover:text-white hover:border-white/30 transition-all"
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-white/10 flex items-center justify-center text-white/60 hover:text-white hover:border-white/30 transition-all shrink-0"
             aria-label="Close Concierge"
           >
             <X size={18} />
@@ -614,29 +618,29 @@ export const PrivateConciergePage: React.FC<PrivateConciergePageProps> = ({ onCl
       </header>
 
       {/* Main Suite Content */}
-      <div className="relative z-10 max-w-7xl mx-auto px-6 sm:px-12 py-10 sm:py-16 space-y-16">
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-12 py-8 sm:py-16 space-y-12 sm:space-y-16">
         
         {/* Hero Banner */}
-        <section className="text-center space-y-6 max-w-4xl mx-auto">
-          <div className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full border border-gold-500/30 bg-gold-500/10 text-gold-300 text-[9px] uppercase tracking-[0.3em] font-mono shadow-[0_0_25px_rgba(212,175,55,0.12)]">
-            <Sparkles size={12} className="text-gold-400 animate-spin" style={{ animationDuration: '6s' }} />
-            <span>Salon Privé & Haute Couture Services</span>
+        <section className="text-center space-y-5 sm:space-y-6 max-w-4xl mx-auto">
+          <div className="inline-flex items-center gap-2 sm:gap-2.5 px-3.5 sm:px-4 py-1.5 rounded-full border border-gold-500/30 bg-gold-500/10 text-gold-300 text-[8px] sm:text-[9px] uppercase tracking-[0.22em] sm:tracking-[0.3em] font-mono shadow-[0_0_25px_rgba(212,175,55,0.12)] max-w-full">
+            <Sparkles size={12} className="text-gold-400 animate-spin shrink-0" style={{ animationDuration: '6s' }} />
+            <span className="truncate">Salon Privé & Haute Couture Services</span>
           </div>
 
-          <h1 className="text-3xl sm:text-5xl md:text-7xl font-serif text-white tracking-[0.1em] uppercase leading-tight">
+          <h1 className="text-2xl xs:text-3xl sm:text-5xl md:text-7xl font-serif text-white tracking-[0.08em] sm:tracking-[0.1em] uppercase leading-tight">
             The Private Concierge
           </h1>
 
-          <p className="text-sm sm:text-base text-white/60 font-light max-w-2xl mx-auto leading-relaxed">
+          <p className="text-xs sm:text-base text-white/60 font-light max-w-2xl mx-auto leading-relaxed px-2">
             By invitation and exclusive appointment. Sourcing singular archive editions, organizing private atelier fittings, and coordinating high-jewelry acquisitions across our global salons.
           </p>
 
           {/* Major Indian Cities Live Atelier Clocks */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-6 max-w-5xl mx-auto">
-            {FLAGSHIP_CLOCKS.map(({ city, label, address }) => (
+          <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3 pt-4 sm:pt-6 max-w-5xl mx-auto">
+            {FLAGSHIP_CLOCKS.map(({ city, label, openHours }) => (
               <div 
                 key={city}
-                className="p-4 rounded-sm border border-white/[0.07] bg-white/[0.02] backdrop-blur-md text-left transition-all hover:border-gold-500/40 hover:bg-white/[0.04]"
+                className="p-3.5 sm:p-4 rounded-sm border border-white/[0.07] bg-white/[0.02] backdrop-blur-md text-left transition-all hover:border-gold-500/40 hover:bg-white/[0.04]"
               >
                 <div className="flex items-center justify-between text-gold-400 mb-1.5">
                   <span className="text-[10px] font-mono tracking-widest uppercase">{city}</span>
@@ -645,18 +649,18 @@ export const PrivateConciergePage: React.FC<PrivateConciergePageProps> = ({ onCl
                   </span>
                 </div>
                 <p className="text-xs font-serif text-white/90 truncate">{label}</p>
-                <p className="text-[9px] font-mono text-white/40 truncate mt-0.5">{address}</p>
+                <p className="text-[9px] font-mono text-white/40 truncate mt-0.5">By Private Appointment · {openHours}</p>
               </div>
             ))}
           </div>
         </section>
 
         {/* Navigation Tabs for Services */}
-        <div className="flex justify-center border-b border-white/[0.08] pb-1">
-          <div className="inline-flex gap-2 sm:gap-4 p-1.5 bg-white/[0.03] border border-white/[0.08] rounded-full backdrop-blur-md">
+        <div className="flex justify-center border-b border-white/[0.08] pb-3 sm:pb-1">
+          <div className="flex flex-wrap sm:inline-flex justify-center gap-1.5 sm:gap-4 p-1.5 bg-white/[0.03] border border-white/[0.08] rounded-2xl sm:rounded-full backdrop-blur-md w-full sm:w-auto">
             <button
               onClick={() => setActiveTab('appointment')}
-              className={`px-5 py-2 rounded-full text-xs font-mono uppercase tracking-[0.2em] transition-all cursor-pointer ${
+              className={`flex-1 sm:flex-initial px-3.5 sm:px-5 py-2 rounded-xl sm:rounded-full text-[10px] sm:text-xs font-mono uppercase tracking-[0.15em] sm:tracking-[0.2em] transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === 'appointment'
                   ? 'bg-gold-500 text-black font-bold shadow-[0_0_20px_rgba(212,175,55,0.4)]'
                   : 'text-white/60 hover:text-white'
@@ -666,7 +670,7 @@ export const PrivateConciergePage: React.FC<PrivateConciergePageProps> = ({ onCl
             </button>
             <button
               onClick={() => setActiveTab('inquiry')}
-              className={`px-5 py-2 rounded-full text-xs font-mono uppercase tracking-[0.2em] transition-all cursor-pointer ${
+              className={`flex-1 sm:flex-initial px-3.5 sm:px-5 py-2 rounded-xl sm:rounded-full text-[10px] sm:text-xs font-mono uppercase tracking-[0.15em] sm:tracking-[0.2em] transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === 'inquiry'
                   ? 'bg-gold-500 text-black font-bold shadow-[0_0_20px_rgba(212,175,55,0.4)]'
                   : 'text-white/60 hover:text-white'
@@ -676,7 +680,7 @@ export const PrivateConciergePage: React.FC<PrivateConciergePageProps> = ({ onCl
             </button>
             <button
               onClick={() => setActiveTab('lookup')}
-              className={`px-5 py-2 rounded-full text-xs font-mono uppercase tracking-[0.2em] transition-all cursor-pointer ${
+              className={`flex-1 sm:flex-initial px-3.5 sm:px-5 py-2 rounded-xl sm:rounded-full text-[10px] sm:text-xs font-mono uppercase tracking-[0.15em] sm:tracking-[0.2em] transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === 'lookup'
                   ? 'bg-gold-500 text-black font-bold shadow-[0_0_20px_rgba(212,175,55,0.4)]'
                   : 'text-white/60 hover:text-white'
@@ -753,11 +757,12 @@ export const PrivateConciergePage: React.FC<PrivateConciergePageProps> = ({ onCl
                       <button
                         onClick={() => {
                           navigator.clipboard.writeText(submittedDossier.code);
-                          alert(`Dossier reference ${submittedDossier.code} copied to clipboard.`);
+                          setCopiedDossierCode(true);
+                          setTimeout(() => setCopiedDossierCode(false), 2500);
                         }}
                         className="flex-1 py-3 px-6 border border-gold-500/40 text-gold-300 hover:bg-gold-500/10 text-xs font-mono uppercase tracking-widest transition-all cursor-pointer"
                       >
-                        Copy Dossier ID
+                        {copiedDossierCode ? 'Copied Dossier ID!' : 'Copy Dossier ID'}
                       </button>
                       <button
                         onClick={() => setSubmittedDossier(null)}
@@ -965,14 +970,14 @@ export const PrivateConciergePage: React.FC<PrivateConciergePageProps> = ({ onCl
                       {(selectedCity === 'Custom' || cityRegionFilter === 'CUSTOM') && (
                         <div className="p-4 sm:p-5 rounded-lg border border-gold-500/50 bg-gradient-to-br from-gold-500/10 via-black to-[#0d0d0d] space-y-3 shadow-[0_0_30px_rgba(212,175,55,0.15)] relative overflow-hidden">
                           <div className="absolute top-0 right-0 w-40 h-40 bg-gold-500/10 rounded-full blur-2xl pointer-events-none" />
-                          <div className="flex items-center justify-between relative z-10">
-                            <label className="text-[11px] uppercase font-mono tracking-[0.2em] text-gold-400 font-bold flex items-center gap-2">
-                              <MapPin size={14} className="text-gold-400 animate-pulse" />
-                              Custom City / Private Residence Coordinates *
+                          <div className="flex flex-wrap items-center justify-between gap-2 relative z-10">
+                            <label className="text-[10px] sm:text-[11px] uppercase font-mono tracking-[0.15em] sm:tracking-[0.2em] text-gold-400 font-bold flex items-center gap-2">
+                              <MapPin size={14} className="text-gold-400 animate-pulse shrink-0" />
+                              <span>Custom City / Private Residence Coordinates *</span>
                             </label>
                             <span className="text-[9px] font-mono text-emerald-400 uppercase tracking-widest flex items-center gap-1">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                              Sovereign White-Glove Dispatch
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping shrink-0" />
+                              <span>Sovereign White-Glove Dispatch</span>
                             </span>
                           </div>
 
@@ -1160,31 +1165,34 @@ export const PrivateConciergePage: React.FC<PrivateConciergePageProps> = ({ onCl
                 </div>
               </div>
 
-              {/* Atelier Address Guide */}
+              {/* Private Concierge Appointment Protocol */}
               <div className="p-6 rounded-sm border border-white/[0.07] bg-white/[0.02] space-y-4">
                 <div className="flex items-center justify-between">
                   <h4 className="text-xs uppercase font-mono tracking-[0.2em] text-gold-400">
-                    Maison Salon Addresses (India)
+                    Private Appointment Protocol
                   </h4>
-                  <span className="text-[9px] font-mono text-white/40">30+ Ateliers</span>
+                  <span className="text-[9px] font-mono text-white/40">Exclusive Consultation</span>
                 </div>
-                <div className="space-y-3 text-xs max-h-96 overflow-y-auto pr-1.5 gold-scrollbar">
-                  {ATELIER_CITIES.map(c => (
-                    <div key={c.city} className="border-b border-white/5 pb-2.5">
-                      <div className="flex justify-between text-white font-serif">
-                        <span className="flex items-center gap-1.5">
-                          {c.isFlagship && <span className="w-1.5 h-1.5 rounded-full bg-gold-400" />}
-                          {c.city} — {c.label}
-                        </span>
-                        <span className="text-[10px] font-mono text-gold-400/80">{c.openHours}</span>
-                      </div>
-                      <p className="text-[10px] font-mono text-white/40 mt-0.5">{c.address}</p>
-                    </div>
-                  ))}
+                <p className="text-xs text-white/70 font-light leading-relaxed">
+                  To safeguard client discretion and security, all consultations are conducted strictly by confidential private booking at sovereign residences, luxury suites, or reserved private ateliers.
+                </p>
+                <div className="space-y-2.5 pt-1 text-[11px] font-mono text-white/60">
+                  <div className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-gold-400 shrink-0" />
+                    <span>Discreet bespoke fittings scheduled individually</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-gold-400 shrink-0" />
+                    <span>Dedicated Master Tailor & Archival Curator assigned</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-gold-400 shrink-0" />
+                    <span>Locations coordinated directly upon dossier verification</span>
+                  </div>
                 </div>
                 <div className="pt-2 border-t border-white/10 text-[10px] font-mono text-gold-400/80 flex items-center gap-2">
                   <MapPin size={12} className="shrink-0 text-gold-400" />
-                  <span>Custom private fitting arranged in any city across India or worldwide upon request.</span>
+                  <span>Available across all metropolitan centers and worldwide private estates.</span>
                 </div>
               </div>
             </div>

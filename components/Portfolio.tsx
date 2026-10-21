@@ -225,7 +225,7 @@ const Portfolio: React.FC<PortfolioProps> = ({ onEnterShop }) => {
   const centerDisplayImg = activeImages[perspectiveIndex] || activePiece.imgUrl;
 
   return (
-    <section id="works" className="relative bg-black/40 py-20 md:py-28 overflow-hidden select-none">
+    <section id="works" className="relative w-full max-w-[100vw] bg-black/40 py-14 sm:py-20 md:py-28 overflow-hidden select-none">
       {/* Dynamic 3D Atmospheric Backing - No hard borders */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         <motion.div
@@ -242,7 +242,7 @@ const Portfolio: React.FC<PortfolioProps> = ({ onEnterShop }) => {
       </div>
 
       {/* Editorial Header - Refined Small Size, Extra Styled & Animated */}
-      <div className="relative z-10 px-6 md:px-12 max-w-7xl mx-auto mb-6 md:mb-8">
+      <div className="relative z-10 px-4 sm:px-6 md:px-12 max-w-7xl mx-auto mb-6 md:mb-8">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-4 border-b border-white/[0.06]">
           <div>
             {/* Animated Micro Header Eyebrow */}
@@ -250,27 +250,27 @@ const Portfolio: React.FC<PortfolioProps> = ({ onEnterShop }) => {
               initial={{ opacity: 0, x: -12 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.6, ease: "easeOut" }}
-              className="flex items-center gap-2.5 mb-2"
+              className="flex flex-wrap items-center gap-2 sm:gap-2.5 mb-2"
             >
               <span className="w-5 h-[1px] bg-gold-400/80" />
               <motion.span 
                 animate={{ opacity: [0.7, 1, 0.7] }}
                 transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-                className="text-[9px] md:text-[10px] font-mono tracking-[0.35em] uppercase text-gold-400 font-medium flex items-center gap-1.5"
+                className="text-[8.5px] sm:text-[9px] md:text-[10px] font-mono tracking-[0.25em] sm:tracking-[0.35em] uppercase text-gold-400 font-medium flex items-center gap-1.5"
               >
                 <Sparkles size={10} className="text-gold-400 animate-pulse" />
                 HOUSE ARCHIVE ∞ FORM 01
               </motion.span>
-              <span className="text-white/20 font-mono text-[9px]">∞ EXCLUSIVE CUT</span>
+              <span className="text-white/20 font-mono text-[8.5px] sm:text-[9px]">∞ EXCLUSIVE CUT</span>
             </motion.div>
 
             {/* Small Sized Extra-Styled Title */}
-            <div className="flex items-baseline gap-3">
+            <div className="flex flex-wrap items-baseline gap-2.5 sm:gap-3">
               <motion.h2 
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.7, delay: 0.1 }}
-                className="text-lg md:text-2xl font-serif text-white tracking-[0.25em] uppercase font-light"
+                className="text-base xs:text-lg md:text-2xl font-serif text-white tracking-[0.2em] sm:tracking-[0.25em] uppercase font-light"
               >
                 DEUZ — <span className="italic text-gold-300 font-normal">FORM 01</span>
               </motion.h2>
@@ -279,7 +279,7 @@ const Portfolio: React.FC<PortfolioProps> = ({ onEnterShop }) => {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.8, delay: 0.2 }}
-                className="inline-block text-[9px] font-mono tracking-[0.3em] uppercase text-white/40 px-2 py-0.5 border border-white/10 bg-white/[0.02]"
+                className="inline-block text-[8.5px] sm:text-[9px] font-mono tracking-[0.25em] sm:tracking-[0.3em] uppercase text-white/40 px-2 py-0.5 border border-white/10 bg-white/[0.02]"
               >
                 ONE OF ONE
               </motion.span>
@@ -290,13 +290,13 @@ const Portfolio: React.FC<PortfolioProps> = ({ onEnterShop }) => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.8, delay: 0.25 }}
-              className="text-white/40 text-[10px] md:text-[11px] font-mono tracking-[0.2em] uppercase mt-1.5 font-light max-w-lg"
+              className="text-white/40 text-[9.5px] sm:text-[10px] md:text-[11px] font-mono tracking-[0.18em] sm:tracking-[0.2em] uppercase mt-1.5 font-light max-w-lg"
             >
               CREATED ONCE. NEVER REPRODUCED.
             </motion.p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 self-start md:self-auto">
             {/* Direct House Entry */}
             <motion.button
               whileHover={{ x: 2 }}
@@ -329,7 +329,7 @@ const Portfolio: React.FC<PortfolioProps> = ({ onEnterShop }) => {
           }
           setIsPaused(false);
         }}
-        className="relative z-10 w-full max-w-7xl mx-auto h-[530px] md:h-[670px] flex items-center justify-center cursor-pointer select-none"
+        className="relative z-10 w-full max-w-7xl mx-auto min-h-[420px] h-[min(74vh,460px)] xs:h-[min(76vh,500px)] sm:h-[min(78vh,550px)] md:h-[min(82vh,660px)] flex items-center justify-center cursor-pointer select-none px-2"
         style={{ perspective: 1400 }}
       >
         {/* Stage Anchor */}
@@ -337,9 +337,9 @@ const Portfolio: React.FC<PortfolioProps> = ({ onEnterShop }) => {
           {/* LEFT RECESSED PIECE (Preview with Full Silhouette) */}
           <div
             onClick={prevPiece}
-            className="flex absolute -left-8 sm:left-[1%] md:left-[3%] lg:left-[6%] xl:left-[8%] top-1/2 -translate-y-1/2 w-[160px] sm:w-[220px] md:w-[280px] lg:w-[340px] h-[280px] sm:h-[360px] md:h-[420px] lg:h-[480px] cursor-pointer items-center justify-center transition-all duration-700 select-none group z-10"
+            className="flex absolute -left-10 xs:-left-6 sm:left-[1%] md:left-[3%] lg:left-[6%] xl:left-[8%] top-1/2 -translate-y-1/2 w-[130px] xs:w-[160px] sm:w-[220px] md:w-[280px] lg:w-[340px] h-[230px] xs:h-[280px] sm:h-[360px] md:h-[420px] lg:h-[480px] cursor-pointer items-center justify-center transition-all duration-700 select-none group z-10"
           >
-            <div className="relative w-full h-full flex items-center justify-center opacity-30 group-hover:opacity-60 transition-opacity duration-500">
+            <div className="relative w-full h-full flex items-center justify-center opacity-25 sm:opacity-30 group-hover:opacity-60 transition-opacity duration-500">
               <img
                 src={pieces[prevPieceIndex]?.imgUrl}
                 alt={pieces[prevPieceIndex]?.title}
@@ -359,9 +359,9 @@ const Portfolio: React.FC<PortfolioProps> = ({ onEnterShop }) => {
           {/* RIGHT RECESSED PIECE (Preview with Full Silhouette) */}
           <div
             onClick={nextPiece}
-            className="flex absolute -right-8 sm:right-[1%] md:right-[3%] lg:right-[6%] xl:right-[8%] top-1/2 -translate-y-1/2 w-[160px] sm:w-[220px] md:w-[280px] lg:w-[340px] h-[280px] sm:h-[360px] md:h-[420px] lg:h-[480px] cursor-pointer items-center justify-center transition-all duration-700 select-none group z-10"
+            className="flex absolute -right-10 xs:-right-6 sm:right-[1%] md:right-[3%] lg:right-[6%] xl:right-[8%] top-1/2 -translate-y-1/2 w-[130px] xs:w-[160px] sm:w-[220px] md:w-[280px] lg:w-[340px] h-[230px] xs:h-[280px] sm:h-[360px] md:h-[420px] lg:h-[480px] cursor-pointer items-center justify-center transition-all duration-700 select-none group z-10"
           >
-            <div className="relative w-full h-full flex items-center justify-center opacity-30 group-hover:opacity-60 transition-opacity duration-500">
+            <div className="relative w-full h-full flex items-center justify-center opacity-25 sm:opacity-30 group-hover:opacity-60 transition-opacity duration-500">
               <img
                 src={pieces[nextPieceIndex]?.imgUrl}
                 alt={pieces[nextPieceIndex]?.title}
@@ -386,7 +386,7 @@ const Portfolio: React.FC<PortfolioProps> = ({ onEnterShop }) => {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.94 }}
               transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}
-              className="relative w-[92vw] sm:w-[560px] md:w-[660px] h-[520px] md:h-[620px] flex flex-col items-center justify-center z-20"
+              className="relative w-[92vw] sm:w-[560px] md:w-[660px] h-full max-h-[440px] xs:max-h-[480px] sm:max-h-[530px] md:max-h-[620px] flex flex-col items-center justify-center z-20"
               style={{ transformStyle: 'preserve-3d' }}
             >
               {/* Backlight Volumetric Depth Glow */}
@@ -396,7 +396,7 @@ const Portfolio: React.FC<PortfolioProps> = ({ onEnterShop }) => {
                   opacity: [0.35, 0.55, 0.35],
                 }}
                 transition={{ duration: 4.8, repeat: Infinity, ease: 'easeInOut' }}
-                className="absolute w-[360px] md:w-[500px] h-[360px] md:h-[500px] rounded-full bg-gradient-to-tr from-gold-500/25 via-amber-600/15 to-transparent blur-[90px] pointer-events-none"
+                className="absolute w-[260px] xs:w-[320px] md:w-[480px] h-[260px] xs:h-[320px] md:h-[480px] rounded-full bg-gradient-to-tr from-gold-500/25 via-amber-600/15 to-transparent blur-[90px] pointer-events-none"
               />
 
               {/* Free-floating 3D Oscillating Image Container with Dynamic Mouse Physics */}
@@ -416,7 +416,7 @@ const Portfolio: React.FC<PortfolioProps> = ({ onEnterShop }) => {
                   repeat: Infinity,
                   ease: 'easeInOut',
                 }}
-                className="relative w-full h-[400px] sm:h-[460px] md:h-[500px] flex items-center justify-center cursor-pointer group"
+                className="relative w-full flex-1 min-h-0 max-h-[290px] xs:max-h-[340px] sm:max-h-[420px] md:max-h-[480px] flex items-center justify-center cursor-pointer group"
                 onClick={onEnterShop}
               >
                 {/* Fully Visible Product Image Frame (No Edge-cutting masks) */}

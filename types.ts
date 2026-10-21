@@ -359,7 +359,6 @@ export interface User {
   email: string;
   mobile: string;
   alternateMobile?: string;
-  password?: string;
   joinedDate?: string;
   createdAt?: any;
   orders?: Order[];
@@ -373,6 +372,12 @@ export interface User {
   displayName?: string;
   photoURL?: string;
   emailVerified?: boolean;
+  profileCompleted?: boolean;
+  dossierRegistered?: boolean;
+  authProvider?: string;
+  linkedProviders?: string[];
+  termsAccepted?: boolean;
+  termsAcceptedAt?: string;
 }
 
 export interface SystemLog {

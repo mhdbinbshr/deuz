@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Minus, Plus, ShoppingBag, Trash2, ArrowRight, ShieldCheck, Lock, Sparkles, Check } from 'lucide-react';
+import { X, Minus, Plus, ShoppingBag, Trash2, ArrowRight, ShieldCheck, Lock, Sparkles, Check, AlertTriangle } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 
 interface CartDrawerProps {
@@ -13,8 +13,19 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ onCheckout }) => {
 
   const showToast = (message: string) => {
     setToast({ message, visible: true });
-    setTimeout(() => setToast({ message: '', visible: false }), 3000);
+    setTimeout(() => setToast({ message: '', visible: false }), 3500);
   };
+
+  useEffect(() => {
+    const handleNotice = (e: Event) => {
+      const custom = e as CustomEvent;
+      if (custom.detail?.message) {
+        showToast(custom.detail.message);
+      }
+    };
+    window.addEventListener('deuz_cart_notice', handleNotice);
+    return () => window.removeEventListener('deuz_cart_notice', handleNotice);
+  }, []);
 
   const handleCheckout = () => {
     if (cartItems.length === 0) {
@@ -85,6 +96,20 @@ const CartDrawer: React.FC<CartDrawerProps> = ({ onCheckout }) => {
                 </div>
               )}
             </div>
+
+            <AnimatePresence>
+              {toast.visible && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="mx-6 mt-4 p-3 rounded-sm bg-amber-500/15 border border-amber-500/40 text-amber-300 text-xs font-mono flex items-center gap-2.5 relative z-20"
+                >
+                  <AlertTriangle size={14} className="text-amber-400 shrink-0" />
+                  <span>{toast.message}</span>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Items Stream in Vault */}
             <div className={`flex-1 overflow-y-auto p-6 sm:p-8 space-y-6 relative z-10 custom-scrollbar ${cartLoading ? 'opacity-70 pointer-events-none' : ''} transition-opacity duration-200`}>

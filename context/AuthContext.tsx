@@ -6,7 +6,7 @@ import { auth } from '../src/config/firebase';
 import { onAuthStateChanged, signInAnonymously, applyActionCode } from "firebase/auth";
 import { doc, onSnapshot, setDoc, serverTimestamp } from "firebase/firestore";
 import { db as firestore } from "../src/config/firebase";
-import { ADMIN_EMAIL, isExecutiveAdminEmail, SecurityVerificationPurpose } from "../utils/securityVerification";
+import { isExecutiveAdminEmail, SecurityVerificationPurpose } from "../utils/securityVerification";
 
 export interface AuthResult {
   success: boolean;
@@ -14,13 +14,18 @@ export interface AuthResult {
   user?: User;
   isNewUser?: boolean;
   isUserNotFound?: boolean;
+  linkedProviders?: string[];
 }
 
 export interface SignUpData {
   fullName: string;
   email: string;
-  password: string;
+  password?: string;
   mobile?: string;
+  address?: string;
+  city?: string;
+  pincode?: string;
+  termsAccepted?: boolean;
 }
 
 interface AuthContextType {
@@ -29,14 +34,19 @@ interface AuthContextType {
   isAuthModalOpen: boolean;
   authModalMode: 'login' | 'signup' | 'forgot' | 'resetConfirm';
   authModalCode: string;
+  authBannerNotice: { type: 'success' | 'error'; message: string } | null;
+  clearAuthBannerNotice: () => void;
   openAuthModal: (mode?: 'login' | 'signup' | 'forgot' | 'resetConfirm', code?: string) => void;
   closeAuthModal: () => void;
   login: (email: string, password: string) => Promise<AuthResult>;
   loginWithGoogle: () => Promise<AuthResult>;
   signup: (userData: SignUpData) => Promise<AuthResult>;
   forgotPassword: (email: string) => Promise<AuthResult>;
+  verifyResetCode: (oobCode: string) => Promise<{ success: boolean; email?: string; message?: string }>;
   confirmPasswordReset: (oobCode: string, newPassword: string, emailHint?: string) => Promise<AuthResult>;
   updatePassword: (currentPassword: string, newPassword: string) => Promise<AuthResult>;
+  linkGoogleAccount: () => Promise<AuthResult>;
+  unlinkAuthProvider: (providerId: 'google.com' | 'password') => Promise<AuthResult>;
   sendVerificationEmail: () => Promise<AuthResult>;
   requestSecurityCode: (email: string, purpose?: SecurityVerificationPurpose) => Promise<AuthResult>;
   verifySecurityCode: (email: string, code: string) => Promise<AuthResult>;
@@ -55,6 +65,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<'login' | 'signup' | 'forgot' | 'resetConfirm'>('login');
   const [authModalCode, setAuthModalCode] = useState('');
+  const [authBannerNotice, setAuthBannerNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   const openAuthModal = (mode: 'login' | 'signup' | 'forgot' | 'resetConfirm' = 'login', code: string = '') => {
     setAuthModalMode(mode);
@@ -65,7 +76,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     let isMounted = true;
 
-    // Check if user came from a Firebase password reset email link or email verification
+    // Check if user came from a password reset email link or email verification link
     if (typeof window !== 'undefined') {
       try {
         const searchParams = new URLSearchParams(window.location.search);
@@ -75,19 +86,48 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         if ((modeParam === 'resetPassword' || modeParam === 'action') && codeParam) {
           openAuthModal('resetConfirm', codeParam);
+          window.history.replaceState({}, document.title, window.location.pathname);
         } else if (modeParam === 'verifyEmail' && codeParam) {
+          window.history.replaceState({}, document.title, window.location.pathname);
           applyActionCode(auth, codeParam)
-            .then(() => {
+            .then(async () => {
+              if (auth.currentUser && !auth.currentUser.isAnonymous) {
+                await auth.currentUser.reload().catch(() => {});
+                await setDoc(doc(firestore, "users", auth.currentUser.uid), {
+                  emailVerified: true,
+                  securityVerified: true,
+                  updatedAt: serverTimestamp()
+                }, { merge: true }).catch(() => {});
+              }
               const currentCached = storage.getUser();
               if (currentCached) {
                 const updated = { ...currentCached, emailVerified: true };
                 storage.setUser(updated);
-                setUser(updated);
+                if (isMounted) setUser(updated);
+              }
+              if (isMounted) {
+                setAuthBannerNotice({
+                  type: 'success',
+                  message: 'Your email address has been verified and synchronized with your Client Dossier.'
+                });
+                openAuthModal('login');
               }
             })
-            .catch((err) => console.warn('Action code verification error:', err));
+            .catch((err: any) => {
+              let errMsg = 'This verification link is invalid or has already been used.';
+              if (err?.code === 'auth/expired-action-code') {
+                errMsg = 'This email verification link has expired. Please sign in and request a new verification link.';
+              } else if (err?.code === 'auth/invalid-action-code') {
+                errMsg = 'This verification link is invalid or has already been used.';
+              }
+              if (isMounted) {
+                setAuthBannerNotice({ type: 'error', message: errMsg });
+                openAuthModal('login');
+              }
+            });
         } else if (codeParam) {
           openAuthModal('resetConfirm', codeParam);
+          window.history.replaceState({}, document.title, window.location.pathname);
         }
       } catch (e) {}
     }
@@ -102,7 +142,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       });
     }
 
-    // Set observer on Auth object and Firestore user document
+    // Set observer on Auth object and Cloud Database user document
     let unsubscribeProfile: (() => void) | null = null;
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
       if (!isMounted) return;
@@ -119,6 +159,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             if (!isMounted) return;
             const isAdminEmail = isExecutiveAdminEmail(firebaseUser.email || '');
             const cleanName = firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Client Operative';
+            const linkedProviders = firebaseUser.providerData.map(p => p.providerId);
+            const isGoogleAuth = linkedProviders.includes('google.com');
 
             if (userDoc.exists()) {
               const userData = userDoc.data();
@@ -131,6 +173,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               } else if (typeof userData.joinedDate === 'string') {
                 joinedIso = userData.joinedDate;
               }
+
+              const hasCompleteProfile = Boolean(
+                isAdminEmail ||
+                userData.profileCompleted === true ||
+                (userData.dossierRegistered === true && userData.fullName && userData.mobile)
+              );
 
               const fullUser: User = {
                 id: firebaseUser.uid,
@@ -147,13 +195,28 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 houseCode: userData.houseCode || userData.houseId || '',
                 houseId: userData.houseId || userData.houseCode || '',
                 address: addressData,
+                addresses: userData.addresses || (addressData ? [addressData] : []),
                 orders: [], 
-                joinedDate: joinedIso
+                joinedDate: joinedIso,
+                profileCompleted: hasCompleteProfile,
+                dossierRegistered: hasCompleteProfile,
+                authProvider: userData.authProvider || (isGoogleAuth ? 'google' : 'email_password'),
+                linkedProviders: Array.isArray(userData.linkedProviders) && userData.linkedProviders.length > 0
+                  ? userData.linkedProviders
+                  : linkedProviders,
+                termsAccepted: Boolean(userData.termsAccepted || hasCompleteProfile)
               };
               setUser(fullUser);
               storage.setUser(fullUser);
+
+              // If a Google user refreshed the page before completing their additional Dossier Registration, prompt completion
+              if (isGoogleAuth && !hasCompleteProfile) {
+                setAuthModalMode('signup');
+                setIsAuthModalOpen(true);
+              }
             } else {
-              // Auto-sync & consolidate dossier in Firestore for user
+              // First-time authenticated user without a saved profile document yet
+              const isProfileComplete = isAdminEmail || !isGoogleAuth;
               const fallbackUser: User = {
                 id: firebaseUser.uid,
                 _id: firebaseUser.uid,
@@ -168,7 +231,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 houseCode: '',
                 houseId: '',
                 orders: [],
-                joinedDate: new Date().toISOString()
+                joinedDate: new Date().toISOString(),
+                profileCompleted: isProfileComplete,
+                dossierRegistered: isProfileComplete,
+                authProvider: isGoogleAuth ? 'google' : 'email_password',
+                linkedProviders
               };
               setUser(fallbackUser);
               storage.setUser(fallbackUser);
@@ -176,8 +243,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               db.syncAndConsolidateUserDossier(firebaseUser.uid, firebaseUser.email || '', {
                 fullName: cleanName,
                 displayName: cleanName,
-                emailVerified: firebaseUser.emailVerified
+                photoURL: firebaseUser.photoURL || undefined,
+                emailVerified: firebaseUser.emailVerified,
+                linkedProviders,
+                profileCompleted: isProfileComplete,
+                dossierRegistered: isProfileComplete
               }).catch(() => {});
+
+              if (isGoogleAuth && !isProfileComplete) {
+                setAuthModalMode('signup');
+                setIsAuthModalOpen(true);
+              }
             }
             setIsLoading(false);
           }, (error) => {
@@ -185,16 +261,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             setIsLoading(false);
           });
         } catch (e) {
-          console.error("Error setting up user profile listener:", e);
+          console.warn("Error setting up user profile listener:", e);
           setIsLoading(false);
         }
       } else {
-        // Check if we have an active verified session in local storage (e.g. after security code login or admin session)
+        // Check if we have an active verified session in local storage
         const localUser = storage.getUser();
         const localToken = storage.getToken();
         if (localUser && localToken && isMounted) {
           setUser(localUser);
-          // Attach Firestore listener for localUser.id so profile changes sync in real time
           try {
             const userDocRef = doc(firestore, "users", localUser.id);
             unsubscribeProfile = onSnapshot(userDocRef, (userDoc) => {
@@ -215,7 +290,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 houseCode: userData.houseCode || userData.houseId || '',
                 houseId: userData.houseId || userData.houseCode || '',
                 emailVerified: Boolean(userData.emailVerified || userData.securityVerified || localUser.emailVerified),
-                address: addressData
+                address: addressData,
+                profileCompleted: userData.profileCompleted ?? localUser.profileCompleted ?? true,
+                dossierRegistered: userData.dossierRegistered ?? localUser.dossierRegistered ?? true,
+                linkedProviders: userData.linkedProviders || localUser.linkedProviders || []
               };
               setUser(syncedUser);
               storage.setUser(syncedUser);
@@ -260,7 +338,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setIsLoading(false);
       return { success: true, user: loggedUser as User };
     } catch (error: any) {
-      console.error("Login failed", error);
       setIsLoading(false);
       let message = error.message || 'Authentication error. Please verify your details.';
       let isUserNotFound = false;
@@ -274,6 +351,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         message = 'Too many attempts. Access temporarily restricted for security. You may also reset your password.';
       } else if (error.code === 'auth/invalid-email') {
         message = 'Please enter a valid email address.';
+      } else if (error.code === 'auth/network-request-failed') {
+        message = 'Network connection issue. Please check your internet connection and try again.';
       }
       return { success: false, message, isUserNotFound };
     }
@@ -285,15 +364,26 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const googleUser = await db.loginUserWithGoogle(); 
       setUser(googleUser as User);
       setIsLoading(false);
-      return { success: true, user: googleUser as User };
+      return {
+        success: true,
+        user: googleUser as User,
+        isNewUser: !googleUser.profileCompleted
+      };
     } catch (error: any) {
-      console.error("Google login failed", error);
       setIsLoading(false);
-      let message = error.message || 'Authentication failed';
+      let message = error.message || 'Google authentication could not be completed.';
       if (error.code === 'auth/operation-not-allowed') {
         message = 'Google Sign-In is not enabled on this system.';
       } else if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
-        message = 'Google sign-in popup was closed.';
+        message = 'Google sign-in window was closed before completing authentication.';
+      } else if (error.code === 'auth/popup-blocked') {
+        message = 'Sign-in popup was blocked by your browser. Please allow popups for this website and try again.';
+      } else if (error.code === 'auth/account-exists-with-different-credential') {
+        message = 'An account already exists with the same email address using another sign-in method. Sign in with your password first, then link Google from your Client Dossier.';
+      } else if (error.code === 'auth/unauthorized-domain') {
+        message = 'This domain is not yet authorized for Google OAuth sign-in.';
+      } else if (error.code === 'auth/network-request-failed') {
+        message = 'Network failure while contacting Google authentication servers. Please check your connection.';
       }
       return { success: false, message };
     }
@@ -306,13 +396,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         fullName: userData.fullName,
         email: userData.email,
         password: userData.password,
-        mobile: userData.mobile
+        mobile: userData.mobile,
+        address: userData.address,
+        city: userData.city,
+        pincode: userData.pincode,
+        termsAccepted: userData.termsAccepted
       });
       setUser(newUser as User);
       setIsLoading(false);
       return { success: true, user: newUser as User };
     } catch (error: any) {
-      console.error("Signup failed", error);
       setIsLoading(false);
       let message = error.message || 'Registration failed. Please check your details.';
       let isExistingUser = false;
@@ -346,6 +439,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const verifyResetCode = async (oobCode: string): Promise<{ success: boolean; email?: string; message?: string }> => {
+    try {
+      return await db.verifyPasswordResetCodeWithFirebase(oobCode);
+    } catch (e: any) {
+      return { success: false, message: e.message || 'Invalid or expired reset link.' };
+    }
+  };
+
   const confirmPasswordReset = async (oobCode: string, newPassword: string, emailHint?: string): Promise<AuthResult> => {
     setIsLoading(true);
     try {
@@ -362,11 +463,38 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setIsLoading(true);
     try {
       const res = await db.updateCurrentUserPassword(currentPassword, newPassword);
+      await refreshUser();
       setIsLoading(false);
       return res;
     } catch (e: any) {
       setIsLoading(false);
       return { success: false, message: e.message || 'Password change failed' };
+    }
+  };
+
+  const linkGoogleAccount = async (): Promise<AuthResult> => {
+    setIsLoading(true);
+    try {
+      const res = await db.linkGoogleAccount();
+      await refreshUser();
+      setIsLoading(false);
+      return res;
+    } catch (e: any) {
+      setIsLoading(false);
+      return { success: false, message: e.message || 'Google account linking failed' };
+    }
+  };
+
+  const unlinkAuthProvider = async (providerId: 'google.com' | 'password'): Promise<AuthResult> => {
+    setIsLoading(true);
+    try {
+      const res = await db.unlinkAuthProvider(providerId);
+      await refreshUser();
+      setIsLoading(false);
+      return res;
+    } catch (e: any) {
+      setIsLoading(false);
+      return { success: false, message: e.message || 'Provider unlink failed' };
     }
   };
 
@@ -462,14 +590,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       isAuthModalOpen,
       authModalMode,
       authModalCode,
+      authBannerNotice,
+      clearAuthBannerNotice: () => setAuthBannerNotice(null),
       openAuthModal,
       closeAuthModal: () => setIsAuthModalOpen(false),
       login,
       loginWithGoogle,
       signup,
       forgotPassword,
+      verifyResetCode,
       confirmPasswordReset,
       updatePassword,
+      linkGoogleAccount,
+      unlinkAuthProvider,
       sendVerificationEmail,
       requestSecurityCode,
       verifySecurityCode,
@@ -493,14 +626,19 @@ export const useAuth = () => {
       isAuthModalOpen: false,
       authModalMode: 'login',
       authModalCode: '',
+      authBannerNotice: null,
+      clearAuthBannerNotice: () => {},
       openAuthModal: () => {},
       closeAuthModal: () => {},
       login: async () => ({ success: false, message: 'Initializing auth...' }),
       loginWithGoogle: async () => ({ success: false, message: 'Initializing auth...' }),
       signup: async () => ({ success: false, message: 'Initializing auth...' }),
       forgotPassword: async () => ({ success: false, message: 'Initializing auth...' }),
+      verifyResetCode: async () => ({ success: false, message: 'Initializing auth...' }),
       confirmPasswordReset: async () => ({ success: false, message: 'Initializing auth...' }),
       updatePassword: async () => ({ success: false, message: 'Initializing auth...' }),
+      linkGoogleAccount: async () => ({ success: false, message: 'Initializing auth...' }),
+      unlinkAuthProvider: async () => ({ success: false, message: 'Initializing auth...' }),
       sendVerificationEmail: async () => ({ success: false, message: 'Initializing auth...' }),
       requestSecurityCode: async () => ({ success: false, message: 'Initializing auth...' }),
       verifySecurityCode: async () => ({ success: false, message: 'Initializing auth...' }),
@@ -514,3 +652,4 @@ export const useAuth = () => {
   }
   return context;
 };
+

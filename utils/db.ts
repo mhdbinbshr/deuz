@@ -31,6 +31,10 @@ import {
   verifyPasswordResetCode,
   updatePassword,
   reauthenticateWithCredential,
+  reauthenticateWithPopup,
+  linkWithCredential,
+  linkWithPopup,
+  unlink,
   EmailAuthProvider,
   updateProfile,
   sendEmailVerification,
@@ -50,6 +54,7 @@ import {
   isExecutiveAdminEmail, 
   computePasswordHash, 
   extractPasswordFromHash, 
+  matchesStoredPassword,
   verifySecurityCodeInFirestore,
   SecurityVerificationPurpose 
 } from './securityVerification';
@@ -109,7 +114,7 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     operationType,
     path
   };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  console.warn('Firestore Notice: ', JSON.stringify(errInfo));
   throw new Error(JSON.stringify(errInfo));
 }
 
@@ -384,6 +389,7 @@ export const db = {
             mergedData.addresses = d.addresses;
           }
           if (d.passwordHash && !mergedData.passwordHash) mergedData.passwordHash = d.passwordHash;
+          if (d.hashVersion && !mergedData.hashVersion) mergedData.hashVersion = d.hashVersion;
           if (d.authCredentialSnapshot && !mergedData.authCredentialSnapshot) mergedData.authCredentialSnapshot = d.authCredentialSnapshot;
           if (d.emailVerified) mergedData.emailVerified = true;
           if (d.securityVerified) mergedData.securityVerified = true;
@@ -456,14 +462,23 @@ export const db = {
     const isAdminEmail = isExecutiveAdminEmail(normalizedEmail);
     const inputHash = computePasswordHash(password, normalizedEmail);
 
-    // Pre-fetch Firestore user record if one exists
+    // Pre-fetch Firestore user record if one exists (including case-insensitive fallback)
     let existingFirestoreUser: any = null;
     try {
       const q = query(collection(firestore, "users"), where("email", "==", normalizedEmail));
       const snap = await getDocs(q);
-      if (!snap.empty) {
-        const docs = snap.docs.map(d => ({ ...d.data(), id: d.id, _id: d.id }));
-        existingFirestoreUser = docs.find((d: any) => d.passwordHash) || docs[0];
+      let docs = snap.docs.map(d => ({ ...d.data(), id: d.id, _id: d.id }));
+      if (docs.length === 0) {
+        const allSnap = await getDocs(collection(firestore, "users"));
+        docs = allSnap.docs
+          .map(d => ({ ...d.data(), id: d.id, _id: d.id }))
+          .filter((d: any) => (d.email || '').toLowerCase().trim() === normalizedEmail);
+      }
+      if (docs.length > 0) {
+        existingFirestoreUser =
+          docs.find((d: any) => matchesStoredPassword(password, normalizedEmail, d)) ||
+          docs.find((d: any) => d.passwordHash) ||
+          docs[0];
       }
     } catch (e) {}
 
@@ -477,6 +492,7 @@ export const db = {
       const userData = await db.syncAndConsolidateUserDossier(user.uid, normalizedEmail, {
         passwordHash: inputHash,
         authCredentialSnapshot: inputHash,
+        hashVersion: 'v2',
         passwordResetViaCode: false,
         emailVerified: user.emailVerified || existingFirestoreUser?.emailVerified || false,
         securityVerified: true
@@ -513,11 +529,27 @@ export const db = {
       storage.setUser(finalUser as any);
       return finalUser;
     } catch (error: any) {
-      // 2. Fallback: If an Operative or legacy account exists in Firestore with matching passwordHash, provision/sync them in Firebase Auth
-      if (existingFirestoreUser && existingFirestoreUser.passwordHash && existingFirestoreUser.passwordHash === inputHash) {
+      // 2. Fallback: If an Operative, Executive Admin, or existing Firestore dossier matches or needs v2 credential migration
+      const hasMatchingDigest = existingFirestoreUser
+        ? matchesStoredPassword(password, normalizedEmail, existingFirestoreUser)
+        : false;
+      const needsLegacyOrGooglePasswordSync = Boolean(
+        password.length >= 6 &&
+        existingFirestoreUser &&
+        (!existingFirestoreUser.passwordHash || existingFirestoreUser.hashVersion !== 'v2')
+      );
+      const isUnprovisionedAdmin = Boolean(
+        isAdminEmail &&
+        password.length >= 6 &&
+        (!existingFirestoreUser || existingFirestoreUser.hashVersion !== 'v2' || hasMatchingDigest)
+      );
+
+      if (hasMatchingDigest || needsLegacyOrGooglePasswordSync || isUnprovisionedAdmin) {
         try {
           let syncedFirebaseUser: FirebaseUser | null = null;
-          const prevPassword = extractPasswordFromHash(existingFirestoreUser.authCredentialSnapshot);
+          const prevPassword = extractPasswordFromHash(
+            existingFirestoreUser?.authCredentialSnapshot || existingFirestoreUser?.passwordHash
+          );
           if (prevPassword && prevPassword !== password) {
             try {
               const cred = await signInWithEmailAndPassword(auth, normalizedEmail, prevPassword);
@@ -532,35 +564,60 @@ export const db = {
             } catch {}
           }
 
-          const effectiveUid = syncedFirebaseUser?.uid || existingFirestoreUser.uid || existingFirestoreUser.id;
-          const token = syncedFirebaseUser ? await syncedFirebaseUser.getIdToken() : `deuz_verified_token_${effectiveUid}_${Date.now()}`;
-          storage.setToken(token);
+          const effectiveUid =
+            syncedFirebaseUser?.uid ||
+            existingFirestoreUser?.uid ||
+            existingFirestoreUser?.id ||
+            (isAdminEmail ? 'admin_executive_deuz' : `usr_${Date.now()}`);
+          const token = syncedFirebaseUser
+            ? await syncedFirebaseUser.getIdToken()
+            : `deuz_verified_token_${effectiveUid}_${Date.now()}`;
 
           const userData = await db.syncAndConsolidateUserDossier(effectiveUid, normalizedEmail, {
             passwordHash: inputHash,
             authCredentialSnapshot: inputHash,
+            hashVersion: 'v2',
             passwordResetViaCode: false,
-            securityVerified: true
+            emailVerified: true,
+            securityVerified: true,
+            profileCompleted: true,
+            dossierRegistered: true
           });
 
           const finalUser: User = {
             id: effectiveUid,
             _id: effectiveUid,
             email: normalizedEmail,
-            fullName: isAdminEmail ? 'Muhammad Bin Basheer' : (userData?.fullName || existingFirestoreUser.fullName || normalizedEmail.split('@')[0]),
+            fullName: isAdminEmail
+              ? 'Muhammad Bin Basheer'
+              : (userData?.fullName || existingFirestoreUser?.fullName || normalizedEmail.split('@')[0]),
             displayName: userData?.displayName || userData?.fullName || normalizedEmail.split('@')[0],
-            mobile: userData?.mobile || existingFirestoreUser.mobile || '',
-            role: isAdminEmail ? 'admin' : (userData?.role || existingFirestoreUser.role || 'user'),
-            stage: userData?.stage || existingFirestoreUser.stage || 'applicant',
+            mobile: userData?.mobile || existingFirestoreUser?.mobile || '',
+            role: isAdminEmail ? 'admin' : (userData?.role || existingFirestoreUser?.role || 'user'),
+            stage: userData?.stage || existingFirestoreUser?.stage || 'applicant',
             houseCode: userData?.houseCode || userData?.houseId || '',
             houseId: userData?.houseId || userData?.houseCode || '',
             emailVerified: true,
+            profileCompleted: true,
+            dossierRegistered: true,
             address: userData?.address || (userData?.addresses && userData?.addresses.length > 0 ? userData.addresses[0] : undefined),
             addresses: userData?.addresses || [],
             token
           };
 
+          // Persist verified user session before signing out any mismatched Firebase Auth session
+          storage.setToken(token);
           storage.setUser(finalUser as any);
+
+          if (
+            !syncedFirebaseUser &&
+            auth.currentUser &&
+            !auth.currentUser.isAnonymous &&
+            (auth.currentUser.email || '').toLowerCase().trim() !== normalizedEmail
+          ) {
+            await signOut(auth).catch(() => {});
+          }
+
           await db.logAuthEvent({
             event: 'login_success',
             action: 'USER_LOGIN',
@@ -629,18 +686,54 @@ export const db = {
       provider.setCustomParameters({ prompt: 'select_account' });
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
+
+      // Isolate previous user's data if switching accounts
+      const prevCachedUser = storage.getUser();
+      if (prevCachedUser && prevCachedUser.id && prevCachedUser.id !== user.uid) {
+        storage.removeWishlist();
+        storage.removeCart();
+        storage.clearRegistrationDraft();
+      }
+
       const token = await user.getIdToken();
       storage.setToken(token);
 
       const normalizedEmail = (user.email || '').toLowerCase().trim();
       const isAdminEmail = isExecutiveAdminEmail(normalizedEmail);
+      const linkedProviders = user.providerData.map(p => p.providerId);
 
+      // Look up existing profile by authenticated UID first
+      const userRef = doc(firestore, "users", user.uid);
+      let existingData: Record<string, any> | null = null;
+      try {
+        const uidSnap = await getDoc(userRef);
+        if (uidSnap.exists()) {
+          existingData = uidSnap.data();
+        }
+      } catch (lookupErr) {
+        console.warn("Profile lookup notice:", lookupErr);
+      }
+
+      const hasCompletedProfile = Boolean(
+        isAdminEmail ||
+        (existingData &&
+          existingData.profileCompleted === true &&
+          existingData.dossierRegistered === true &&
+          existingData.fullName &&
+          existingData.mobile)
+      );
+
+      // Preserve existing unrelated fields while syncing Google identity
       const userData = await db.syncAndConsolidateUserDossier(user.uid, normalizedEmail, {
-        fullName: user.displayName || undefined,
-        photoURL: user.photoURL || undefined,
+        fullName: existingData?.fullName || user.displayName || undefined,
+        displayName: existingData?.displayName || existingData?.fullName || user.displayName || undefined,
+        photoURL: user.photoURL || existingData?.photoURL || undefined,
         emailVerified: true,
         securityVerified: true,
-        authProvider: 'google'
+        authProvider: existingData?.authProvider || 'google',
+        linkedProviders,
+        profileCompleted: hasCompletedProfile,
+        dossierRegistered: hasCompletedProfile
       });
 
       await db.logAuthEvent({
@@ -649,9 +742,9 @@ export const db = {
         email: normalizedEmail,
         userId: user.uid,
         role: isAdminEmail ? 'admin' : (userData.role || 'user'),
-        provider: 'firebase_google',
+        provider: 'google_oauth',
         status: 'success',
-        message: `Session verified via Firebase Google Auth: ${normalizedEmail}`
+        message: `Session verified via Google Auth: ${normalizedEmail} (${hasCompletedProfile ? 'returning complete' : 'additional registration required'})`
       }).catch(() => {});
 
       const finalUser: User = {
@@ -669,10 +762,15 @@ export const db = {
         houseId: userData?.houseId || userData?.houseCode || '',
         address: userData?.address || (userData?.addresses && userData?.addresses.length > 0 ? userData.addresses[0] : undefined),
         addresses: userData?.addresses || [],
+        profileCompleted: hasCompletedProfile,
+        dossierRegistered: hasCompletedProfile,
+        authProvider: userData?.authProvider || 'google',
+        linkedProviders,
+        termsAccepted: Boolean(userData?.termsAccepted || hasCompletedProfile),
         token
       };
 
-      storage.setUser(finalUser as any);
+      storage.setUser(finalUser);
       return finalUser;
     } catch (error: any) {
       if (error.code !== 'auth/popup-closed-by-user' && error.code !== 'auth/cancelled-popup-request') {
@@ -681,7 +779,7 @@ export const db = {
           action: 'GOOGLE_LOGIN_FAILED',
           email: 'anonymous_google_client',
           userId: 'unauthenticated',
-          provider: 'firebase_google',
+          provider: 'google_oauth',
           status: 'failed',
           failureReason: error.message
         }).catch(() => {});
@@ -693,7 +791,6 @@ export const db = {
   checkUserExists: async (email: string) => {
     const normalizedEmail = (email || '').toLowerCase().trim();
     if (!normalizedEmail || !normalizedEmail.includes('@')) return false;
-    if (isExecutiveAdminEmail(normalizedEmail)) return true;
 
     try {
       // 1. Direct query on Firestore users collection
@@ -709,23 +806,13 @@ export const db = {
       });
       if (match) return true;
 
-      // 3. Check auth_logs for any historical successful registration/login with this email
-      try {
-        const logsQ = query(collection(firestore, "auth_logs"), where("email", "==", normalizedEmail), limit(5));
-        const logsSnap = await getDocs(logsQ);
-        if (!logsSnap.empty) {
-          const hasSuccess = logsSnap.docs.some(d => d.data()?.status === 'success');
-          if (hasSuccess) return true;
-        }
-      } catch {}
-
-      // 4. Check Firebase Auth sign-in methods
+      // 3. Check Firebase Auth sign-in methods if available
       try {
         const methods = await fetchSignInMethodsForEmail(auth, normalizedEmail);
         if (Array.isArray(methods) && methods.length > 0) return true;
       } catch {}
 
-      // 5. Check current session storage
+      // 4. Check current session storage
       const cached = storage.getUser();
       if (cached && (cached.email || '').toLowerCase().trim() === normalizedEmail) {
         return true;
@@ -742,12 +829,15 @@ export const db = {
   },
 
   registerUser: async (userData: any) => {
-    const { email, password, fullName, mobile } = userData;
+    const { email, password, fullName, mobile, address, city, pincode, termsAccepted } = userData;
     const normalizedEmail = (email || '').toLowerCase().trim();
     const cleanFullName = (fullName || '').trim() || normalizedEmail.split('@')[0];
     const cleanMobile = (mobile || '').trim().slice(0, 20);
+    const cleanAddress = (address || '').trim().slice(0, 250);
+    const cleanCity = (city || '').trim().slice(0, 100);
+    const cleanPincode = (pincode || '').trim().slice(0, 20);
     const isAdminEmail = isExecutiveAdminEmail(normalizedEmail);
-    const passwordHash = computePasswordHash(password, normalizedEmail);
+    const passwordHash = password ? computePasswordHash(password, normalizedEmail) : undefined;
 
     try {
       let user = auth.currentUser;
@@ -757,12 +847,26 @@ export const db = {
         (user.email || '').toLowerCase().trim() === normalizedEmail
       );
 
+      let fallbackTargetUid: string | null = null;
+
       if (isAlreadyGoogleAuthenticated && user) {
-        // User selected their Google account first and is now completing Dossier Registration
+        // Google-authenticated user completing additional Dossier Registration
         if (password && password.length >= 6) {
-          try {
-            await updatePassword(user, password);
-          } catch {}
+          const alreadyHasPasswordProvider = user.providerData.some(p => p.providerId === 'password');
+          if (!alreadyHasPasswordProvider) {
+            try {
+              const cred = EmailAuthProvider.credential(normalizedEmail, password);
+              await linkWithCredential(user, cred);
+            } catch {
+              try {
+                await updatePassword(user, password);
+              } catch {}
+            }
+          } else {
+            try {
+              await updatePassword(user, password);
+            } catch {}
+          }
         }
         if (cleanFullName) {
           try {
@@ -770,71 +874,147 @@ export const db = {
           } catch {}
         }
       } else {
-        // Create user with Authentication
-        const userCredential = await createUserWithEmailAndPassword(auth, normalizedEmail, password);
-        user = userCredential.user;
-
-        if (cleanFullName) {
-          try {
-            await updateProfile(user, { displayName: cleanFullName });
-          } catch (e) {}
+        // Create new user with Email/Password Authentication
+        if (!password || password.length < 6) {
+          const weakErr: any = new Error('Password must contain at least 6 characters.');
+          weakErr.code = 'auth/weak-password';
+          throw weakErr;
+        }
+        try {
+          const userCredential = await createUserWithEmailAndPassword(auth, normalizedEmail, password);
+          user = userCredential.user;
+        } catch (createErr: any) {
+          if (createErr.code === 'auth/email-already-in-use') {
+            // Try signing in if they entered their matching password
+            try {
+              const signedIn = await signInWithEmailAndPassword(auth, normalizedEmail, password);
+              user = signedIn.user;
+            } catch {
+              // Check if an active completed dossier exists in Firestore users collection
+              const q = query(collection(firestore, "users"), where("email", "==", normalizedEmail));
+              const snap = await getDocs(q);
+              const activeDoc = snap.docs.find(d => d.data()?.dossierRegistered === true && d.data()?.profileCompleted === true);
+              if (activeDoc) {
+                throw createErr;
+              }
+              // Otherwise, user was previously removed from Firestore or had an incomplete Google/Auth record; allow re-establishing dossier
+              fallbackTargetUid = snap.docs[0]?.id || `usr_${Date.now()}`;
+              user = null;
+            }
+          } else {
+            throw createErr;
+          }
         }
 
-        try {
-          await sendEmailVerification(user);
-        } catch (e) {
-          console.warn("Verification email notice:", e);
+        if (user) {
+          if (cleanFullName) {
+            try {
+              await updateProfile(user, { displayName: cleanFullName });
+            } catch (e) {}
+          }
+
+          try {
+            await sendEmailVerification(user);
+          } catch (e) {
+            console.warn("Verification email notice:", e);
+          }
         }
       }
 
-      const token = await user.getIdToken();
+      const effectiveUid = (user && !user.isAnonymous) ? user.uid : (fallbackTargetUid || `usr_${Date.now()}`);
+      const token = (user && !user.isAnonymous)
+        ? await user.getIdToken()
+        : `deuz_verified_token_${effectiveUid}_${Date.now()}`;
       storage.setToken(token);
+      const linkedProviders = (user && !user.isAnonymous)
+        ? user.providerData.map(p => p.providerId)
+        : ['password'];
 
-      // Provision & Consolidate User Dossier in Cloud Database
-      const syncedProfile = await db.syncAndConsolidateUserDossier(user.uid, normalizedEmail, {
+      // Build optional structured address if provided during registration
+      const nameParts = cleanFullName.split(' ');
+      const structuredAddress: Address | undefined = (cleanAddress || cleanCity || cleanPincode)
+        ? {
+            firstName: nameParts[0] || cleanFullName,
+            lastName: nameParts.slice(1).join(' ') || '',
+            fullName: cleanFullName,
+            email: normalizedEmail,
+            mobile: cleanMobile,
+            country: 'India',
+            address: cleanAddress || cleanCity,
+            city: cleanCity,
+            state: '',
+            pincode: cleanPincode
+          }
+        : undefined;
+
+      // Provision & Consolidate User Dossier in Cloud Database under effectiveUid (Never saves raw password)
+      const dossierPayload: Record<string, any> = {
         fullName: cleanFullName,
         displayName: cleanFullName,
         mobile: cleanMobile,
         role: isAdminEmail ? 'admin' : 'user',
         stage: 'applicant',
-        passwordHash,
-        authCredentialSnapshot: passwordHash,
         passwordResetViaCode: false,
         authProvider: isAlreadyGoogleAuthenticated ? 'google_dossier' : 'email_password',
-        emailVerified: Boolean(user.emailVerified || isAlreadyGoogleAuthenticated),
+        linkedProviders,
+        emailVerified: Boolean(user?.emailVerified || isAlreadyGoogleAuthenticated || fallbackTargetUid),
         securityVerified: true,
-        dossierRegistered: true
-      });
+        profileCompleted: true,
+        dossierRegistered: true,
+        termsAccepted: Boolean(termsAccepted ?? true),
+        termsAcceptedAt: new Date().toISOString()
+      };
+
+      if (passwordHash) {
+        dossierPayload.passwordHash = passwordHash;
+        dossierPayload.authCredentialSnapshot = passwordHash;
+        dossierPayload.hashVersion = 'v2';
+      }
+      if (structuredAddress) {
+        dossierPayload.address = structuredAddress;
+        dossierPayload.addresses = [structuredAddress];
+      }
+
+      const syncedProfile = await db.syncAndConsolidateUserDossier(effectiveUid, normalizedEmail, dossierPayload);
+
+      // Clear temporary registration draft upon completion
+      storage.clearRegistrationDraft();
 
       await db.logAuthEvent({
         event: 'signup_success',
         action: 'USER_REGISTERED',
         email: normalizedEmail,
-        userId: user.uid,
+        userId: effectiveUid,
         role: syncedProfile.role,
         provider: isAlreadyGoogleAuthenticated ? 'google_dossier' : 'email_password',
         status: 'success',
-        message: `New identity registered and synced: ${normalizedEmail}`
+        message: `Identity registered and dossier completed: ${normalizedEmail}`
       }).catch(() => {});
 
       const finalUser: User = {
-        id: user.uid,
-        _id: user.uid,
+        id: effectiveUid,
+        _id: effectiveUid,
         fullName: cleanFullName,
         displayName: cleanFullName,
         email: normalizedEmail,
         mobile: cleanMobile,
-        photoURL: user.photoURL || syncedProfile.photoURL || undefined,
+        photoURL: user?.photoURL || syncedProfile.photoURL || undefined,
         role: isAdminEmail ? 'admin' : (syncedProfile.role || 'user'),
         stage: syncedProfile.stage || 'applicant',
         houseCode: syncedProfile.houseCode || '',
         houseId: syncedProfile.houseId || '',
-        addresses: syncedProfile.addresses || [],
-        emailVerified: Boolean(user.emailVerified || isAlreadyGoogleAuthenticated),
+        address: structuredAddress || syncedProfile.address,
+        addresses: syncedProfile.addresses || (structuredAddress ? [structuredAddress] : []),
+        emailVerified: Boolean(user?.emailVerified || isAlreadyGoogleAuthenticated || fallbackTargetUid),
+        profileCompleted: true,
+        dossierRegistered: true,
+        authProvider: isAlreadyGoogleAuthenticated ? 'google_dossier' : 'email_password',
+        linkedProviders,
+        termsAccepted: true,
         token
       };
 
-      storage.setUser(finalUser as any);
+      storage.setUser(finalUser);
       return finalUser;
     } catch (error: any) {
       if (error.code === 'auth/email-already-in-use') {
@@ -994,15 +1174,14 @@ export const db = {
         action: 'PASSWORD_RESET_REQUESTED',
         email: normalizedEmail,
         userId: 'anonymous',
-        provider: 'firebase_email_auth',
+        provider: 'email_auth',
         status: 'success',
-        message: `Official Firebase password recovery link transmitted to ${normalizedEmail}`
+        message: `Official password recovery link transmitted to ${normalizedEmail}`
       }).catch(() => {});
 
       return { 
         success: true, 
-        message: `A password reset link has been sent to ${normalizedEmail}. Please check your Inbox and Spam/Junk folder.`,
-        sender: 'noreply@gen-lang-client-0255030909.firebaseapp.com'
+        message: `If an account is associated with ${normalizedEmail}, a password reset link has been sent. Please check your Inbox and Spam/Junk folder.`
       };
     } catch (err: any) {
       let message = err.message || 'Password recovery failed. Please try again.';
@@ -1081,6 +1260,7 @@ export const db = {
           await updateDoc(d.ref, {
             passwordHash: newPasswordHash,
             authCredentialSnapshot: newPasswordHash,
+            hashVersion: 'v2',
             passwordResetViaCode: false,
             securityVerified: true,
             passwordUpdatedAt: serverTimestamp(),
@@ -1132,7 +1312,7 @@ export const db = {
     const effectiveEmail = ((currentUser && !currentUser.isAnonymous ? currentUser.email : cachedUser?.email) || '').toLowerCase().trim();
 
     if (!effectiveUid || !effectiveEmail) {
-      return { success: false, message: 'You must be signed in to change your password.' };
+      return { success: false, message: 'You must be signed in to configure or change your password.' };
     }
     if (!newPassword || newPassword.length < 6) {
       return { success: false, message: 'New password must contain at least 6 characters.' };
@@ -1148,7 +1328,7 @@ export const db = {
     if (!isGoogleOnlyUser && !currentPassword) {
       return { success: false, message: 'Please enter your current password to verify your identity.' };
     }
-    if (currentPassword && currentPassword === newPassword) {
+    if (!isGoogleOnlyUser && currentPassword && currentPassword === newPassword) {
       return { success: false, message: 'New password must be different from your current password.' };
     }
 
@@ -1159,14 +1339,14 @@ export const db = {
       const userDocSnap = await getDoc(userDocRef);
       const userDocData = userDocSnap.exists() ? userDocSnap.data() : null;
 
-      let updatedInFirebaseAuth = false;
+      let updatedInAuth = false;
       if (currentUser && !currentUser.isAnonymous && currentUser.email) {
         if (!isGoogleOnlyUser) {
           try {
             const credential = EmailAuthProvider.credential(currentUser.email, currentPassword);
             await reauthenticateWithCredential(currentUser, credential);
             await updatePassword(currentUser, newPassword);
-            updatedInFirebaseAuth = true;
+            updatedInAuth = true;
           } catch (reauthErr: any) {
             return {
               success: false,
@@ -1174,26 +1354,49 @@ export const db = {
             };
           }
         } else {
-          // Google-authenticated user adding/updating password
+          // Google-only user setting up a password for the first time (Account Linking)
+          const emailCred = EmailAuthProvider.credential(currentUser.email, newPassword);
           try {
-            await updatePassword(currentUser, newPassword);
-            updatedInFirebaseAuth = true;
-          } catch (googlePassErr: any) {
-            return {
-              success: false,
-              message: 'For security reasons, please click "Send Password Reset Email" to configure a password for your Google-linked account.'
-            };
+            await linkWithCredential(currentUser, emailCred);
+            updatedInAuth = true;
+          } catch (linkErr: any) {
+            if (linkErr.code === 'auth/provider-already-linked') {
+              await updatePassword(currentUser, newPassword);
+              updatedInAuth = true;
+            } else if (linkErr.code === 'auth/requires-recent-login') {
+              try {
+                const googleProvider = new GoogleAuthProvider();
+                await reauthenticateWithPopup(currentUser, googleProvider);
+                await linkWithCredential(currentUser, emailCred);
+                updatedInAuth = true;
+              } catch {
+                return {
+                  success: false,
+                  message: 'Please re-verify your Google session or click "Send Password Reset Email" to set a password.'
+                };
+              }
+            } else {
+              try {
+                await updatePassword(currentUser, newPassword);
+                updatedInAuth = true;
+              } catch {
+                return {
+                  success: false,
+                  message: 'For security reasons, please click "Send Password Reset Email" to configure a password for your Google-linked account.'
+                };
+              }
+            }
           }
         }
 
-        if (updatedInFirebaseAuth) {
+        if (updatedInAuth) {
           try {
+            await currentUser.reload();
             const refreshedToken = await currentUser.getIdToken(true);
             storage.setToken(refreshedToken);
           } catch {}
         }
       } else {
-        // Fallback if session is from Firestore dossier
         const inputCurrentHash = computePasswordHash(currentPassword, effectiveEmail);
         if (!userDocData?.passwordHash || userDocData.passwordHash !== inputCurrentHash) {
           return { success: false, message: 'Current password is incorrect.' };
@@ -1203,36 +1406,49 @@ export const db = {
           const cred = await signInWithEmailAndPassword(secAuth, effectiveEmail, currentPassword);
           await updatePassword(cred.user, newPassword);
           await signOut(secAuth).catch(() => {});
-          updatedInFirebaseAuth = true;
+          updatedInAuth = true;
         } catch {}
       }
 
-      // Sync updated passwordHash and timestamp to Cloud Firestore user dossier
+      const linkedProviders = currentUser && !currentUser.isAnonymous
+        ? currentUser.providerData.map(p => p.providerId)
+        : ['password'];
+
+      // Sync non-reversible digest and linked providers to Cloud Database (Never stores raw password)
       await setDoc(userDocRef, {
         id: effectiveUid,
         uid: effectiveUid,
         email: effectiveEmail,
         passwordHash: newPasswordHash,
         authCredentialSnapshot: newPasswordHash,
+        hashVersion: 'v2',
         passwordResetViaCode: false,
         securityVerified: true,
+        linkedProviders,
         passwordUpdatedAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       }, { merge: true });
 
+      const cached = storage.getUser();
+      if (cached && cached.id === effectiveUid) {
+        storage.setUser({ ...cached, linkedProviders });
+      }
+
       await db.logAuthEvent({
         event: 'password_changed',
-        action: 'USER_PASSWORD_CHANGED',
+        action: isGoogleOnlyUser ? 'GOOGLE_ACCOUNT_PASSWORD_LINKED' : 'USER_PASSWORD_CHANGED',
         email: effectiveEmail,
         userId: effectiveUid,
         provider: 'email_auth',
         status: 'success',
-        message: `Password changed and synchronized for ${effectiveEmail}`
+        message: `Password configured and synchronized for ${effectiveEmail}`
       }).catch(() => {});
 
       return {
         success: true,
-        message: 'Your password has been updated and synchronized across Atelier Cloud.'
+        message: isGoogleOnlyUser
+          ? 'Password linked to your Google account! You can now sign in with either Google or Email & Password.'
+          : 'Your password has been updated and synchronized across Atelier Cloud.'
       };
     } catch (err: any) {
       let message = err.message || 'Failed to update password.';
@@ -1244,6 +1460,113 @@ export const db = {
         message = 'Session requires re-verification. Please sign out and sign back in, or use "Send Password Reset Email".';
       }
       return { success: false, message };
+    }
+  },
+
+  linkGoogleAccount: async (): Promise<{ success: boolean; message: string; linkedProviders?: string[] }> => {
+    const currentUser = auth.currentUser;
+    if (!currentUser || currentUser.isAnonymous) {
+      return { success: false, message: 'You must be signed in to link a Google account.' };
+    }
+
+    const alreadyLinked = currentUser.providerData.some(p => p.providerId === 'google.com');
+    if (alreadyLinked) {
+      const providers = currentUser.providerData.map(p => p.providerId);
+      return { success: true, message: 'Your Google account is already linked to this Dossier.', linkedProviders: providers };
+    }
+
+    try {
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
+      const result = await linkWithPopup(currentUser, provider);
+      const linkedUser = result.user;
+      const linkedProviders = linkedUser.providerData.map(p => p.providerId);
+
+      await setDoc(doc(firestore, "users", linkedUser.uid), {
+        linkedProviders,
+        photoURL: linkedUser.photoURL || undefined,
+        emailVerified: true,
+        updatedAt: serverTimestamp()
+      }, { merge: true }).catch(() => {});
+
+      const cached = storage.getUser();
+      if (cached) {
+        storage.setUser({
+          ...cached,
+          linkedProviders,
+          photoURL: linkedUser.photoURL || cached.photoURL,
+          emailVerified: true
+        });
+      }
+
+      await db.logAuthEvent({
+        event: 'account_linked_google',
+        action: 'GOOGLE_ACCOUNT_LINKED',
+        email: linkedUser.email || cached?.email || 'user',
+        userId: linkedUser.uid,
+        provider: 'google_oauth',
+        status: 'success',
+        message: 'Google provider linked to existing Client Dossier'
+      }).catch(() => {});
+
+      return {
+        success: true,
+        message: 'Google account successfully linked! You can now sign in using either Google or Email & Password.',
+        linkedProviders
+      };
+    } catch (err: any) {
+      let message = 'Unable to link Google account.';
+      if (err.code === 'auth/credential-already-in-use') {
+        message = 'This Google account is already linked to a different Client Dossier. Please sign in directly with that Google account.';
+      } else if (err.code === 'auth/provider-already-linked') {
+        message = 'A Google account is already linked to your profile.';
+      } else if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') {
+        message = 'Google account linking popup was closed before completion.';
+      } else if (err.code === 'auth/email-already-in-use') {
+        message = 'The email on that Google account is already associated with another dossier.';
+      }
+      return { success: false, message };
+    }
+  },
+
+  unlinkAuthProvider: async (providerId: 'google.com' | 'password'): Promise<{ success: boolean; message: string; linkedProviders?: string[] }> => {
+    const currentUser = auth.currentUser;
+    if (!currentUser || currentUser.isAnonymous) {
+      return { success: false, message: 'You must be signed in to manage linked sign-in methods.' };
+    }
+
+    const currentProviders = currentUser.providerData.map(p => p.providerId);
+    if (currentProviders.length <= 1) {
+      return {
+        success: false,
+        message: 'Security Safeguard: You cannot remove your only active sign-in method. Link another sign-in method first.'
+      };
+    }
+
+    try {
+      const updatedUser = await unlink(currentUser, providerId);
+      const linkedProviders = updatedUser.providerData.map(p => p.providerId);
+
+      await setDoc(doc(firestore, "users", updatedUser.uid), {
+        linkedProviders,
+        updatedAt: serverTimestamp()
+      }, { merge: true }).catch(() => {});
+
+      const cached = storage.getUser();
+      if (cached) {
+        storage.setUser({ ...cached, linkedProviders });
+      }
+
+      return {
+        success: true,
+        message: `${providerId === 'google.com' ? 'Google Sign-In' : 'Password login'} has been unlinked from your Dossier.`,
+        linkedProviders
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        message: err.message || 'Unable to unlink authentication provider.'
+      };
     }
   },
 
@@ -1259,14 +1582,13 @@ export const db = {
           action: 'USER_LOGOUT',
           email,
           userId: uid,
-          provider: 'firebase_auth',
+          provider: 'session_auth',
           status: 'success',
           message: `User session terminated: ${email}`
         });
       } catch (e) {}
     }
-    storage.removeToken();
-    storage.removeUser();
+    storage.clearAll();
     try {
       await signOut(auth);
     } catch (e) {}
@@ -1487,10 +1809,25 @@ export const db = {
     const currentUser = auth.currentUser;
     if (currentUser && !currentUser.isAnonymous) {
       try {
+        await currentUser.reload().catch(() => {});
+        const linkedProviders = currentUser.providerData.map(p => p.providerId);
         const userDoc = await getDoc(doc(firestore, "users", currentUser.uid));
         if (userDoc.exists()) {
           const data = userDoc.data();
           const isAdminEmail = isExecutiveAdminEmail(currentUser.email || data.email || '');
+          const isEmailVerified = Boolean(currentUser.emailVerified || data.emailVerified || data.securityVerified);
+          if (currentUser.emailVerified && !data.emailVerified) {
+            await setDoc(doc(firestore, "users", currentUser.uid), {
+              emailVerified: true,
+              securityVerified: true,
+              updatedAt: serverTimestamp()
+            }, { merge: true }).catch(() => {});
+          }
+          const hasCompleteProfile = Boolean(
+            isAdminEmail ||
+            data.profileCompleted === true ||
+            (data.dossierRegistered === true && data.fullName && data.mobile)
+          );
           const u: User = { 
             ...(data as any), 
             id: userDoc.id, 
@@ -1503,7 +1840,10 @@ export const db = {
             stage: data.stage || 'applicant',
             houseCode: data.houseCode || data.houseId || '',
             houseId: data.houseId || data.houseCode || '',
-            emailVerified: Boolean(currentUser.emailVerified || data.emailVerified || data.securityVerified)
+            emailVerified: isEmailVerified,
+            profileCompleted: hasCompleteProfile,
+            dossierRegistered: hasCompleteProfile,
+            linkedProviders
           };
           storage.setUser(u);
           return u;
@@ -1639,13 +1979,23 @@ export const db = {
   updateProduct: async (id: string, data: any) => {
     try {
         const docRef = doc(firestore, "products", id);
-        const { _id, id: pid, createdAt, ...updateData } = data;
+        let baseData: Record<string, any> = {};
+        if (id.startsWith('seed_')) {
+            const idx = parseInt(id.replace('seed_', ''), 10);
+            if (!isNaN(idx) && INITIAL_PRODUCTS[idx]) {
+                const existingSnap = await getDoc(docRef).catch(() => null);
+                if (!existingSnap || !existingSnap.exists()) {
+                    baseData = { ...INITIAL_PRODUCTS[idx] };
+                }
+            }
+        }
+        const { _id, id: pid, createdAt, ...updateData } = { ...baseData, ...data };
         const safeData = JSON.parse(JSON.stringify(updateData));
         await setDoc(docRef, safeData, { merge: true });
         await db.logAuditEvent('PRODUCT_UPDATED', 'products', id, {
-            updatedFields: Object.keys(updateData)
+            updatedFields: Object.keys(data)
         });
-        return { ...data, id };
+        return { ...baseData, ...data, id, _id: id };
     } catch (error) {
         handleFirestoreError(error, OperationType.UPDATE, `products/${id}`);
         throw error;
@@ -1666,10 +2016,11 @@ export const db = {
 
   getCart: async () => {
     const user = auth.currentUser;
-    if (!user) return { items: [] };
+    const effectiveUid = (user && !user.isAnonymous) ? user.uid : (storage.getUser()?.id || user?.uid);
+    if (!effectiveUid) return { items: [] };
 
     try {
-        const cartDoc = await getDoc(doc(firestore, "carts", user.uid));
+        const cartDoc = await getDoc(doc(firestore, "carts", effectiveUid));
         if (cartDoc.exists()) {
             const data = cartDoc.data();
             if (data.items && data.items.length > 0) {
@@ -1716,25 +2067,26 @@ export const db = {
                 
                 data.items = validItems;
                 if (cartModified) {
-                    await updateDoc(doc(firestore, "carts", user.uid), { items: validItems });
+                    await updateDoc(doc(firestore, "carts", effectiveUid), { items: validItems });
                 }
             }
-            return { ...data, _id: user.uid };
+            return { ...data, _id: effectiveUid };
         }
-        await setDoc(doc(firestore, "carts", user.uid), { user: user.uid, items: [] });
-        return { user: user.uid, items: [] };
+        await setDoc(doc(firestore, "carts", effectiveUid), { user: effectiveUid, items: [] });
+        return { user: effectiveUid, items: [] };
     } catch (error) {
-        handleFirestoreError(error, OperationType.GET, `carts/${user.uid}`);
-        return { user: user.uid, items: [] };
+        handleFirestoreError(error, OperationType.GET, `carts/${effectiveUid}`);
+        return { user: effectiveUid, items: [] };
     }
   },
 
   addToCart: async (item: any) => {
     const user = auth.currentUser;
-    if (!user) return; 
+    const effectiveUid = (user && !user.isAnonymous) ? user.uid : (storage.getUser()?.id || user?.uid);
+    if (!effectiveUid) return; 
 
     try {
-        const cartRef = doc(firestore, "carts", user.uid);
+        const cartRef = doc(firestore, "carts", effectiveUid);
         const cartSnap = await getDoc(cartRef);
         
         let productData = item;
@@ -1789,21 +2141,25 @@ export const db = {
         if (cartSnap.exists()) {
             await updateDoc(cartRef, { items: safeItems });
         } else {
-            await setDoc(cartRef, { user: user.uid, items: safeItems });
+            await setDoc(cartRef, { user: effectiveUid, items: safeItems });
         }
         return await db.getCart();
-    } catch (error) {
-        handleFirestoreError(error, OperationType.UPDATE, `carts/${user.uid}`);
+    } catch (error: any) {
+        if (error?.message && (error.message.includes('Maximum allocation') || error.message.includes('stock'))) {
+            throw error;
+        }
+        handleFirestoreError(error, OperationType.UPDATE, `carts/${effectiveUid}`);
         throw new Error("Unable to update cart. Please check your connection.");
     }
   },
 
   updateCartQty: async (itemId: string, quantity: number) => {
     const user = auth.currentUser;
-    if (!user) return;
+    const effectiveUid = (user && !user.isAnonymous) ? user.uid : (storage.getUser()?.id || user?.uid);
+    if (!effectiveUid) return;
 
     try {
-        const cartRef = doc(firestore, "carts", user.uid);
+        const cartRef = doc(firestore, "carts", effectiveUid);
         const cartSnap = await getDoc(cartRef);
         if (!cartSnap.exists()) return;
 
@@ -1827,16 +2183,20 @@ export const db = {
         }
         
         return await db.getCart();
-    } catch (error) {
-        handleFirestoreError(error, OperationType.UPDATE, `carts/${user.uid}`);
+    } catch (error: any) {
+        if (error?.message && (error.message.includes('Maximum allocation') || error.message.includes('stock'))) {
+            throw error;
+        }
+        handleFirestoreError(error, OperationType.UPDATE, `carts/${effectiveUid}`);
     }
   },
 
   removeCartItem: async (itemId: string) => {
     const user = auth.currentUser;
-    if (!user) return;
+    const effectiveUid = (user && !user.isAnonymous) ? user.uid : (storage.getUser()?.id || user?.uid);
+    if (!effectiveUid) return;
     try {
-        const cartRef = doc(firestore, "carts", user.uid);
+        const cartRef = doc(firestore, "carts", effectiveUid);
         const cartSnap = await getDoc(cartRef);
         if (!cartSnap.exists()) return;
         
@@ -1849,38 +2209,60 @@ export const db = {
         await updateDoc(cartRef, { items: updatedItems });
         return await db.getCart(); 
     } catch (error) {
-        handleFirestoreError(error, OperationType.UPDATE, `carts/${user.uid}`);
+        handleFirestoreError(error, OperationType.UPDATE, `carts/${effectiveUid}`);
     }
   },
 
   mergeCart: async (items: any[]) => {
     const user = auth.currentUser;
-    if (!user) return { items: [] };
+    const effectiveUid = (user && !user.isAnonymous) ? user.uid : (storage.getUser()?.id || user?.uid);
+    if (!effectiveUid) return { items: [] };
     
     try {
-        const cartRef = doc(firestore, "carts", user.uid);
-        
-        const formattedItems = items.map(i => ({
-            product: {
-                _id: i.id,
-                title: i.title,
-                price: i.price,
-                image: i.image,
-                category: i.category
-            },
-            quantity: i.quantity,
-            selectedSize: i.selectedSize
-        }));
-
+        const cartRef = doc(firestore, "carts", effectiveUid);
         const cartSnap = await getDoc(cartRef);
+        const existingItems: any[] = (cartSnap.exists() && Array.isArray(cartSnap.data().items))
+            ? [...cartSnap.data().items]
+            : [];
+
+        for (const i of items) {
+            const prodId = i.id || i.product?._id || i.product?.id;
+            const size = i.selectedSize || null;
+            const existingIdx = existingItems.findIndex((ex: any) =>
+                (ex.product?._id === prodId || ex.product?.id === prodId) &&
+                (ex.selectedSize || null) === size
+            );
+            if (existingIdx > -1) {
+                const maxStock = i.maxStock ?? 99;
+                existingItems[existingIdx].quantity = Math.min(
+                    maxStock,
+                    (existingItems[existingIdx].quantity || 1) + (i.quantity || 1)
+                );
+            } else {
+                existingItems.push({
+                    _id: i.cartItemId || (Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)),
+                    product: {
+                        _id: prodId,
+                        title: i.title,
+                        price: i.price,
+                        image: i.image,
+                        category: i.category
+                    },
+                    quantity: i.quantity || 1,
+                    selectedSize: size
+                });
+            }
+        }
+
+        const safeMerged = JSON.parse(JSON.stringify(existingItems));
         if (cartSnap.exists()) {
-            await updateDoc(cartRef, { items: formattedItems });
+            await updateDoc(cartRef, { items: safeMerged });
         } else {
-            await setDoc(cartRef, { user: user.uid, items: formattedItems });
+            await setDoc(cartRef, { user: effectiveUid, items: safeMerged });
         }
         return await db.getCart();
     } catch (error) {
-        handleFirestoreError(error, OperationType.UPDATE, `carts/${user.uid}`);
+        handleFirestoreError(error, OperationType.UPDATE, `carts/${effectiveUid}`);
     }
   },
 
@@ -1933,6 +2315,32 @@ export const db = {
       }, { merge: true });
     } catch (error) {
       console.warn("Could not sync wishlist to Firestore:", error);
+    }
+  },
+
+  getAllWishlists: async (): Promise<any[]> => {
+    try {
+      const snap = await getDocs(collection(firestore, "wishlists"));
+      return snap.docs.map(mapDoc);
+    } catch (error) {
+      console.warn("Error getting all wishlists:", error);
+      return [];
+    }
+  },
+
+  subscribeWishlists: (callback: (wishlists: any[]) => void) => {
+    try {
+      const q = query(collection(firestore, "wishlists"));
+      return onSnapshot(q, (snapshot) => {
+        const list = snapshot.docs.map(mapDoc);
+        callback(list);
+      }, (err) => {
+        console.warn("Wishlists listener warning:", err);
+        db.getAllWishlists().then(callback);
+      });
+    } catch {
+      db.getAllWishlists().then(callback);
+      return () => {};
     }
   },
 
@@ -2641,7 +3049,7 @@ export const db = {
         stage: 'applicant',
         houseCode: cleanHouseCode,
         houseId: cleanHouseCode,
-        ...(passHash ? { passwordHash: passHash, authCredentialSnapshot: passHash } : {}),
+        ...(passHash ? { passwordHash: passHash, authCredentialSnapshot: passHash, hashVersion: 'v2' } : {}),
         emailVerified: true,
         securityVerified: true
       });

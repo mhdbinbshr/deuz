@@ -6,8 +6,16 @@
       "type": "object",
       "properties": {
         "fullName": { "type": "string", "description": "User's full name" },
+        "displayName": { "type": "string", "description": "User's display name" },
         "email": { "type": "string", "format": "email", "description": "User's email address" },
         "mobile": { "type": "string", "description": "User's mobile number" },
+        "photoURL": { "type": "string", "description": "User's profile photo URL" },
+        "emailVerified": { "type": "boolean", "description": "Whether email is verified" },
+        "profileCompleted": { "type": "boolean", "description": "Whether required registration details are completed" },
+        "dossierRegistered": { "type": "boolean", "description": "Whether client dossier registration is completed" },
+        "authProvider": { "type": "string", "description": "Primary authentication provider" },
+        "linkedProviders": { "type": "array", "description": "Linked authentication provider IDs" },
+        "termsAccepted": { "type": "boolean", "description": "Whether user accepted terms" },
         "houseCode": { "type": "string", "description": "Unique Atelier House Code assigned by admin" },
         "houseId": { "type": "string", "description": "Unique Atelier House ID assigned by admin" },
         "role": { "type": "string", "enum": ["user", "admin", "concierge"], "description": "User's role" },
@@ -163,12 +171,57 @@
         "createdAt": { "type": "timestamp", "description": "Creation timestamp" }
       },
       "required": ["code", "name", "email", "consultationType", "location", "status"]
+    },
+    "Wishlist": {
+      "title": "Wishlist",
+      "description": "Client saved wishlist / curation items synchronized in Firebase",
+      "type": "object",
+      "properties": {
+        "user": { "type": "string", "description": "User ID" },
+        "userEmail": { "type": "string", "description": "Client email" },
+        "userName": { "type": "string", "description": "Client full name" },
+        "items": { "type": "array", "description": "Wishlisted product artifacts" },
+        "updatedAt": { "type": "timestamp", "description": "Last modified timestamp" }
+      },
+      "required": ["user", "items"]
+    },
+    "ConciergeInquiry": {
+      "title": "ConciergeInquiry",
+      "description": "Direct client inquiries and private desk transmissions",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Client full name" },
+        "email": { "type": "string", "description": "Client email" },
+        "phone": { "type": "string", "description": "Client phone number" },
+        "subject": { "type": "string", "description": "Inquiry subject" },
+        "message": { "type": "string", "description": "Inquiry message body" },
+        "status": { "type": "string", "enum": ["NEW", "IN_REVIEW", "RESOLVED"], "description": "Inquiry status" },
+        "createdAt": { "type": "timestamp", "description": "Creation timestamp" }
+      },
+      "required": ["name", "email", "subject", "message", "status"]
+    },
+    "PortfolioItem": {
+      "title": "PortfolioItem",
+      "description": "Editorial lookbook and portfolio showcase items",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "category": { "type": "string" },
+        "year": { "type": "string" },
+        "image": { "type": "string" },
+        "description": { "type": "string" }
+      },
+      "required": ["title", "image"]
     }
   },
   "firestore": {
     "/appointments/{appointmentId}": {
       "schema": { "$ref": "#/entities/Appointment" },
       "description": "Private atelier and concierge appointment bookings"
+    },
+    "/concierge_inquiries/{inquiryId}": {
+      "schema": { "$ref": "#/entities/ConciergeInquiry" },
+      "description": "Direct client inquiries and concierge transmissions"
     },
     "/users/{userId}": {
       "schema": { "$ref": "#/entities/User" },
@@ -178,9 +231,17 @@
       "schema": { "$ref": "#/entities/Product" },
       "description": "Product catalog"
     },
+    "/portfolio/{portfolioId}": {
+      "schema": { "$ref": "#/entities/PortfolioItem" },
+      "description": "Editorial lookbook items"
+    },
     "/carts/{userId}": {
       "schema": { "$ref": "#/entities/Cart" },
       "description": "User carts"
+    },
+    "/wishlists/{userId}": {
+      "schema": { "$ref": "#/entities/Wishlist" },
+      "description": "Client wishlists and saved curations"
     },
     "/orders/{orderId}": {
       "schema": { "$ref": "#/entities/Order" },

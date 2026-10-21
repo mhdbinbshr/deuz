@@ -48,4 +48,19 @@ try {
 
 export const db = firestoreInstance;
 
+async function testConnection() {
+  try {
+    await getDocFromServer(doc(db, 'test', 'connection'));
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('the client is offline')) {
+      console.error("Please check your cloud configuration.");
+    }
+  }
+}
+
+if (typeof window !== 'undefined') {
+  testConnection();
+}
+
 export default app;
+

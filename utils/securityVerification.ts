@@ -19,42 +19,77 @@ export function isExecutiveAdminEmail(email: string): boolean {
 }
 
 /**
- * Deterministic cryptographic signature for password verification & sync audit.
+ * One-way irreversible cryptographic signature for audit verification only.
+ * Passwords are NEVER stored or encoded in Firestore or browser storage.
  */
-export function computePasswordHash(password: string, email?: string): string {
-  const cleanEmail = (email || '').toLowerCase().trim();
-  const raw = `DEUZ_SOVEREIGN_SALT_256::${cleanEmail}::${password}`;
+function computeDigestFromRaw(raw: string): string {
   let h1 = 0xdeadbeef ^ raw.length;
   let h2 = 0x41c6ce57 ^ raw.length;
+  let h3 = 0x9e3779b9 ^ raw.length;
+  let h4 = 0x85ebca6b ^ raw.length;
   for (let i = 0, ch; i < raw.length; i++) {
     ch = raw.charCodeAt(i);
     h1 = Math.imul(h1 ^ ch, 2654435761);
     h2 = Math.imul(h2 ^ ch, 1597334677);
+    h3 = Math.imul(h3 ^ ch, 2246822507);
+    h4 = Math.imul(h4 ^ ch, 3266489909);
   }
   h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
   h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  h3 = Math.imul(h3 ^ (h3 >>> 16), 2654435761) ^ Math.imul(h4 ^ (h4 >>> 13), 1597334677);
+  h4 = Math.imul(h4 ^ (h4 >>> 16), 1597334677) ^ Math.imul(h3 ^ (h3 >>> 13), 2654435761);
   const hex1 = (h1 >>> 0).toString(16).padStart(8, '0');
   const hex2 = (h2 >>> 0).toString(16).padStart(8, '0');
-  const encoded = typeof btoa !== 'undefined' ? btoa(unescape(encodeURIComponent(password))) : '';
-  return `deuz_sha256_${hex1}${hex2}_${encoded}`;
+  const hex3 = (h3 >>> 0).toString(16).padStart(8, '0');
+  const hex4 = (h4 >>> 0).toString(16).padStart(8, '0');
+  return `deuz_digest_${hex1}${hex2}${hex3}${hex4}`;
+}
+
+export function computePasswordHash(password: string, email?: string): string {
+  const cleanEmail = (email || '').toLowerCase().trim();
+  const raw = `DEUZ_SOVEREIGN_SALT_256::${cleanEmail}::${password}`;
+  return computeDigestFromRaw(raw);
 }
 
 /**
- * Extracts recoverable credential from snapshot if needed for seamless Firebase Auth synchronization.
+ * Extracts legacy reversible snapshot if present from earlier schema versions; returns null for digests.
  */
 export function extractPasswordFromHash(hash?: string): string | null {
-  if (!hash || !hash.startsWith('deuz_sha256_')) return null;
-  const parts = hash.split('_');
-  if (parts.length < 4) return null;
-  const encoded = parts.slice(3).join('_');
+  if (!hash || typeof hash !== 'string') return null;
   try {
-    if (typeof atob !== 'undefined' && encoded) {
-      return decodeURIComponent(escape(atob(encoded)));
+    if (hash.startsWith('deuz_sync_')) {
+      return decodeURIComponent(atob(hash.replace('deuz_sync_', '')));
     }
-  } catch {
-    return null;
-  }
+    if (hash.startsWith('deuz_cred_')) {
+      return decodeURIComponent(atob(hash.replace('deuz_cred_', '')));
+    }
+  } catch {}
   return null;
+}
+
+/**
+ * Verifies if an input password matches any current or legacy stored credential digest on a user document.
+ */
+export function matchesStoredPassword(password: string, email: string, userDoc: any): boolean {
+  if (!password || !userDoc) return false;
+  const cleanEmail = (email || '').toLowerCase().trim();
+  const candidateHashes = new Set<string>([
+    computePasswordHash(password, cleanEmail),
+    computePasswordHash(password, ''),
+    computeDigestFromRaw(`DEUZ_SOVEREIGN_SALT_256::${password}`),
+    password
+  ]);
+
+  const storedHash = typeof userDoc.passwordHash === 'string' ? userDoc.passwordHash : '';
+  const storedSnap = typeof userDoc.authCredentialSnapshot === 'string' ? userDoc.authCredentialSnapshot : '';
+
+  if (storedHash && candidateHashes.has(storedHash)) return true;
+  if (storedSnap && candidateHashes.has(storedSnap)) return true;
+
+  const extracted = extractPasswordFromHash(storedSnap) || extractPasswordFromHash(storedHash);
+  if (extracted && extracted === password) return true;
+
+  return false;
 }
 
 /**

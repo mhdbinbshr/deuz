@@ -11,7 +11,7 @@ import {
   Crown, Link as LinkIcon, CheckCircle2, Copy, UserCheck, DollarSign,
   MessageCircle, Mail, Instagram, Filter, Settings, Clock, FileText, Smartphone,
   CreditCard, ExternalLink, PenTool, Layout, Lock, Power, RefreshCw, Archive, Truck, Box, EyeOff, Check, Activity, Terminal, Database, Menu,
-  Calendar, Compass, Phone, Sparkles, MapPin, Plane, ArrowUpRight, Radio, ChevronUp, KeyRound
+  Calendar, Compass, Phone, Sparkles, MapPin, Plane, ArrowUpRight, Radio, ChevronUp, KeyRound, Heart
 } from 'lucide-react';
 import { User, OrderStatus, ORDER_STATUS_LABELS, CustomerStage, CUSTOMER_STAGES } from '../types';
 import { ADMIN_EMAIL } from '../utils/securityVerification';
@@ -186,13 +186,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
   const isAdmin = user?.role === 'admin';
 
   // Navigation
-  const [activeTab, setActiveTab] = useState<'orders' | 'products' | 'users' | 'dashboard' | 'concierge' | 'settings' | 'audit' | 'trash' | 'archive'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'orders' | 'products' | 'users' | 'dashboard' | 'concierge' | 'settings' | 'audit' | 'trash' | 'archive' | 'wishlists'>('dashboard');
   const [orderFilter, setOrderFilter] = useState<'all' | 'new' | 'confirmed' | 'shipped' | 'cancelled'>('all');
   
   // Data State
   const [orders, setOrders] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [wishlists, setWishlists] = useState<any[]>([]);
+  const [wishlistSearchQuery, setWishlistSearchQuery] = useState('');
   const [logs, setLogs] = useState<any[]>([]);
   const [authLogs, setAuthLogs] = useState<any[]>([]);
   const [systemLogs, setSystemLogs] = useState<any[]>([]);
@@ -391,6 +393,27 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
     onConfirm: () => {}
   });
 
+  // Input Prompt Modal State (replaces window.prompt)
+  const [promptModal, setPromptModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    placeholder: string;
+    value: string;
+    confirmLabel: string;
+    onSubmit: (val: string) => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    placeholder: '',
+    value: '',
+    confirmLabel: 'Confirm',
+    onSubmit: () => {}
+  });
+
+  const [detailsText, setDetailsText] = useState<string>('{}');
+
   // Stats
   const [stats, setStats] = useState({ 
       revenue: 0, 
@@ -420,8 +443,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
       const logPromise = isAdmin ? db.getAuditLogs() : Promise.resolve([]);
       const authLogPromise = isAdmin ? db.getAuthLogs() : Promise.resolve([]);
       const sysLogPromise = isAdmin ? db.getSystemLogs() : Promise.resolve([]);
+      const wishPromise = db.getAllWishlists();
 
-      const [ordData, prodData, userData, apptData, settingsData, logData, authLogData, sysLogData] = await Promise.allSettled([
+      const [ordData, prodData, userData, apptData, settingsData, logData, authLogData, sysLogData, wishData] = await Promise.allSettled([
         ordPromise,
         prodPromise,
         userPromise,
@@ -429,7 +453,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
         settPromise,
         logPromise,
         authLogPromise,
-        sysLogPromise
+        sysLogPromise,
+        wishPromise
       ]);
 
       if (ordData.status === 'rejected') {
@@ -445,6 +470,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
           const safeLogs = logData.status === 'fulfilled' && Array.isArray(logData.value) ? logData.value : [];
           const safeAuthLogs = authLogData.status === 'fulfilled' && Array.isArray(authLogData.value) ? authLogData.value : [];
           const safeSysLogs = sysLogData.status === 'fulfilled' && Array.isArray(sysLogData.value) ? sysLogData.value : [];
+          const safeWishlists = wishData.status === 'fulfilled' && Array.isArray(wishData.value) ? wishData.value : [];
 
           setOrders(safeOrders);
           setProducts(safeProducts);
@@ -453,6 +479,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
           setLogs(safeLogs);
           setAuthLogs(safeAuthLogs);
           setSystemLogs(safeSysLogs);
+          setWishlists(safeWishlists);
           if (safeSettings) {
               setSettings((prev: any) => {
                   if (prev) return prev;
@@ -563,6 +590,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
       }
     }) : () => {};
 
+    const unsubWishlists = db.subscribeWishlists((liveWishlists) => {
+      if (Array.isArray(liveWishlists)) setWishlists(liveWishlists);
+    });
+
     const interval = setInterval(fetchData, 20000);
     return () => {
       clearInterval(interval);
@@ -574,6 +605,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
       unsubAuthLogs();
       unsubSystemLogs();
       unsubSettings();
+      unsubWishlists();
     };
   }, [fetchData, isAdmin]);
 
@@ -793,14 +825,23 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
   };
 
   const handleGeneratePaymentLink = async (order: any) => {
-      const customLink = prompt("Enter custom payment link (e.g., Stripe, PayPal):", order.paymentLink || "");
-      if (customLink !== null) {
+      setPromptModal({
+        isOpen: true,
+        title: 'Assign Secure Payment Link',
+        message: `Enter custom payment link (e.g., Stripe, Razorpay, PayPal) for Dossier ${order.conciergeCode || order._id?.slice(-6)}:`,
+        placeholder: 'https://...',
+        value: order.paymentLink || '',
+        confirmLabel: 'Save & Copy Link',
+        onSubmit: async (customLink: string) => {
+          setPromptModal(prev => ({ ...prev, isOpen: false }));
           setGeneratingLinkFor(order._id);
           try {
               await db.updateOrderPaymentLink(order._id, customLink);
               setOrders(prev => prev.map(o => o._id === order._id ? { ...o, paymentLink: customLink } : o));
-              await navigator.clipboard.writeText(customLink);
-              showNotification(`Secure Link Copied`);
+              if (customLink) {
+                await navigator.clipboard.writeText(customLink).catch(() => {});
+              }
+              showNotification(`Secure Link Saved & Copied`);
               if (selectedOrder && selectedOrder._id === order._id) {
                   setSelectedOrder({ ...selectedOrder, paymentLink: customLink });
                   fetchData();
@@ -809,7 +850,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
               showNotification("Failed to update secure link", 'error');
           }
           setGeneratingLinkFor(null);
-      }
+        }
+      });
   };
 
   const handleTrashOrder = async (id: string) => {
@@ -948,20 +990,26 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
 
   // --- PRODUCT MANAGEMENT ---
 
-  const handleOpenProductModal = (product?: any) => {
+  const handleOpenProductModal = (product?: any, defaultArchived: boolean = false) => {
     if (product) {
       setIsEditing(true);
+      const safeDetails = product.details && typeof product.details === 'object' ? product.details : {};
       setCurrentProduct({
         ...product,
         productType: product.productType || 'APPAREL',
         sizes: Array.isArray(product.sizes) && product.sizes.length > 0 ? product.sizes : PREDEFINED_SIZES,
-        details: product.details && typeof product.details === 'object' ? product.details : {},
+        details: safeDetails,
         imageTag: product.imageTag || '',
         isArchived: !!product.isArchived
       });
+      setDetailsText(JSON.stringify(safeDetails, null, 2));
     } else {
       setIsEditing(false);
-      setCurrentProduct(INITIAL_PRODUCT);
+      setCurrentProduct({
+        ...INITIAL_PRODUCT,
+        isArchived: defaultArchived
+      });
+      setDetailsText(JSON.stringify(INITIAL_PRODUCT.details || {}, null, 2));
     }
     setIsModalOpen(true);
   };
@@ -1020,11 +1068,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
   };
 
   const handleArchiveToggle = async (product: any) => {
+      const targetId = product._id || product.id;
       const newArchivedState = !product.isArchived;
       try {
-          await db.updateProduct(product._id, { isArchived: newArchivedState });
-          setProducts(prev => prev.map(p => p._id === product._id ? { ...p, isArchived: newArchivedState } : p));
-          showNotification(newArchivedState ? 'Product Archived (Hidden)' : 'Product Unarchived (Visible)');
+          await db.updateProduct(targetId, { ...product, isArchived: newArchivedState });
+          setProducts(prev => prev.map(p => (p._id === targetId || p.id === targetId) ? { ...p, isArchived: newArchivedState } : p));
+          showNotification(newArchivedState ? `"${product.title}" added to Vault Archive` : `"${product.title}" restored to Active Boutique`);
       } catch (e) {
           showNotification('Archive toggle failed', 'error');
       }
@@ -1032,12 +1081,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
 
   const handleCancelOrder = async () => {
       if (!selectedOrder) return;
-      const reason = prompt("Enter cancellation reason (visible to internal staff):");
-      if (reason !== null) {
+      setPromptModal({
+        isOpen: true,
+        title: 'Cancel Allocation & Restore Stock',
+        message: 'Enter cancellation reason (recorded in internal audit trail and order notes):',
+        placeholder: 'e.g. Client requested modification / Allocation released',
+        value: '',
+        confirmLabel: 'Confirm Cancellation',
+        onSubmit: async (reason: string) => {
+          setPromptModal(prev => ({ ...prev, isOpen: false }));
           setActionLoading(true);
           try {
-              // Call the specific cancel endpoint which handles restocking
-              await db.cancelOrder(selectedOrder._id, reason);
+              await db.cancelOrder(selectedOrder._id, reason || 'Cancelled by Administrator');
               setOrders(prev => prev.map(o => o._id === selectedOrder._id ? { ...o, orderStatus: 'CANCELLED' } : o));
               setSelectedOrder({ ...selectedOrder, orderStatus: 'CANCELLED' });
               showNotification("Order Cancelled & Stock Restored");
@@ -1045,7 +1100,56 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
               showNotification(e.message || "Cancellation failed", 'error');
           }
           setActionLoading(false);
+        }
+      });
+  };
+
+  const downloadOrderInvoicePDF = (order: any) => {
+    try {
+      const doc = new jsPDF();
+      const refCode = order.orderCode || order.conciergeCode || order.code || order._id;
+      doc.setFontSize(20);
+      doc.text('DEUZ & CO. — OFFICIAL DOSSIER INVOICE', 14, 22);
+      doc.setFontSize(10);
+      doc.text(`Reference Code: ${refCode}`, 14, 32);
+      doc.text(`Date Issued: ${new Date(order.createdAt || Date.now()).toLocaleDateString()}`, 14, 38);
+      doc.text(`Client: ${order.shippingAddress?.fullName || order.userEmail || 'Confidential Client'}`, 14, 44);
+      if (order.shippingAddress?.email) {
+        doc.text(`Email: ${order.shippingAddress.email}`, 14, 50);
       }
+      if (order.shippingAddress?.city) {
+        doc.text(`Destination: ${order.shippingAddress.house || ''} ${order.shippingAddress.street || ''}, ${order.shippingAddress.city}, ${order.shippingAddress.state || ''} - ${order.shippingAddress.pincode || ''}`, 14, 56);
+      }
+
+      doc.setFontSize(13);
+      doc.text('Allocated Artifacts', 14, 68);
+
+      const itemData = (order.items || []).map((item: any) => [
+        item.title || item.product?.title || 'Artifact',
+        item.selectedSize || item.size || 'STD',
+        item.houseCode || 'N/A',
+        String(item.quantity || 1),
+        `INR ${(item.price || 0).toLocaleString('en-IN')}`
+      ]);
+
+      autoTable(doc, {
+        startY: 73,
+        head: [['Artifact', 'Size', 'House Code', 'Qty', 'Valuation']],
+        body: itemData,
+        theme: 'grid',
+        styles: { fontSize: 9 },
+        headStyles: { fillColor: [20, 20, 20] }
+      });
+
+      const finalY = (doc as any).lastAutoTable?.finalY || 75;
+      doc.setFontSize(12);
+      doc.text(`Total Valuation: INR ${(order.totalAmount || order.total || 0).toLocaleString('en-IN')}`, 14, finalY + 12);
+
+      doc.save(`DEUZ-Invoice-${refCode}.pdf`);
+      showNotification(`Invoice ${refCode} downloaded`);
+    } catch (err) {
+      showNotification('Failed to generate invoice PDF', 'error');
+    }
   };
 
   const renderLogDetails = (details: any) => {
@@ -1104,6 +1208,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
                 { id: 'orders', icon: Package, label: 'Allocations' },
                 { id: 'concierge', icon: Calendar, label: 'Concierge Dossiers', badge: appointments.filter(a => a.status === 'PENDING').length },
                 { id: 'products', icon: ShoppingBag, label: 'Inventory' },
+                { id: 'wishlists', icon: Heart, label: 'Wishlists', badge: wishlists.reduce((acc, w) => acc + (Array.isArray(w.items) ? w.items.length : 0), 0) },
                 ...(isAdmin ? [
                     { id: 'users', icon: Users, label: 'Operatives' }, 
                     { id: 'audit', icon: Activity, label: 'Audit Log' },
@@ -1235,6 +1340,26 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
                          <p className="text-white/40 text-xs">Links sent</p>
                      </div>
                      <span className="text-3xl md:text-4xl font-serif text-gold-500">{stats.awaitingPayment}</span>
+                </div>
+                <div 
+                    onClick={() => setActiveTab('wishlists')}
+                    className="col-span-1 sm:col-span-2 lg:col-span-4 bg-[#0A0A0A] border border-gold-500/30 hover:border-gold-500/80 p-6 flex items-center justify-between cursor-pointer transition-all duration-300 group"
+                >
+                     <div>
+                         <div className="flex items-center gap-2 mb-1">
+                             <Heart size={15} className="text-gold-400 fill-gold-400/20 group-hover:scale-110 transition-transform" />
+                             <h4 className="text-white text-sm uppercase tracking-widest font-serif">Client Wishlist Demand</h4>
+                         </div>
+                         <p className="text-white/40 text-xs font-mono">Live curations registered in Firebase Cloud Firestore across all client accounts</p>
+                     </div>
+                     <div className="flex items-center gap-3">
+                         <span className="text-3xl md:text-4xl font-serif text-gold-400">
+                             {wishlists.reduce((acc, w) => acc + (Array.isArray(w.items) ? w.items.length : 0), 0)}
+                         </span>
+                         <span className="text-[10px] uppercase font-mono tracking-widest text-white/40 bg-white/5 px-2 py-1 rounded">
+                             {wishlists.length} Clients
+                         </span>
+                     </div>
                 </div>
              </div>
          )}
@@ -1799,10 +1924,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
                                      {/* Archive Toggle */}
                                      <button 
                                         onClick={() => handleArchiveToggle(product)} 
-                                        title={product.isArchived ? "Unarchive (Make Visible)" : "Archive (Hide from Store)"}
-                                        className={`p-2 backdrop-blur-sm transition-colors ${product.isArchived ? 'bg-white/20 text-white hover:bg-white hover:text-black' : 'bg-white/5 text-white/40 hover:text-white'}`}
+                                        title={product.isArchived ? "Remove from Vault Archive (Restore to Boutique)" : "Add to Vault Archive"}
+                                        className={`px-2.5 py-1.5 backdrop-blur-sm transition-colors flex items-center gap-1.5 text-[9px] font-mono uppercase tracking-wider ${product.isArchived ? 'bg-gold-500 text-black font-bold hover:bg-white' : 'bg-black/70 text-white/80 hover:bg-gold-500 hover:text-black border border-white/15'}`}
                                      >
-                                         <Archive size={12} />
+                                         <Archive size={11} />
+                                         <span>{product.isArchived ? 'In Vault Archive' : 'Add to Vault'}</span>
                                      </button>
                                  </div>
                              </div>
@@ -1812,7 +1938,25 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
                                      <span className="text-gold-500 text-xs">₹{product.price}</span>
                                  </div>
                                  <div className="flex justify-between items-center text-[10px] uppercase tracking-widest text-white/40">
-                                     <span>{product.category}</span>
+                                      <div className="flex items-center gap-2">
+                                          <span>{product.category}</span>
+                                          {(() => {
+                                              const pid = product._id || product.id;
+                                              const count = wishlists.reduce((acc, w) => {
+                                                  const has = Array.isArray(w.items) && w.items.some((i) => i.id === pid || i._id === pid || i.title === product.title);
+                                                  return acc + (has ? 1 : 0);
+                                              }, 0);
+                                              if (count > 0) {
+                                                  return (
+                                                      <span className="flex items-center gap-1 text-[9px] font-mono text-gold-400 bg-gold-500/10 border border-gold-500/20 px-1.5 py-0.5 rounded">
+                                                          <Heart size={9} className="fill-gold-400" />
+                                                          <span>{count}</span>
+                                                      </span>
+                                                  );
+                                              }
+                                              return null;
+                                          })()}
+                                      </div>
                                      <span className={product.isArchived ? 'text-white/20 italic' : product.countInStock === 0 ? 'text-red-500 font-bold' : ''}>
                                          {product.isArchived ? 'HIDDEN' : product.countInStock === 0 ? 'SOLD OUT' : `Stock: ${product.countInStock}`}
                                      </span>
@@ -1824,9 +1968,276 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
              </div>
          )}
          
-         {activeTab === 'archive' && (
+
+         {/* --- CLIENT WISHLISTS TAB (POWERED BY FIREBASE FIRESTORE) --- */}
+         {activeTab === 'wishlists' && (() => {
+             const demandMap = new Map();
+             wishlists.forEach(w => {
+                 const uid = w.user || w.id || w._id;
+                 if (Array.isArray(w.items)) {
+                     w.items.forEach((item) => {
+                         const key = item.id || item._id || item.title;
+                         if (!demandMap.has(key)) {
+                             demandMap.set(key, { product: item, count: 0, userUids: [] });
+                         }
+                         const record = demandMap.get(key);
+                         record.count += 1;
+                         if (uid && !record.userUids.includes(uid)) {
+                             record.userUids.push(uid);
+                         }
+                     });
+                 }
+             });
+
+             const demandList = Array.from(demandMap.values()).sort((a, b) => b.count - a.count);
+             const totalItemsSaved = wishlists.reduce((acc, w) => acc + (Array.isArray(w.items) ? w.items.length : 0), 0);
+
+             const filteredWishlists = wishlists.filter(w => {
+                 if (!wishlistSearchQuery.trim()) return true;
+                 const q = wishlistSearchQuery.toLowerCase();
+                 const matchingUser = users.find(u => u.id === (w.user || w.id || w._id));
+                 const name = (matchingUser?.fullName || '').toLowerCase();
+                 const email = (matchingUser?.email || '').toLowerCase();
+                 const houseCode = (matchingUser?.houseCode || matchingUser?.houseId || '').toLowerCase();
+                 const uid = String(w.user || w.id || '').toLowerCase();
+                 const hasMatchingItem = Array.isArray(w.items) && w.items.some((i) => 
+                     (i.title || '').toLowerCase().includes(q) || 
+                     (i.category || '').toLowerCase().includes(q)
+                 );
+                 return name.includes(q) || email.includes(q) || houseCode.includes(q) || uid.includes(q) || hasMatchingItem;
+             });
+
+             return (
+                 <div className="space-y-8">
+                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-white/10 pb-6">
+                         <div>
+                             <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full border border-gold-500/30 bg-gold-500/10 text-gold-400 text-[9px] uppercase tracking-widest font-mono mb-2">
+                                 <Sparkles size={11} className="text-gold-400 animate-pulse" />
+                                 <span>Firebase Real-Time Synchronized</span>
+                             </div>
+                             <h3 className="text-2xl font-serif text-white tracking-wide">Client Wishlist Intelligence</h3>
+                             <p className="text-white/50 text-xs font-mono mt-1">
+                               Client curation dossiers and artifact demand tracking synced directly from Cloud Firestore.
+                             </p>
+                         </div>
+                         <div className="flex items-center gap-3">
+                             <button
+                                 onClick={handleManualCloudSync}
+                                 disabled={isSyncing}
+                                 className="flex items-center gap-1.5 px-3.5 py-2.5 bg-white/5 border border-white/10 text-white/80 hover:text-white text-xs font-mono rounded transition-colors cursor-pointer"
+                                 title="Sync Firestore Wishlists"
+                             >
+                                 <RefreshCw size={13} className={isSyncing ? "animate-spin text-gold-400" : ""} />
+                                 <span className="hidden sm:inline">Synchronize</span>
+                             </button>
+                         </div>
+                     </div>
+
+                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                         <div className="bg-[#0A0A0A] border border-white/10 p-5 rounded-sm">
+                             <p className="text-[10px] uppercase tracking-widest text-white/40 font-mono">Client Curation Vaults</p>
+                             <p className="text-2xl sm:text-3xl font-serif text-white mt-1 tabular-nums">{wishlists.length}</p>
+                             <p className="text-[10px] font-mono text-white/40 mt-1">Active client dossiers</p>
+                         </div>
+                         <div className="bg-[#0A0A0A] border border-gold-500/30 p-5 rounded-sm">
+                             <p className="text-[10px] uppercase tracking-widest text-gold-400 font-mono">Total Artifacts Desired</p>
+                             <p className="text-2xl sm:text-3xl font-serif text-gold-400 mt-1 tabular-nums">{totalItemsSaved}</p>
+                             <p className="text-[10px] font-mono text-gold-400/60 mt-1">Across all wishlists</p>
+                         </div>
+                         <div className="bg-[#0A0A0A] border border-white/10 p-5 rounded-sm">
+                             <p className="text-[10px] uppercase tracking-widest text-white/40 font-mono">Distinct Pieces Marked</p>
+                             <p className="text-2xl sm:text-3xl font-serif text-white mt-1 tabular-nums">{demandList.length}</p>
+                             <p className="text-[10px] font-mono text-white/40 mt-1">Unique catalog styles</p>
+                         </div>
+                         <div className="bg-[#0A0A0A] border border-emerald-500/30 p-5 rounded-sm">
+                             <p className="text-[10px] uppercase tracking-widest text-emerald-400 font-mono">High Demand Styles</p>
+                             <p className="text-2xl sm:text-3xl font-serif text-emerald-400 mt-1 tabular-nums">
+                                 {demandList.filter(d => d.count >= 2).length}
+                             </p>
+                             <p className="text-[10px] font-mono text-emerald-400/60 mt-1">Marked by multiple clients</p>
+                         </div>
+                     </div>
+
+                     <div className="space-y-4">
+                         <div className="flex items-center justify-between border-b border-white/5 pb-2">
+                             <div className="flex items-center gap-2">
+                                 <TrendingUp size={15} className="text-gold-400" />
+                                 <h4 className="text-sm uppercase tracking-widest font-mono text-white">
+                                     High-Demand Artifacts
+                                 </h4>
+                             </div>
+                             <span className="text-[10px] font-mono text-white/40">Ranked by client saves</span>
+                         </div>
+
+                         {demandList.length > 0 ? (
+                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                 {demandList.slice(0, 8).map(({ product: p, count }, idx) => {
+                                     const catalogMatch = products.find(prod => (prod._id || prod.id) === (p.id || p._id) || prod.title === p.title);
+                                     const currentStock = catalogMatch ? catalogMatch.countInStock : (p.countInStock ?? 0);
+                                     const isExhausted = currentStock <= 0;
+
+                                     return (
+                                         <div key={idx} className="bg-[#0A0A0A] border border-white/10 hover:border-gold-500/50 p-3.5 rounded-sm flex gap-3 transition-colors">
+                                             <div className="w-16 h-20 bg-black shrink-0 overflow-hidden rounded-sm relative border border-white/5">
+                                                 <img src={p.image} alt={p.title} className="w-full h-full object-cover" />
+                                                 <span className="absolute top-1 left-1 bg-black/80 px-1 py-0.2 text-[8px] font-mono text-gold-400">
+                                                     #{idx + 1}
+                                                 </span>
+                                             </div>
+                                             <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
+                                                 <div>
+                                                     <h5 className="text-xs font-serif text-white truncate" title={p.title}>
+                                                         {p.title}
+                                                     </h5>
+                                                     <p className="text-[11px] font-mono text-gold-400 mt-0.5 tabular-nums">
+                                                         ₹{p.price?.toLocaleString('en-IN') || p.price}
+                                                     </p>
+                                                 </div>
+                                                 <div className="flex items-center justify-between text-[9px] font-mono pt-2 border-t border-white/5">
+                                                     <span className="flex items-center gap-1 text-gold-400">
+                                                         <Heart size={10} className="fill-gold-400" />
+                                                         <span>{count} {count === 1 ? 'client' : 'clients'}</span>
+                                                     </span>
+                                                     <span className={isExhausted ? "text-red-400 font-bold" : "text-white/40"}>
+                                                         {isExhausted ? 'Exhausted' : `${currentStock} stock`}
+                                                     </span>
+                                                 </div>
+                                             </div>
+                                         </div>
+                                     );
+                                 })}
+                             </div>
+                         ) : (
+                             <div className="p-8 text-center bg-[#0A0A0A] border border-white/10 rounded text-xs font-mono text-white/40">
+                                 No wishlist curations recorded yet. When clients tap the heart icon on any product, their desires will instantly appear here.
+                             </div>
+                         )}
+                     </div>
+
+                     <div className="space-y-4 pt-4">
+                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-white/5 pb-2">
+                             <div className="flex items-center gap-2">
+                                 <Users size={15} className="text-gold-400" />
+                                 <h4 className="text-sm uppercase tracking-widest font-mono text-white">
+                                     Client Wishlist Dossiers ({filteredWishlists.length})
+                                 </h4>
+                             </div>
+
+                             <div className="relative w-full sm:w-72">
+                                 <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40" />
+                                 <input
+                                     type="text"
+                                     value={wishlistSearchQuery}
+                                     onChange={e => setWishlistSearchQuery(e.target.value)}
+                                     placeholder="Search client, email, or style..."
+                                     className="w-full bg-[#0A0A0A] border border-white/10 rounded py-1.5 pl-8 pr-3 text-xs text-white placeholder:text-white/30 focus:outline-none focus:border-gold-500 font-mono"
+                                 />
+                             </div>
+                         </div>
+
+                         {filteredWishlists.length > 0 ? (
+                             <div className="space-y-4">
+                                 {filteredWishlists.map(w => {
+                                     const uid = w.user || w.id || w._id;
+                                     const matchingUser = users.find(u => u.id === uid);
+                                     const clientName = matchingUser?.fullName || 'Client Operative';
+                                     const clientEmail = matchingUser?.email || 'Confidential';
+                                     const houseCode = matchingUser?.houseCode || matchingUser?.houseId || null;
+                                     const items = Array.isArray(w.items) ? w.items : [];
+                                     const updatedTime = w.updatedAt?.seconds 
+                                         ? new Date(w.updatedAt.seconds * 1000).toLocaleString() 
+                                         : (w.updatedAt ? new Date(w.updatedAt).toLocaleString() : 'Recent');
+
+                                     return (
+                                         <div key={uid} className="bg-[#0A0A0A] border border-white/10 hover:border-white/20 p-5 rounded-sm space-y-4 transition-all">
+                                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/5 pb-3">
+                                                 <div className="flex items-center gap-3">
+                                                     <div className="w-9 h-9 rounded-full bg-gold-500/10 border border-gold-500/30 flex items-center justify-center text-xs font-serif text-gold-400">
+                                                         {clientName.charAt(0)}
+                                                     </div>
+                                                     <div>
+                                                         <div className="flex items-center gap-2">
+                                                             <h5 className="text-sm font-serif text-white tracking-wide">{clientName}</h5>
+                                                             {houseCode && (
+                                                                 <span className="px-2 py-0.5 rounded bg-gold-500/10 border border-gold-500/30 text-gold-400 text-[8.5px] font-mono">
+                                                                     {houseCode}
+                                                                 </span>
+                                                             )}
+                                                         </div>
+                                                         <p className="text-[11px] font-mono text-white/40">{clientEmail} · UID: {uid.slice(0, 10)}...</p>
+                                                     </div>
+                                                 </div>
+
+                                                 <div className="flex items-center gap-4 text-xs font-mono">
+                                                     <span className="text-white/40 text-[10px]">Updated: {updatedTime}</span>
+                                                     <span className="px-2.5 py-1 bg-white/5 border border-white/10 rounded text-[10px] text-gold-400 font-bold">
+                                                         {items.length} {items.length === 1 ? 'Piece' : 'Pieces'} Saved
+                                                     </span>
+                                                     {clientEmail && clientEmail !== 'Confidential' && (
+                                                         <a
+                                                             href={`mailto:${clientEmail}?subject=DEUZ %26 CO Concierge - Private Inquiry Regarding Your Wishlist`}
+                                                             className="p-1.5 bg-white/5 hover:bg-gold-500 hover:text-black rounded text-white/60 transition-colors"
+                                                             title="Email Client Concierge Allocation"
+                                                         >
+                                                             <Mail size={13} />
+                                                         </a>
+                                                     )}
+                                                 </div>
+                                             </div>
+
+                                             {items.length > 0 ? (
+                                                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 pt-1">
+                                                     {items.map((item, iIdx) => (
+                                                         <div key={iIdx} className="bg-black/60 border border-white/5 p-2 rounded-sm space-y-2 group">
+                                                             <div className="aspect-[3/4] bg-[#050505] overflow-hidden rounded-sm relative">
+                                                                 <img 
+                                                                     src={item.image} 
+                                                                     alt={item.title} 
+                                                                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                                                                 />
+                                                                 <div className="absolute top-1 right-1 p-1 bg-black/70 rounded-full text-gold-400">
+                                                                     <Heart size={10} className="fill-gold-400" />
+                                                                 </div>
+                                                             </div>
+                                                             <div>
+                                                                 <p className="text-[11px] font-serif text-white truncate" title={item.title}>
+                                                                     {item.title}
+                                                                 </p>
+                                                                 <p className="text-[10px] font-mono text-gold-400 tabular-nums">
+                                                                     ₹{item.price?.toLocaleString('en-IN') || item.price}
+                                                                 </p>
+                                                             </div>
+                                                         </div>
+                                                     ))}
+                                                 </div>
+                                             ) : (
+                                                 <p className="text-xs font-mono text-white/30 italic">No items currently stored in this client's wishlist.</p>
+                                             )}
+                                         </div>
+                                     );
+                                 })}
+                             </div>
+                         ) : (
+                             <div className="p-12 text-center bg-[#080808] border border-white/10 rounded">
+                                 <Heart size={32} className="mx-auto text-white/20 mb-3" />
+                                 <p className="text-white/60 font-serif text-base mb-1">No Client Wishlists Found</p>
+                                 <p className="text-white/30 font-mono text-xs max-w-sm mx-auto">
+                                     {wishlistSearchQuery ? "No records match your search query." : "Client saved favorites will synchronize here in real-time."}
+                                 </p>
+                             </div>
+                         )}
+                     </div>
+                 </div>
+             );
+         })()}
+
+         {activeTab === 'archive' && (() => {
+             const archivedProducts = products.filter(p => p.isArchived === true);
+             const activeCollectionProducts = products.filter(p => !p.isArchived);
+
+             return (
              <div>
-                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4 border-b border-white/10 pb-6">
+                 <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4 border-b border-white/10 pb-6">
                      <div>
                          <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full border border-gold-500/30 bg-gold-500/10 text-gold-400 text-[9px] uppercase tracking-widest font-mono mb-2">
                              <Sparkles size={11} className="text-gold-400 animate-pulse" />
@@ -1834,10 +2245,44 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
                          </div>
                          <h3 className="text-2xl font-serif text-white tracking-wide">The Vault & Museum Vitrines</h3>
                          <p className="text-white/50 text-xs font-mono mt-1">
-                           Archived artifacts preserved with auto-animated image carousels. Synchronized in real time with Atelier Cloud.
+                           Only products explicitly added to the Vault Archive by the administrator are preserved and displayed in the public Museum Archive.
                          </p>
                      </div>
-                     <div className="flex items-center gap-3">
+                     <div className="flex flex-wrap items-center gap-3">
+                         {activeCollectionProducts.length > 0 && (
+                             <div className="flex items-center gap-2 bg-[#0A0A0A] border border-white/15 px-3 py-1.5 rounded-sm">
+                                 <Archive size={13} className="text-gold-400 shrink-0" />
+                                 <select
+                                     defaultValue=""
+                                     onChange={(e) => {
+                                         const selectedId = e.target.value;
+                                         if (!selectedId) return;
+                                         const prod = activeCollectionProducts.find(p => (p._id || p.id) === selectedId);
+                                         if (prod) {
+                                             handleArchiveToggle(prod);
+                                         }
+                                         e.target.value = "";
+                                     }}
+                                     className="bg-transparent text-xs font-mono text-white outline-none cursor-pointer pr-2"
+                                     title="Add an active collection product to the Vault Archive"
+                                 >
+                                     <option value="" className="bg-[#0A0A0A] text-white/60">
+                                         + Add Existing Product to Vault...
+                                     </option>
+                                     {activeCollectionProducts.map(p => (
+                                         <option key={p._id || p.id} value={p._id || p.id} className="bg-[#0A0A0A] text-white">
+                                             {p.title} {p.houseCode ? `(${p.houseCode})` : ''}
+                                         </option>
+                                     ))}
+                                 </select>
+                             </div>
+                         )}
+                         <button
+                             onClick={() => handleOpenProductModal(undefined, true)}
+                             className="flex items-center gap-2 px-4 py-2.5 bg-gold-500 text-black hover:bg-white text-xs uppercase tracking-widest font-mono font-bold transition-all rounded-sm cursor-pointer"
+                         >
+                             <Plus size={13} /> New Vault Artifact
+                         </button>
                          {onViewArchive && (
                              <button 
                                onClick={onViewArchive} 
@@ -1847,13 +2292,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
                              </button>
                          )}
                          <div className="px-3 py-2 bg-black/60 border border-white/10 text-[10px] font-mono text-white/60 rounded-sm">
-                           {products.filter(p => p.isArchived || p.countInStock === 0).length} Artifacts Sealed
+                           {archivedProducts.length} {archivedProducts.length === 1 ? 'Artifact' : 'Artifacts'} Sealed
                          </div>
                      </div>
                  </div>
 
                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                     {products.filter(p => p.isArchived || p.countInStock === 0).map((product) => (
+                     {archivedProducts.map((product) => (
                          <ArchivedProductReel 
                              key={product._id || product.id}
                              product={product}
@@ -1862,18 +2307,19 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
                              onArchiveToggle={() => handleArchiveToggle(product)}
                          />
                      ))}
-                     {products.filter(p => p.isArchived || p.countInStock === 0).length === 0 && (
+                     {archivedProducts.length === 0 && (
                          <div className="col-span-full py-16 text-center border border-white/10 bg-[#080808] rounded-sm">
                              <Archive size={36} className="mx-auto text-white/20 mb-3" />
-                             <p className="text-white/60 font-serif text-lg mb-1">No Artifacts in the Vault</p>
-                             <p className="text-white/30 font-mono text-xs max-w-sm mx-auto">
-                               To archive an artifact, navigate to Inventory and click the archive button on any product.
+                             <p className="text-white/60 font-serif text-lg mb-1">No Artifacts in the Vault Archive</p>
+                             <p className="text-white/30 font-mono text-xs max-w-md mx-auto">
+                               The public Vault Archive is currently empty. Select an existing product from the dropdown above, click "Add to Vault" on any product in Inventory, or create a New Vault Artifact.
                              </p>
                          </div>
                      )}
                  </div>
              </div>
-         )}
+             );
+         })()}
          
           {activeTab === 'users' && (() => {
              const filteredUsers = users.filter(u => {
@@ -2659,59 +3105,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
                       </div>
                       <div className="flex items-center gap-4">
                           <button 
-                              onClick={() => {
-                                  const printWindow = window.open('', '_blank');
-                                  if (printWindow) {
-                                      printWindow.document.write(`
-                                          <html>
-                                              <head>
-                                                  <title>Invoice - ${selectedOrder.conciergeCode || selectedOrder.code}</title>
-                                                  <style>
-                                                      body { font-family: monospace; padding: 40px; color: #000; }
-                                                      h1 { font-size: 24px; margin-bottom: 5px; }
-                                                      .header { border-bottom: 2px solid #000; padding-bottom: 20px; margin-bottom: 20px; }
-                                                      .row { display: flex; justify-content: space-between; margin-bottom: 10px; }
-                                                      .total { font-weight: bold; border-top: 2px solid #000; padding-top: 10px; margin-top: 20px; }
-                                                  </style>
-                                              </head>
-                                              <body>
-                                                  <div class="header">
-                                                      <h1>DEUZ & CO.</h1>
-                                                      <p>INVOICE #${selectedOrder.conciergeCode || selectedOrder.code}</p>
-                                                      <p>Date: ${new Date(selectedOrder.createdAt).toLocaleDateString()}</p>
-                                                  </div>
-                                                  <div style="margin-bottom: 30px;">
-                                                      <h3>Billed To:</h3>
-                                                      <p>${selectedOrder.shippingAddress?.fullName}<br/>
-                                                      ${selectedOrder.shippingAddress?.house}, ${selectedOrder.shippingAddress?.street}<br/>
-                                                      ${selectedOrder.shippingAddress?.city}, ${selectedOrder.shippingAddress?.state} - ${selectedOrder.shippingAddress?.pincode}<br/>
-                                                      ${selectedOrder.shippingAddress?.mobile}<br/>
-                                                      ${selectedOrder.shippingAddress?.alternateMobile ? `${selectedOrder.shippingAddress?.alternateMobile}<br/>` : ''}
-                                                      ${selectedOrder.shippingAddress?.email}</p>
-                                                  </div>
-                                                  <div style="margin-bottom: 30px;">
-                                                      <h3>Items:</h3>
-                                                      ${selectedOrder.items.map((item: any) => `
-                                                          <div class="row">
-                                                              <span>${item.title} x${item.quantity}</span>
-                                                              <span>INR ${item.price}</span>
-                                                          </div>
-                                                      `).join('')}
-                                                  </div>
-                                                  <div class="row total">
-                                                      <span>TOTAL</span>
-                                                      <span>INR ${selectedOrder.totalAmount || selectedOrder.total}</span>
-                                                  </div>
-                                              </body>
-                                          </html>
-                                      `);
-                                      printWindow.document.close();
-                                      printWindow.print();
-                                  }
-                              }}
-                              className="text-xs text-gold-500 hover:text-white uppercase tracking-widest flex items-center gap-2 border border-gold-500/30 px-3 py-1.5"
+                              onClick={() => downloadOrderInvoicePDF(selectedOrder)}
+                              className="text-xs text-gold-500 hover:text-white uppercase tracking-widest flex items-center gap-2 border border-gold-500/30 px-3 py-1.5 cursor-pointer"
                           >
-                              <FileText size={14} /> Print Invoice
+                              <FileText size={14} /> Export Invoice
                           </button>
                           <button onClick={() => setIsOrderModalOpen(false)} className="text-white/40 hover:text-white"><X size={24}/></button>
                       </div>
@@ -2900,42 +3297,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
                   {/* Lifecycle Actions */}
                   <div className="flex flex-col sm:flex-row justify-end gap-4 border-t border-white/10 pt-6">
                       <button 
-                          onClick={() => {
-                              const doc = new jsPDF();
-                              doc.setFontSize(20);
-                              doc.text('DEUZ & CO - Invoice', 14, 22);
-                              doc.setFontSize(10);
-                              doc.text(`Order ID: ${selectedOrder._id}`, 14, 30);
-                              doc.text(`Date: ${new Date(selectedOrder.createdAt).toLocaleDateString()}`, 14, 36);
-                              doc.text(`Client: ${selectedOrder.userEmail || 'Guest'}`, 14, 42);
-                              
-                              doc.setFontSize(14);
-                              doc.text('Items', 14, 55);
-                              
-                              const itemData = selectedOrder.items.map((item: any) => [
-                                  item.title,
-                                  item.size || 'N/A',
-                                  item.houseCode || 'N/A',
-                                  item.quantity.toString(),
-                                  `$${item.price}`
-                              ]);
-                              
-                              autoTable(doc, {
-                                  startY: 60,
-                                  head: [['Item', 'Size', 'House Code', 'Qty', 'Price']],
-                                  body: itemData,
-                                  theme: 'grid',
-                                  styles: { fontSize: 10 },
-                                  headStyles: { fillColor: [20, 20, 20] }
-                              });
-                              
-                              const finalY = (doc as any).lastAutoTable.finalY || 60;
-                              doc.setFontSize(12);
-                              doc.text(`Total: $${selectedOrder.totalAmount}`, 14, finalY + 10);
-                              
-                              doc.save(`invoice-${selectedOrder._id}.pdf`);
-                          }}
-                          className="w-full sm:w-auto px-6 py-3 border border-gold-500/30 text-gold-500 hover:bg-gold-500 hover:text-black transition-colors text-xs font-bold uppercase tracking-widest"
+                          onClick={() => downloadOrderInvoicePDF(selectedOrder)}
+                          className="w-full sm:w-auto px-6 py-3 border border-gold-500/30 text-gold-500 hover:bg-gold-500 hover:text-black transition-colors text-xs font-bold uppercase tracking-widest cursor-pointer"
                       >
                           Download Invoice
                       </button>
@@ -3070,13 +3433,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
                   <div>
                       <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Details (JSON Object)</label>
                       <textarea 
-                        value={JSON.stringify(currentProduct.details || {}, null, 2)} 
+                        value={detailsText} 
                         onChange={e => {
+                            const raw = e.target.value;
+                            setDetailsText(raw);
                             try {
-                                const parsed = JSON.parse(e.target.value);
-                                setCurrentProduct({...currentProduct, details: parsed});
+                                const parsed = JSON.parse(raw);
+                                if (parsed && typeof parsed === 'object') {
+                                    setCurrentProduct({...currentProduct, details: parsed});
+                                }
                             } catch (err) {
-                                // Ignore parse errors while typing
+                                // Allow typing intermediate JSON without resetting text
                             }
                         }} 
                         className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none h-32 font-mono" 
@@ -3151,12 +3518,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
-                          <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Status</label>
+                          <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Status & Placement</label>
                           <select 
-                            value={currentProduct.countInStock > 0 ? 'active' : 'exhausted'} 
+                            value={currentProduct.isArchived ? 'archived' : (currentProduct.countInStock > 0 ? 'active' : 'exhausted')} 
                             onChange={e => {
                                 const val = e.target.value;
-                                if (val === 'active') {
+                                if (val === 'archived') {
+                                    setCurrentProduct({...currentProduct, isArchived: true});
+                                } else if (val === 'active') {
                                     setCurrentProduct({...currentProduct, isArchived: false, countInStock: Math.max(1, currentProduct.countInStock)});
                                 } else {
                                     setCurrentProduct({...currentProduct, isArchived: false, countInStock: 0});
@@ -3164,8 +3533,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
                             }} 
                             className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none"
                           >
-                              <option value="active">Active (In Stock)</option>
-                              <option value="exhausted">Exhausted (Out of Stock)</option>
+                              <option value="active">Active Collection (In Stock)</option>
+                              <option value="exhausted">Active Collection (Exhausted / Sold Out)</option>
+                              <option value="archived">Vault Archive (Preserved in Museum)</option>
                           </select>
                       </div>
                       <div>
@@ -3369,6 +3739,41 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
                           className="flex-1 py-3 bg-gold-500 text-black hover:bg-white transition-colors text-xs font-bold uppercase tracking-widest disabled:opacity-50"
                       >
                           {actionLoading ? 'Processing...' : 'Confirm'}
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* Input Prompt Modal */}
+      {promptModal.isOpen && (
+          <div className="fixed inset-0 z-[100] bg-black/85 flex items-center justify-center p-4 backdrop-blur-sm">
+              <div className="bg-[#0A0A0A] border border-gold-500/30 w-full max-w-md p-6 md:p-8 relative shadow-2xl">
+                  <h2 className="text-xl font-serif text-white mb-2">{promptModal.title}</h2>
+                  <p className="text-white/60 text-xs font-mono mb-4">{promptModal.message}</p>
+                  <input
+                      type="text"
+                      autoFocus
+                      value={promptModal.value}
+                      onChange={(e) => setPromptModal(prev => ({ ...prev, value: e.target.value }))}
+                      placeholder={promptModal.placeholder}
+                      className="w-full bg-black border border-white/15 focus:border-gold-500 p-3 text-white text-sm font-mono outline-none mb-6"
+                  />
+                  <div className="flex flex-col sm:flex-row gap-4">
+                      <button 
+                          type="button"
+                          onClick={() => setPromptModal(prev => ({ ...prev, isOpen: false }))}
+                          className="flex-1 py-3 border border-white/10 text-white hover:bg-white/5 transition-colors text-xs font-bold uppercase tracking-widest cursor-pointer"
+                      >
+                          Cancel
+                      </button>
+                      <button 
+                          type="button"
+                          onClick={() => promptModal.onSubmit(promptModal.value)}
+                          disabled={actionLoading}
+                          className="flex-1 py-3 bg-gold-500 text-black hover:bg-white transition-colors text-xs font-bold uppercase tracking-widest disabled:opacity-50 cursor-pointer"
+                      >
+                          {actionLoading ? 'Processing...' : promptModal.confirmLabel}
                       </button>
                   </div>
               </div>

@@ -24,6 +24,7 @@ import {
 import { db } from '../utils/db';
 import { storage } from '../utils/storage';
 import { useAuth } from '../context/AuthContext';
+import { CONCIERGE_CONFIG } from '../utils/conciergeService';
 import { Order, ORDER_STATUS_LABELS, ORDER_STATUS_DESCRIPTIONS, ORDER_PHASES, OrderStatus } from '../types';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -94,7 +95,7 @@ const OrderTimeline = ({ currentStatus }: { currentStatus: OrderStatus }) => {
               >
                 {isCompleted ? <Check size={10} strokeWidth={3} /> : <div className={`w-1.5 h-1.5 rounded-full ${isCurrent ? 'bg-gold-400' : 'bg-transparent'}`} />}
               </div>
-              <span className={`text-[9px] font-mono uppercase tracking-wider transition-colors duration-300 ${
+              <span className={`text-[7.5px] sm:text-[9px] font-mono uppercase tracking-wider text-center transition-colors duration-300 ${
                 isCurrent ? 'text-gold-400 font-bold' : isCompleted ? 'text-white/80' : 'text-white/30'
               }`}>
                 {phase.name.split(' — ')[1] || phase.name}
@@ -108,7 +109,7 @@ const OrderTimeline = ({ currentStatus }: { currentStatus: OrderStatus }) => {
 };
 
 const MyOrdersPage: React.FC<MyOrdersPageProps> = ({ onBack }) => {
-  const { user, openAuthModal } = useAuth();
+  const { user, isLoading, openAuthModal } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ message: string; visible: boolean }>({ message: '', visible: false });
@@ -117,42 +118,42 @@ const MyOrdersPage: React.FC<MyOrdersPageProps> = ({ onBack }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
 
-  if (!user) {
-    return (
-      <div className="fixed inset-0 z-50 bg-[#020202] text-white flex flex-col items-center justify-center p-6 text-center select-none font-mono">
-        <div className="w-16 h-16 rounded-full border border-gold-500/30 flex items-center justify-center mb-6 bg-gold-500/5">
-          <ShieldCheck size={24} className="text-gold-500" />
-        </div>
-        <span className="text-[10px] text-gold-500 uppercase tracking-[0.3em] mb-2">Restricted Chamber</span>
-        <h2 className="text-2xl sm:text-3xl font-serif text-white mb-3">CLIENT AUTHENTICATION REQUIRED</h2>
-        <p className="text-xs sm:text-sm text-white/50 max-w-md mb-8 leading-relaxed font-sans">
-          Client dossier archives and live order tracking require authenticated authorization. Please log in with your registered credentials.
-        </p>
-        <div className="flex items-center gap-4">
-          <button 
-            onClick={onBack}
-            className="px-6 py-3 border border-white/20 text-white/70 hover:text-white uppercase tracking-widest text-[10px] transition-colors cursor-pointer"
-          >
-            Return to Gallery
-          </button>
-          <button 
-            onClick={() => {
-              onBack();
-              openAuthModal();
-            }}
-            className="px-6 py-3 bg-white text-black hover:bg-gold-500 hover:text-white uppercase tracking-widest text-[10px] font-bold transition-colors cursor-pointer"
-          >
-            Authenticate / Log In
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   const showToast = (message: string) => {
     setToast({ message, visible: true });
     setTimeout(() => setToast({ message: '', visible: false }), 3500);
   };
+
+  // Real-time Firestore sync via subscribeMyOrders (placed before conditional returns to satisfy Rules of Hooks)
+  useEffect(() => {
+    if (isLoading) return;
+    let unsubscribe: () => void = () => {};
+
+    const setupLiveSubscription = async () => {
+      try {
+        unsubscribe = db.subscribeMyOrders((liveOrders) => {
+          setOrders(liveOrders);
+          setLoading(false);
+        });
+      } catch (err) {
+        console.warn("Real-time listener setup error:", err);
+      }
+
+      try {
+        const initialOrders = await db.getMyOrders();
+        setOrders(initialOrders);
+      } catch (err) {
+        console.error("Failed to load initial orders:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    setupLiveSubscription();
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [isLoading, user?.id]);
 
   // Link or search for a specific dossier by code or email
   const handleSearchOrLink = async (e?: React.FormEvent) => {
@@ -162,7 +163,6 @@ const MyOrdersPage: React.FC<MyOrdersPageProps> = ({ onBack }) => {
 
     setIsSearching(true);
     try {
-      // 1. Try direct tracking by code
       const foundOrder = await db.trackOrder(query);
       if (foundOrder) {
         storage.saveConfirmedOrder(foundOrder);
@@ -176,7 +176,6 @@ const MyOrdersPage: React.FC<MyOrdersPageProps> = ({ onBack }) => {
         return;
       }
 
-      // 2. Try checking local storage
       const localOrder = storage.getConfirmedOrderByCode(query);
       if (localOrder) {
         setOrders(prev => {
@@ -197,38 +196,96 @@ const MyOrdersPage: React.FC<MyOrdersPageProps> = ({ onBack }) => {
     }
   };
 
-  // Real-time Firestore sync via subscribeMyOrders:
-  // When Admin updates the order status in Admin Dashboard, it updates on the user's screen in real time!
-  useEffect(() => {
-    let unsubscribe: () => void = () => {};
+  if (isLoading) {
+    return (
+      <div className="fixed inset-0 z-50 bg-[#020202] text-white flex flex-col items-center justify-center p-6 text-center select-none font-mono">
+        <div className="w-12 h-12 rounded-full border-2 border-gold-500 border-t-transparent animate-spin mb-4" />
+        <span className="text-[10px] text-gold-400 uppercase tracking-[0.3em]">
+          VERIFYING ATELIER CREDENTIALS...
+        </span>
+      </div>
+    );
+  }
 
-    const setupLiveSubscription = async () => {
-      try {
-        unsubscribe = db.subscribeMyOrders((liveOrders) => {
-          setOrders(liveOrders);
-          setLoading(false);
-        });
-      } catch (err) {
-        console.warn("Real-time listener setup error:", err);
-      }
+  if (!user && orders.length === 0) {
+    return (
+      <div className="fixed inset-0 z-50 bg-[#020202] text-white flex flex-col items-center justify-center p-6 text-center select-none font-mono">
+        <div className="w-16 h-16 rounded-full border border-gold-500/30 flex items-center justify-center mb-6 bg-gold-500/5">
+          <ShieldCheck size={24} className="text-gold-500" />
+        </div>
+        <span className="text-[10px] text-gold-500 uppercase tracking-[0.3em] mb-2">Restricted Chamber</span>
+        <h2 className="text-xl sm:text-3xl font-serif text-white mb-3">CLIENT AUTHENTICATION OR DOSSIER CODE</h2>
+        <p className="text-xs sm:text-sm text-white/50 max-w-md mb-6 leading-relaxed font-sans">
+          Log in to view your registered dossiers automatically, or enter your unique Allocation Code (e.g. DEUZ-XXXX-XXXX) to track an active order.
+        </p>
+        <form onSubmit={handleSearchOrLink} className="flex items-center gap-2 w-full max-w-md mb-6">
+          <input 
+            type="text" 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Enter DEUZ Allocation Code..." 
+            className="flex-1 bg-black border border-white/20 focus:border-gold-500 text-xs text-white px-4 py-3 rounded-sm font-mono tracking-wider outline-none uppercase"
+          />
+          <button
+            type="submit"
+            disabled={isSearching || !searchQuery.trim()}
+            className="px-5 py-3 bg-gold-500 hover:bg-gold-400 disabled:opacity-40 text-black text-[10px] font-mono uppercase font-bold tracking-widest rounded-sm transition-all shrink-0 cursor-pointer"
+          >
+            {isSearching ? 'Locating...' : 'Track'}
+          </button>
+        </form>
+        <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4 w-full max-w-xs sm:max-w-none justify-center">
+          <button 
+            onClick={onBack}
+            className="w-full sm:w-auto px-6 py-3 border border-white/20 text-white/70 hover:text-white uppercase tracking-widest text-[10px] transition-colors cursor-pointer"
+          >
+            Return to Gallery
+          </button>
+          <button 
+            onClick={() => {
+              onBack();
+              openAuthModal('login');
+            }}
+            className="w-full sm:w-auto px-6 py-3 bg-white text-black hover:bg-gold-500 hover:text-white uppercase tracking-widest text-[10px] font-bold transition-colors cursor-pointer"
+          >
+            Authenticate / Log In
+          </button>
+        </div>
+      </div>
+    );
+  }
 
-      // Initial direct fetch fallback
-      try {
-        const initialOrders = await db.getMyOrders();
-        setOrders(initialOrders);
-      } catch (err) {
-        console.error("Failed to load initial orders:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    setupLiveSubscription();
-
-    return () => {
-      if (unsubscribe) unsubscribe();
-    };
-  }, []);
+  if (user && user.authProvider === 'google' && user.profileCompleted === false) {
+    return (
+      <div className="fixed inset-0 z-50 bg-[#020202] text-white flex flex-col items-center justify-center p-6 text-center select-none font-mono">
+        <div className="w-16 h-16 rounded-full border border-gold-500/30 flex items-center justify-center mb-6 bg-gold-500/5">
+          <ShieldCheck size={24} className="text-gold-500" />
+        </div>
+        <span className="text-[10px] text-gold-500 uppercase tracking-[0.3em] mb-2">Additional Registration Required</span>
+        <h2 className="text-xl sm:text-3xl font-serif text-white mb-3">COMPLETE YOUR CLIENT DOSSIER</h2>
+        <p className="text-xs sm:text-sm text-white/50 max-w-md mb-8 leading-relaxed font-sans">
+          Please complete your additional Client Dossier registration details before accessing private order archives.
+        </p>
+        <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4 w-full max-w-xs sm:max-w-none justify-center">
+          <button 
+            onClick={onBack}
+            className="w-full sm:w-auto px-6 py-3 border border-white/20 text-white/70 hover:text-white uppercase tracking-widest text-[10px] transition-colors cursor-pointer"
+          >
+            Return to Gallery
+          </button>
+          <button 
+            onClick={() => {
+              onBack();
+              openAuthModal('signup');
+            }}
+            className="w-full sm:w-auto px-6 py-3 bg-gold-500 text-black hover:bg-gold-400 uppercase tracking-widest text-[10px] font-bold transition-colors cursor-pointer"
+          >
+            Complete Dossier Registration
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const handleCopyCode = (code: string) => {
     navigator.clipboard.writeText(code);
@@ -251,14 +308,16 @@ const MyOrdersPage: React.FC<MyOrdersPageProps> = ({ onBack }) => {
 
       const dossierText = `DEUZ & CO. ALLOCATION DOSSIER\nREF: ${code}\nSTATUS: ${ORDER_STATUS_LABELS[order.orderStatus as OrderStatus] || order.orderStatus}\nTOTAL: INR ${(order.totalAmount || order.total || 0).toLocaleString('en-IN')}\n\nITEMS:\n${itemsList}`;
 
-      await navigator.clipboard.writeText(dossierText);
+      await navigator.clipboard.writeText(dossierText).catch(() => {});
 
       if (newChannel === 'gmail') {
         const subject = encodeURIComponent(`DEUZ & CO. Acquisition Dossier - ${code}`);
         const body = encodeURIComponent(dossierText);
-        window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=deuzandco@gmail.com&su=${subject}&body=${body}`, '_blank');
+        const targetEmail = CONCIERGE_CONFIG.emailAddress || 'deuzandco@gmail.com';
+        window.location.href = `mailto:${targetEmail}?subject=${subject}&body=${body}`;
       } else if (newChannel === 'instagram') {
-        window.open('https://ig.me/m/deuz.co', '_blank');
+        const igHandle = CONCIERGE_CONFIG.instagramHandle || 'deuzandco';
+        window.open(`https://ig.me/m/${igHandle}`, '_blank', 'noopener,noreferrer');
       }
 
       // Optimistic update

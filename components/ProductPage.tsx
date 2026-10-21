@@ -236,49 +236,52 @@ const ProductPage: React.FC<ProductPageProps> = ({
   const { addToCart } = useCart();
   const { openAuthModal, user } = useAuth();
 
-  // Fetch Products on Mount
+  // Subscribe to Real-Time Products on Mount
   useEffect(() => {
-    const fetchProducts = async () => {
-        try {
-            // Fix: Cast to any[] because mock db returns Promise<never>
-            const data = await db.getProducts() as any[];
-            if (data && data.length > 0) {
-                // Map Backend Model to Frontend UI
-                const mapped = data.map((p: any) => {
-                    const imgSet = getProductImageSet(p);
-                    return {
-                      id: p._id,
-                      title: p.title,
-                      price: p.price,
-                      category: 'TEES',
-                      image: imgSet.primary,
-                      gallery: imgSet.allImages.slice(1),
-                      description: p.description,
-                      details: p.details || {},
-                      inStock: p.countInStock > 0,
-                      countInStock: p.countInStock,
-                      isArchived: p.isArchived, // Add archived state
-                      // Enforce Alpha sizing fallback if not present, though DB should now provide it
-                      sizes: p.sizes && p.sizes.length > 0 ? p.sizes : ['S', 'M', 'L', 'XL', 'XXL'],
-                      outOfStockSizes: p.outOfStockSizes || [],
-                      sizeStock: p.sizeStock || {},
-                      imageTag: p.imageTag,
-                      houseCode: p.houseCode
-                    };
-                });
-                // Filter out archived products for the public store
-                setProducts(mapped.filter((p: any) => !p.isArchived));
-            } else {
-                setProducts([]);
-            }
-        } catch (e) {
-            console.error(e);
-            setProducts([]);
-        } finally {
-            setLoading(false);
-        }
+    const mapProductList = (data: any[]) => {
+      if (!data || data.length === 0) return [];
+      return data.map((p: any) => {
+        const imgSet = getProductImageSet(p);
+        const rawStock = typeof p.countInStock === 'number' ? p.countInStock : 20;
+        return {
+          id: p._id || p.id,
+          _id: p._id || p.id,
+          title: p.title,
+          price: p.price,
+          category: p.category || 'TEES',
+          fit: p.fit,
+          uniquenessTag: p.uniquenessTag,
+          image: imgSet.primary,
+          gallery: imgSet.allImages.slice(1),
+          description: p.description,
+          details: p.details || {},
+          inStock: rawStock > 0,
+          countInStock: rawStock,
+          isArchived: Boolean(p.isArchived),
+          sizes: p.sizes && p.sizes.length > 0 ? p.sizes : ['S', 'M', 'L', 'XL', 'XXL'],
+          outOfStockSizes: p.outOfStockSizes || [],
+          sizeStock: p.sizeStock || {},
+          imageTag: p.imageTag,
+          houseCode: p.houseCode
+        };
+      });
     };
-    fetchProducts();
+
+    const unsub = db.subscribeProducts((data) => {
+      const mapped = mapProductList(data);
+      const activeList = mapped.filter((p: any) => !p.isArchived);
+      setProducts(activeList);
+      setSelectedProduct((prev: any) => {
+        if (!prev) return null;
+        const updated = activeList.find((p: any) => p.id === prev.id || p.houseCode === prev.houseCode);
+        return updated || null;
+      });
+      setLoading(false);
+    });
+
+    return () => {
+      try { unsub(); } catch {}
+    };
   }, []);
 
   // Auto-rotate gallery images
@@ -296,7 +299,7 @@ const ProductPage: React.FC<ProductPageProps> = ({
         return () => clearInterval(interval);
       }
     }
-  }, [selectedProduct]);
+  }, [selectedProduct?.id]);
 
   const categories = useMemo(() => ['All', ...Array.from(new Set(products.map(p => p.category)))], [products]);
   
@@ -348,21 +351,36 @@ const ProductPage: React.FC<ProductPageProps> = ({
     setError('');
   };
 
+  const getEffectiveMaxStock = (product: any, size: string) => {
+    if (size && product?.sizeStock && typeof product.sizeStock[size] === 'number') {
+      return product.sizeStock[size];
+    }
+    return typeof product?.countInStock === 'number' ? product.countInStock : 99;
+  };
+
   const handleAddToCart = async () => {
     if (!selectedProduct) return;
     if (selectedProduct.sizes && selectedProduct.sizes.length > 0 && !selectedSize) {
       setError('Size selection required.');
       return;
     }
-    const maxStock = selectedProduct.countInStock || 99;
+    const maxStock = getEffectiveMaxStock(selectedProduct, selectedSize);
+    if (maxStock <= 0 || (selectedSize && selectedProduct.outOfStockSizes?.includes(selectedSize))) {
+      setError('Selected size is currently out of stock.');
+      return;
+    }
         
-    await addToCart({ 
+    const added = await addToCart({ 
         ...selectedProduct, 
         selectedSize,
         maxStock
     });
-    setAddedToVault(true);
-    setTimeout(() => setAddedToVault(false), 2200);
+    if (added) {
+      setAddedToVault(true);
+      setTimeout(() => setAddedToVault(false), 2200);
+    } else {
+      setError('Maximum allocation reached for this piece.');
+    }
   };
 
   const handleBuyNow = async () => {
@@ -371,7 +389,11 @@ const ProductPage: React.FC<ProductPageProps> = ({
       setError('Size selection required.');
       return;
     }
-    const maxStock = selectedProduct.countInStock || 99;
+    const maxStock = getEffectiveMaxStock(selectedProduct, selectedSize);
+    if (maxStock <= 0 || (selectedSize && selectedProduct.outOfStockSizes?.includes(selectedSize))) {
+      setError('Selected size is currently out of stock.');
+      return;
+    }
         
     await addToCart({ ...selectedProduct, selectedSize, maxStock }, false);
     
@@ -464,10 +486,10 @@ const ProductPage: React.FC<ProductPageProps> = ({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-            className="min-h-screen flex flex-col md:flex-row md:h-screen md:overflow-hidden"
+            className="min-h-screen min-h-[100dvh] flex flex-col md:flex-row md:h-screen md:h-[100dvh] md:overflow-hidden"
           >
             {/* Left: Cinematic Product Visual Showcase */}
-            <div className="w-full md:w-1/2 lg:w-1/2 relative bg-[#060606] flex flex-col items-center justify-center shrink-0 pt-16 sm:pt-18 md:pt-16 pb-3 md:pb-4 md:h-full border-b md:border-b-0 md:border-r border-white/10 overflow-y-auto">
+            <div className="w-full md:w-1/2 lg:w-1/2 relative bg-[#060606] flex flex-col items-center justify-center shrink-0 pt-16 sm:pt-18 md:pt-16 pb-3 md:pb-4 md:h-full border-b md:border-b-0 md:border-r border-white/10 overflow-y-auto overflow-x-hidden">
               <ProductShowcase3D
                 product={selectedProduct}
                 currentImageIndex={currentImageIndex}
@@ -476,7 +498,7 @@ const ProductPage: React.FC<ProductPageProps> = ({
             </div>
 
             {/* Right: Atelier Dossier & Acquisition Controls */}
-            <div className="w-full md:w-1/2 lg:w-1/2 flex-1 md:h-full flex flex-col justify-start px-4 sm:px-6 md:px-10 lg:px-14 pt-6 sm:pt-10 md:pt-20 lg:pt-24 pb-16 md:pb-24 bg-[#050505] overflow-y-auto">
+            <div className="w-full md:w-1/2 lg:w-1/2 flex-1 md:h-full flex flex-col justify-start px-4 sm:px-6 md:px-10 lg:px-14 pt-6 sm:pt-10 md:pt-20 lg:pt-24 pb-16 md:pb-24 bg-[#050505] overflow-y-auto overflow-x-hidden">
               <motion.div
                 initial={{ opacity: 0, x: 40 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -582,7 +604,7 @@ const ProductPage: React.FC<ProductPageProps> = ({
                 {/* Size Configuration Matrix */}
                 {selectedProduct.sizes && selectedProduct.sizes.length > 0 && (
                   <div className="mb-6 sm:mb-8">
-                    <div className="flex justify-between items-center mb-3">
+                    <div className="flex flex-wrap justify-between items-center gap-2 mb-3">
                       <span className="text-[9.5px] sm:text-[10px] uppercase tracking-[0.25em] font-mono text-white/70">
                         SILHOUETTE SIZE SELECTION
                       </span>
@@ -592,7 +614,7 @@ const ProductPage: React.FC<ProductPageProps> = ({
                     </div>
 
                     {/* Premium Cinematic Size Matrix */}
-                    <div className="grid grid-cols-5 gap-2 sm:gap-2.5">
+                    <div className="grid grid-cols-3 xs:grid-cols-5 sm:grid-cols-6 gap-2 sm:gap-2.5">
                       {selectedProduct.sizes.map((size: string) => {
                         const isSelected = selectedSize === size;
                         return (
@@ -653,13 +675,13 @@ const ProductPage: React.FC<ProductPageProps> = ({
                       </span>
                     </div>
                   ) : (
-                    <div className="flex gap-2.5 sm:gap-4 h-14 sm:h-16">
+                    <div className="flex gap-2 sm:gap-4 h-13 sm:h-16">
                       {/* Acquire Button - High Luxury Metallic Gold with Ambient Radiance */}
                       <button 
                         onClick={handleBuyNow}
                         disabled={!selectedProduct.inStock}
                         aria-label="Acquire Now"
-                        className="group relative flex-[2.2] overflow-hidden rounded-none bg-gradient-to-r from-[#DFBA53] via-[#FFF2C2] to-[#B88728] px-4 sm:px-8 border border-amber-200/90 shadow-[0_4px_24px_rgba(212,175,55,0.45)] hover:shadow-[0_0_45px_rgba(212,175,55,0.75)] hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.985] transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+                        className="group relative flex-[2] sm:flex-[2.2] overflow-hidden rounded-none bg-gradient-to-r from-[#DFBA53] via-[#FFF2C2] to-[#B88728] px-3 sm:px-8 border border-amber-200/90 shadow-[0_4px_24px_rgba(212,175,55,0.45)] hover:shadow-[0_0_45px_rgba(212,175,55,0.75)] hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.985] transition-all duration-300 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
                       >
                         {/* Shimmer light sweep */}
                         <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 ease-out bg-gradient-to-r from-transparent via-white/80 to-transparent pointer-events-none" />
@@ -667,12 +689,12 @@ const ProductPage: React.FC<ProductPageProps> = ({
                         {/* Top rim highlight */}
                         <div className="absolute top-0 left-0 right-0 h-[1.5px] bg-white/80 pointer-events-none" />
 
-                        <span className="relative z-10 flex items-center justify-center gap-2 sm:gap-3 text-black font-mono">
+                        <span className="relative z-10 flex items-center justify-center gap-1.5 sm:gap-3 text-black font-mono">
                           <Sparkles size={15} className="text-black/90 shrink-0 hidden sm:inline-block animate-pulse" />
-                          <span className="text-xs sm:text-sm font-black uppercase tracking-[0.22em] sm:tracking-[0.26em] drop-shadow-[0_1px_1px_rgba(255,255,255,0.6)]">
+                          <span className="text-[11px] xs:text-xs sm:text-sm font-black uppercase tracking-[0.16em] xs:tracking-[0.22em] sm:tracking-[0.26em] drop-shadow-[0_1px_1px_rgba(255,255,255,0.6)] whitespace-nowrap">
                             ACQUIRE NOW
                           </span>
-                          <ArrowRight size={16} className="text-black stroke-[3] transition-transform duration-300 group-hover:translate-x-1.5 shrink-0" />
+                          <ArrowRight size={15} className="text-black stroke-[3] transition-transform duration-300 group-hover:translate-x-1.5 shrink-0" />
                         </span>
                       </button>
 
@@ -681,7 +703,7 @@ const ProductPage: React.FC<ProductPageProps> = ({
                         onClick={handleAddToCart}
                         disabled={!selectedProduct.inStock}
                         aria-label="Add to Vault"
-                        className={`group relative flex-[1.4] overflow-hidden rounded-none px-3 sm:px-6 transition-all duration-300 border-2 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer ${
+                        className={`group relative flex-[1.2] sm:flex-[1.4] overflow-hidden rounded-none px-2.5 sm:px-6 transition-all duration-300 border-2 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer ${
                           addedToVault
                             ? 'bg-emerald-950/90 border-emerald-400 text-emerald-300 shadow-[0_0_28px_rgba(16,185,129,0.4)]'
                             : 'bg-gradient-to-b from-[#141414] via-[#0A0A0A] to-[#040404] border-gold-500/60 hover:border-gold-300 hover:bg-gold-500/10 hover:shadow-[0_0_32px_rgba(212,175,55,0.35)]'
@@ -693,15 +715,15 @@ const ProductPage: React.FC<ProductPageProps> = ({
                         {/* Top subtle rim highlight */}
                         <div className="absolute top-0 left-0 right-0 h-[1px] bg-gold-400/30 group-hover:bg-gold-300/60 transition-colors pointer-events-none" />
 
-                        <span className="relative z-10 flex items-center justify-center gap-2 text-xs font-mono font-bold uppercase tracking-[0.18em] sm:tracking-[0.22em]">
+                        <span className="relative z-10 flex items-center justify-center gap-1.5 sm:gap-2 text-[11px] xs:text-xs font-mono font-bold uppercase tracking-[0.14em] sm:tracking-[0.22em]">
                           {addedToVault ? (
-                            <span className="flex items-center gap-1.5 text-emerald-300 font-black">
-                              <Check size={15} className="stroke-[3]" />
+                            <span className="flex items-center gap-1 text-emerald-300 font-black whitespace-nowrap">
+                              <Check size={14} className="stroke-[3]" />
                               IN VAULT
                             </span>
                           ) : (
                             <>
-                              <ShoppingBag size={15} className="text-gold-400 group-hover:text-gold-300 transition-transform duration-300 group-hover:scale-110 shrink-0" />
+                              <ShoppingBag size={14} className="text-gold-400 group-hover:text-gold-300 transition-transform duration-300 group-hover:scale-110 shrink-0" />
                               <span className="text-white group-hover:text-gold-200 transition-colors font-extrabold">
                                 VAULT
                               </span>
@@ -725,7 +747,7 @@ const ProductPage: React.FC<ProductPageProps> = ({
                         })}
                         aria-label="Save to Wishlist"
                         title={isInWishlist(selectedProduct.id) ? "Remove from Favourites" : "Save to Favourites"}
-                        className={`group relative flex w-14 sm:w-16 items-center justify-center rounded-none transition-all duration-500 shrink-0 cursor-pointer overflow-hidden border-2 shadow-2xl ${
+                        className={`group relative flex w-12 xs:w-14 sm:w-16 items-center justify-center rounded-none transition-all duration-500 shrink-0 cursor-pointer overflow-hidden border-2 shadow-2xl ${
                           isInWishlist(selectedProduct.id)
                             ? 'bg-gradient-to-b from-[#2d070d] via-[#1b0307] to-[#0a0103] border-rose-500/80 text-rose-300 shadow-[0_0_35px_rgba(244,63,94,0.5)]' 
                             : 'bg-gradient-to-b from-[#181818] via-[#0d0d0d] to-[#040404] border-gold-500/40 text-white/80 hover:border-gold-300 hover:text-gold-300 hover:shadow-[0_0_30px_rgba(212,175,55,0.4)]'
@@ -752,7 +774,7 @@ const ProductPage: React.FC<ProductPageProps> = ({
                         {/* Heart Icon with Micro-Interactions */}
                         <div className="relative z-10 flex items-center justify-center">
                           <Heart 
-                            size={20} 
+                            size={19} 
                             fill={isInWishlist(selectedProduct.id) ? "currentColor" : "none"} 
                             strokeWidth={1.8}
                             className={`transition-all duration-300 ${
@@ -860,10 +882,10 @@ const ProductPage: React.FC<ProductPageProps> = ({
              animate={{ opacity: 1 }}
              exit={{ opacity: 0 }}
              transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-             className="min-h-screen pt-32 px-6 md:px-12 max-w-7xl mx-auto pb-20"
+             className="w-full min-h-screen pt-24 sm:pt-32 px-4 sm:px-6 md:px-10 lg:px-14 xl:px-16 pb-16 sm:pb-20"
           >
              {/* Header & Controls */}
-             <div className="mb-16 space-y-8 border-b border-white/10 pb-8">
+             <div className="mb-10 sm:mb-16 space-y-6 sm:space-y-8 border-b border-white/10 pb-6 sm:pb-8">
                <motion.div 
                  initial={{ opacity: 0, y: 20 }}
                  animate={{ opacity: 1, y: 0 }}
@@ -876,20 +898,28 @@ const ProductPage: React.FC<ProductPageProps> = ({
                      LIMITED ARTIFACT VAULT
                    </span>
                  </div>
-                 <h1 className="text-3xl sm:text-5xl md:text-6xl font-serif text-white mb-2 sm:mb-3 tracking-[0.15em] uppercase">The Collection</h1>
-                 <p className="text-white/40 text-xs sm:text-sm max-w-md font-mono tracking-widest uppercase">Limited release artifacts. No replication protocol.</p>
+                 <h1 className="text-3xl sm:text-5xl md:text-6xl font-serif text-white mb-2 sm:mb-3 tracking-[0.12em] sm:tracking-[0.15em] uppercase">The Collection</h1>
+                 <p className="text-white/40 text-[11px] sm:text-sm max-w-md font-mono tracking-widest uppercase">Limited release artifacts. No replication protocol.</p>
                  <div className="h-[1px] w-24 bg-gradient-to-r from-transparent via-gold-400/60 to-transparent mt-4" />
                </motion.div>
                
-               <div className="flex flex-col md:flex-row justify-center md:justify-end gap-6 w-full">
+               <div className="flex flex-wrap items-center justify-between md:justify-end gap-3 sm:gap-6 w-full">
+                 {/* Mobile Filter Toggle */}
+                 <button 
+                   onClick={() => setIsFilterOpen(!isFilterOpen)}
+                   className="md:hidden flex items-center gap-2 px-3.5 py-2 bg-black/70 border border-gold-400/40 text-[9.5px] font-mono uppercase tracking-[0.2em] text-gold-300 rounded-none cursor-pointer"
+                 >
+                   <Filter size={12} /> Categories
+                 </button>
+
                  {/* Sort Dropdown */}
                  <div className="relative group z-30">
-                    <button className="flex items-center gap-2 px-3.5 py-1.5 bg-black/70 border border-white/15 hover:border-gold-400/60 text-white/80 hover:text-white transition-all text-[9.5px] font-mono uppercase tracking-[0.2em] rounded-none shadow-md cursor-pointer">
+                    <button className="flex items-center gap-2 px-3.5 py-2 bg-black/70 border border-white/15 hover:border-gold-400/60 text-white/80 hover:text-white transition-all text-[9.5px] font-mono uppercase tracking-[0.2em] rounded-none shadow-md cursor-pointer">
                       <span className="text-white/40">SORT:</span>
                       <span className="text-gold-300 font-medium">{sortOption}</span>
                       <ChevronDown size={12} className="text-gold-400 group-hover:rotate-180 transition-transform duration-300" />
                     </button>
-                    <div className="absolute right-0 top-full mt-1.5 w-60 bg-[#0A0A0A]/95 border border-gold-500/25 backdrop-blur-xl opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none group-hover:pointer-events-auto shadow-[0_20px_50px_rgba(0,0,0,0.85)] translate-y-1 group-hover:translate-y-0 rounded-none overflow-hidden z-40">
+                    <div className="absolute right-0 top-full mt-1.5 w-52 sm:w-60 max-w-[calc(100vw-2rem)] bg-[#0A0A0A]/95 border border-gold-500/25 backdrop-blur-xl opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none group-hover:pointer-events-auto shadow-[0_20px_50px_rgba(0,0,0,0.85)] translate-y-1 group-hover:translate-y-0 rounded-none overflow-hidden z-40">
                        {sortOptions.map(opt => (
                          <button 
                            key={opt}
@@ -903,29 +933,24 @@ const ProductPage: React.FC<ProductPageProps> = ({
                        ))}
                     </div>
                  </div>
-
-                 {/* Mobile Filter Toggle */}
-                 <button 
-                   onClick={() => setIsFilterOpen(!isFilterOpen)}
-                   className="md:hidden flex items-center gap-2 px-3.5 py-1.5 bg-black/70 border border-gold-400/40 text-[9.5px] font-mono uppercase tracking-[0.2em] text-gold-300 rounded-none cursor-pointer"
-                 >
-                   <Filter size={12} /> Categories
-                 </button>
                </div>
              </div>
 
-             <div className="flex flex-col md:flex-row gap-12">
+             <div className="flex flex-col md:flex-row gap-8 md:gap-10 lg:gap-12 w-full">
                 {/* Sidebar Filters */}
-                <aside className={`md:w-64 space-y-8 ${isFilterOpen ? 'block' : 'hidden md:block'}`}>
+                <aside className={`md:w-48 lg:w-56 shrink-0 space-y-6 md:space-y-8 ${isFilterOpen ? 'block bg-white/[0.02] border border-white/10 p-4 md:p-0 md:bg-transparent md:border-0' : 'hidden md:block'}`}>
                    <div>
-                     <h3 className="text-gold-500 text-xs font-bold uppercase tracking-widest mb-6">Categories</h3>
-                     <div className="space-y-4">
+                     <h3 className="text-gold-500 text-xs font-bold uppercase tracking-widest mb-4 md:mb-6">Categories</h3>
+                     <div className="flex flex-wrap md:flex-col gap-2.5 md:gap-4">
                        {categories.map(cat => (
                          <button
                            key={cat}
-                           onClick={() => setFilterCategory(cat)}
-                           className={`block text-xs uppercase tracking-widest transition-all duration-300 ${
-                             filterCategory === cat ? 'text-white pl-4 border-l-2 border-gold-500' : 'text-white/40 hover:text-white hover:pl-2'
+                           onClick={() => {
+                             setFilterCategory(cat);
+                             setIsFilterOpen(false);
+                           }}
+                           className={`text-left text-xs uppercase tracking-widest transition-all duration-300 px-3 py-1.5 md:p-0 border md:border-0 ${
+                             filterCategory === cat ? 'text-white border-gold-500 bg-gold-500/10 md:bg-transparent md:pl-4 md:border-l-2 md:border-gold-500' : 'text-white/40 border-white/10 hover:text-white md:hover:pl-2'
                            }`}
                          >
                            {cat}
@@ -940,7 +965,7 @@ const ProductPage: React.FC<ProductPageProps> = ({
                   variants={containerVariants}
                   initial="hidden"
                   animate="show"
-                  className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-16"
+                  className="flex-1 w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-x-6 sm:gap-x-8 gap-y-12 sm:gap-y-16"
                 >
                    <AnimatePresence>
                    {filteredProducts.map((product) => (

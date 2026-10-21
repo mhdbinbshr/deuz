@@ -26,6 +26,12 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [cartLoading, setCartLoading] = useState(false);
   const { user } = useAuth();
 
+  const notifyCart = (message: string) => {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('deuz_cart_notice', { detail: { message } }));
+    }
+  };
+
   // Helper to normalize backend response
   const mapBackendCartToFrontend = (backendCart: any): CartItem[] => {
     if (!backendCart || !Array.isArray(backendCart.items)) return [];
@@ -33,7 +39,10 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return backendCart.items.map((item: any) => {
         // If product is populated
         if (item.product && typeof item.product === 'object') {
-            const maxStock = item.product.countInStock ?? 99;
+            const sizeStockVal = item.selectedSize && item.product.sizeStock && typeof item.product.sizeStock[item.selectedSize] === 'number'
+                ? item.product.sizeStock[item.selectedSize]
+                : undefined;
+            const maxStock = sizeStockVal !== undefined ? sizeStockVal : (item.product.countInStock ?? 99);
 
             return {
                 cartItemId: item._id || item.cartItemId || `${item.product._id || item.product.id}_${item.selectedSize}`, // The ID of the line item in cart
@@ -66,7 +75,10 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 try {
                     const pDoc = await db.getProductById(String(item.id));
                     if (pDoc) {
-                        const maxStock = pDoc.countInStock ?? 99;
+                        const sizeStockVal = item.selectedSize && pDoc.sizeStock && typeof pDoc.sizeStock[item.selectedSize] === 'number'
+                            ? pDoc.sizeStock[item.selectedSize]
+                            : undefined;
+                        const maxStock = sizeStockVal !== undefined ? sizeStockVal : (pDoc.countInStock ?? 99);
                             
                         if (maxStock <= 0) {
                             cartModified = true;
@@ -89,7 +101,7 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
       }
     } catch (error) {
-      console.error("Cart refresh error", error);
+      console.warn("Cart refresh notice", error);
     } finally {
       setCartLoading(false);
     }
@@ -108,7 +120,6 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           const localCart = storage.getCart();
           
           if (Array.isArray(localCart) && localCart.length > 0) {
-            console.log("Merging local cart to account...");
             try {
               // Attempt Merge
               const finalCart = await db.mergeCart(localCart);
@@ -139,7 +150,10 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                       try {
                           const pDoc = await db.getProductById(String(item.id));
                           if (pDoc) {
-                              const maxStock = pDoc.countInStock ?? 99;
+                              const sizeStockVal = item.selectedSize && pDoc.sizeStock && typeof pDoc.sizeStock[item.selectedSize] === 'number'
+                                  ? pDoc.sizeStock[item.selectedSize]
+                                  : undefined;
+                              const maxStock = sizeStockVal !== undefined ? sizeStockVal : (pDoc.countInStock ?? 99);
                                   
                               if (maxStock <= 0) {
                                   cartModified = true;
@@ -166,7 +180,7 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           }
         }
       } catch (error) {
-        console.error("Cart initialization critical error", error);
+        console.warn("Cart initialization notice", error);
       } finally {
         if (mounted) setCartLoading(false);
       }
@@ -210,7 +224,6 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setCartLoading(false);
         return true;
       } catch (e: any) {
-        console.error("Add to cart failed", e);
         let errorMsg = e.message || "Unable to secure item. Please check availability.";
         try {
             const parsed = JSON.parse(e.message);
@@ -222,7 +235,7 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (!errorMsg.includes('stock') && !errorMsg.includes('allocation')) {
             errorMsg = "Unable to secure item. Please check availability.";
         }
-        alert(errorMsg);
+        notifyCart(errorMsg);
         setCartLoading(false);
         return false;
       }
@@ -243,7 +256,7 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           if (currentQty < max) {
              updated[existingIndex].quantity += 1;
           } else {
-             alert(`Maximum allocation reached for this artifact.`);
+             notifyCart(`Maximum allocation reached for this artifact.`);
              success = false;
           }
           return updated;
@@ -280,7 +293,6 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
            const updated = await db.updateCartQty(cartItemId, newQty);
            setCartItems(mapBackendCartToFrontend(updated));
         } catch(e: any) {
-           console.error("Update quantity failed", e);
            let errorMsg = e.message;
            try {
                const parsed = JSON.parse(e.message);
@@ -288,7 +300,7 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
            } catch(err) {}
            
            if(errorMsg && (errorMsg.includes('stock') || errorMsg.includes('allocation'))) {
-             alert(errorMsg);
+             notifyCart(errorMsg);
            }
         }
     } else {
@@ -299,6 +311,7 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             
             const max = item.maxStock ?? 99;
             if (newQty > max) {
+                notifyCart('Maximum allocation reached for this artifact.');
                 return item;
             }
             return { ...item, quantity: newQty };
@@ -317,7 +330,7 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         try {
           const updated = await db.removeCartItem(cartItemId);
           setCartItems(mapBackendCartToFrontend(updated));
-        } catch(e) { console.error(e); }
+        } catch(e) { console.warn(e); }
     } else {
         setCartItems(prev => prev.filter(item => item.cartItemId !== cartItemId));
     }

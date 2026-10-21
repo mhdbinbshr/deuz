@@ -58,7 +58,7 @@ const About: React.FC = () => {
     : content.aboutImage;
 
   return (
-    <section id="house-standards" className="relative py-16 sm:py-24 md:py-32 bg-transparent px-4 sm:px-6 md:px-12 overflow-hidden">
+    <section id="house-standards" className="relative w-full max-w-[100vw] py-14 sm:py-24 md:py-32 bg-transparent px-4 sm:px-6 md:px-12 overflow-hidden">
       {/* Background Ambience */}
       <div className="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-white/5 to-transparent pointer-events-none" />
       
@@ -90,7 +90,7 @@ const About: React.FC = () => {
           </motion.div>
 
           {/* Markers */}
-          <div className="grid grid-cols-3 gap-3 md:gap-8 mt-10 border-t border-white/10 pt-10">
+          <div className="grid grid-cols-3 gap-2 xs:gap-3 md:gap-8 mt-8 sm:mt-10 border-t border-white/10 pt-8 sm:pt-10">
             {[
               { label: 'I', value: 'ICON' },
               { label: 'II', value: 'PRECISION' },
@@ -102,12 +102,12 @@ const About: React.FC = () => {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: 0.15 * idx, duration: 0.8 }}
-                className="flex flex-col justify-between"
+                className="flex flex-col justify-between min-w-0"
               >
-                <div className="text-xs sm:text-sm md:text-lg lg:text-xl font-serif text-white mb-2 tracking-[0.15em] uppercase">
+                <div className="text-[10px] xs:text-xs sm:text-sm md:text-lg lg:text-xl font-serif text-white mb-1.5 sm:mb-2 tracking-[0.06em] xs:tracking-[0.12em] sm:tracking-[0.15em] uppercase truncate">
                   {stat.value}
                 </div>
-                <div className="text-[9px] sm:text-[10px] font-mono uppercase tracking-[0.25em] text-gold-400">
+                <div className="text-[8.5px] sm:text-[10px] font-mono uppercase tracking-[0.2em] sm:tracking-[0.25em] text-gold-400">
                   {stat.label}
                 </div>
               </motion.div>
@@ -133,7 +133,7 @@ const About: React.FC = () => {
             whileInView={{ opacity: 1, scale: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
-            className="relative w-full max-w-[460px] aspect-[4/5] rounded-xl cursor-grab active:cursor-grabbing select-none"
+            className="relative w-full max-w-[310px] xs:max-w-[360px] sm:max-w-[460px] aspect-[4/5] rounded-xl cursor-grab active:cursor-grabbing select-none"
             style={{ perspective: 1200 }}
           >
             {/* Ambient Back Glow Nebula */}
@@ -186,7 +186,7 @@ const About: React.FC = () => {
 
               {/* Central 3D Floating Logo Stage */}
               <div 
-                className="relative my-auto flex items-center justify-center py-6"
+                className="relative my-auto flex items-center justify-center py-4 sm:py-6"
                 style={{ transformStyle: "preserve-3d" }}
               >
                 {/* 3D Floor Shadow that moves opposite to tilt */}
@@ -201,7 +201,7 @@ const About: React.FC = () => {
                     opacity: [0.4, 0.7, 0.4]
                   }}
                   transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-                  className="absolute w-44 sm:w-56 h-12 rounded-[50%] bg-gold-500/20 blur-xl pointer-events-none"
+                  className="absolute w-36 xs:w-44 sm:w-56 h-12 rounded-[50%] bg-gold-500/20 blur-xl pointer-events-none"
                 />
 
                 {/* Concentric 3D Orbit Ring 1 (Slow Horizontal Ring) */}
@@ -212,7 +212,7 @@ const About: React.FC = () => {
                     transform: "translateZ(-15px) rotateX(68deg)",
                     transformStyle: "preserve-3d"
                   }}
-                  className="absolute w-60 sm:w-72 h-60 sm:h-72 rounded-full border border-gold-400/20 border-dashed pointer-events-none"
+                  className="absolute w-48 xs:w-56 sm:w-72 h-48 xs:h-56 sm:h-72 rounded-full border border-gold-400/20 border-dashed pointer-events-none"
                 />
 
                 {/* Concentric 3D Orbit Ring 2 (Counter-rotating Oval) */}
@@ -223,7 +223,7 @@ const About: React.FC = () => {
                     transform: "translateZ(-5px) rotateX(74deg) rotateY(15deg)",
                     transformStyle: "preserve-3d"
                   }}
-                  className="absolute w-72 sm:w-84 h-72 sm:h-84 rounded-full border border-white/10 pointer-events-none"
+                  className="absolute w-56 xs:w-64 sm:w-84 h-56 xs:h-64 sm:h-84 rounded-full border border-white/10 pointer-events-none"
                 />
 
                 {/* THE 3D LOGO LAYER */}
@@ -246,7 +246,7 @@ const About: React.FC = () => {
                   <img 
                     src={logoSrc} 
                     alt="The House Standard Logo 3D Depth" 
-                    className="absolute max-w-[210px] sm:max-w-[250px] max-h-[220px] object-contain filter blur-[6px] opacity-40 brightness-150 transform translate-y-3 pointer-events-none select-none"
+                    className="absolute max-w-[160px] xs:max-w-[200px] sm:max-w-[250px] max-h-[160px] xs:max-h-[200px] sm:max-h-[220px] object-contain filter blur-[6px] opacity-40 brightness-150 transform translate-y-3 pointer-events-none select-none"
                     style={{ transform: "translateZ(-15px)" }}
                     referrerPolicy="no-referrer"
                   />
@@ -260,7 +260,7 @@ const About: React.FC = () => {
                     <img 
                       src={logoSrc} 
                       alt="The House Standard Logo" 
-                      className="relative z-10 max-w-[210px] sm:max-w-[250px] max-h-[220px] object-contain drop-shadow-[0_15px_30px_rgba(0,0,0,0.9)] filter brightness-110 contrast-110 transition-all duration-500 select-none pointer-events-none"
+                      className="relative z-10 max-w-[160px] xs:max-w-[200px] sm:max-w-[250px] max-h-[160px] xs:max-h-[200px] sm:max-h-[220px] object-contain drop-shadow-[0_15px_30px_rgba(0,0,0,0.9)] filter brightness-110 contrast-110 transition-all duration-500 select-none pointer-events-none"
                       referrerPolicy="no-referrer"
                     />
 

@@ -7,7 +7,20 @@ const KEYS = {
   WISHLIST: 'deuz_wishlist',
   CONFIRMED_ORDERS: 'deuz_confirmed_orders',
   ORDER_CODES: 'deuz_recent_order_codes',
+  REGISTRATION_DRAFT: 'deuz_registration_draft',
 };
+
+export interface RegistrationDraft {
+  uid?: string;
+  fullName?: string;
+  email?: string;
+  mobile?: string;
+  address?: string;
+  city?: string;
+  pincode?: string;
+  termsAccepted?: boolean;
+  isGoogleAccountSelected?: boolean;
+}
 
 export const storage = {
   // --- Token Management ---
@@ -38,12 +51,18 @@ export const storage = {
     }
   },
 
-  // --- User Profile Management ---
+  // --- User Profile Management (Never stores passwords) ---
   getUser: (): User | null => {
     if (typeof window === 'undefined') return null;
     try {
       const data = localStorage.getItem(KEYS.USER);
-      return data ? JSON.parse(data) : null;
+      if (!data) return null;
+      const parsed = JSON.parse(data);
+      // Ensure password is never present in browser storage
+      if (parsed && 'password' in parsed) {
+        delete parsed.password;
+      }
+      return parsed;
     } catch {
       return null;
     }
@@ -54,15 +73,28 @@ export const storage = {
     try {
       const safeUser: User = {
         id: user.id,
+        _id: user._id || user.id,
         fullName: user.fullName,
+        displayName: user.displayName || user.fullName,
         email: user.email,
+        photoURL: user.photoURL,
+        emailVerified: Boolean(user.emailVerified),
         mobile: user.mobile || '',
         alternateMobile: user.alternateMobile || '',
         role: user.role || 'user',
+        stage: user.stage || 'applicant',
+        houseCode: user.houseCode || user.houseId || '',
+        houseId: user.houseId || user.houseCode || '',
         joinedDate: user.joinedDate || new Date().toISOString(),
         orders: user.orders ? [...user.orders] : [],
         address: user.address,
-        token: user.token
+        addresses: user.addresses || (user.address ? [user.address] : []),
+        profileCompleted: user.profileCompleted ?? true,
+        dossierRegistered: user.dossierRegistered ?? true,
+        authProvider: user.authProvider,
+        linkedProviders: user.linkedProviders || [],
+        termsAccepted: user.termsAccepted,
+        termsAcceptedAt: user.termsAcceptedAt
       };
       localStorage.setItem(KEYS.USER, JSON.stringify(safeUser));
     } catch (e) {
@@ -77,6 +109,42 @@ export const storage = {
     } catch (e) {
       console.error('Failed to remove user', e);
     }
+  },
+
+  // --- Registration Form Draft Persistence (Survives Page Refresh, Never Stores Passwords) ---
+  getRegistrationDraft: (): RegistrationDraft | null => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const raw = sessionStorage.getItem(KEYS.REGISTRATION_DRAFT);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  },
+
+  setRegistrationDraft: (draft: RegistrationDraft) => {
+    if (typeof window === 'undefined') return;
+    try {
+      const safeDraft: RegistrationDraft = {
+        uid: draft.uid,
+        fullName: draft.fullName || '',
+        email: draft.email || '',
+        mobile: draft.mobile || '',
+        address: draft.address || '',
+        city: draft.city || '',
+        pincode: draft.pincode || '',
+        termsAccepted: Boolean(draft.termsAccepted),
+        isGoogleAccountSelected: Boolean(draft.isGoogleAccountSelected)
+      };
+      sessionStorage.setItem(KEYS.REGISTRATION_DRAFT, JSON.stringify(safeDraft));
+    } catch {}
+  },
+
+  clearRegistrationDraft: () => {
+    if (typeof window === 'undefined') return;
+    try {
+      sessionStorage.removeItem(KEYS.REGISTRATION_DRAFT);
+    } catch {}
   },
 
   // --- Cart Management ---
@@ -235,15 +303,20 @@ export const storage = {
     }
   },
 
-  // --- Global ---
+  // --- Global Session Cleanup (Prevents cross-account data leaks) ---
   clearAll: () => {
     if (typeof window === 'undefined') return;
     try {
       localStorage.removeItem(KEYS.TOKEN);
       localStorage.removeItem(KEYS.USER);
       localStorage.removeItem(KEYS.CART);
+      localStorage.removeItem(KEYS.WISHLIST);
+      localStorage.removeItem(KEYS.CONFIRMED_ORDERS);
+      localStorage.removeItem(KEYS.ORDER_CODES);
+      sessionStorage.removeItem(KEYS.REGISTRATION_DRAFT);
     } catch (e) {
       console.error('Failed to clear storage', e);
     }
   }
 };
+

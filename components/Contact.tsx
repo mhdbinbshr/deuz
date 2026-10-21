@@ -55,7 +55,7 @@ export const Contact: React.FC<ContactProps> = ({ onOpenConcierge }) => {
       <div className="max-w-5xl mx-auto relative z-10">
         
         {/* Compact Cinematic Concierge Frame */}
-        <div className="relative rounded-sm border border-gold-500/30 bg-gradient-to-b from-[#0c0a06] via-[#080808] to-[#040404] p-8 sm:p-12 shadow-[0_20px_60px_rgba(0,0,0,0.85)] overflow-hidden">
+        <div className="relative rounded-sm border border-gold-500/30 bg-gradient-to-b from-[#0c0a06] via-[#080808] to-[#040404] p-5 xs:p-7 sm:p-12 shadow-[0_20px_60px_rgba(0,0,0,0.85)] overflow-hidden">
           
           {/* Classical Corner Filigree Markers */}
           <div className="absolute top-2 left-2 w-3 h-3 border-t-2 border-l-2 border-gold-500/60" />
@@ -67,12 +67,12 @@ export const Contact: React.FC<ContactProps> = ({ onOpenConcierge }) => {
             
             {/* Left Narrative */}
             <div className="text-center md:text-left space-y-4 max-w-xl">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-gold-500/30 bg-gold-500/10 text-gold-400 text-[8px] sm:text-[9px] uppercase tracking-[0.3em] font-mono">
-                <Sparkles size={11} className="text-gold-400 animate-pulse" />
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-gold-500/30 bg-gold-500/10 text-gold-400 text-[8px] sm:text-[9px] uppercase tracking-[0.22em] sm:tracking-[0.3em] font-mono">
+                <Sparkles size={11} className="text-gold-400 animate-pulse shrink-0" />
                 <span>Private Salon & Atelier Services</span>
               </div>
 
-              <h2 className="text-2xl sm:text-4xl font-serif text-white tracking-[0.1em] uppercase leading-tight">
+              <h2 className="text-xl xs:text-2xl sm:text-4xl font-serif text-white tracking-[0.1em] uppercase leading-tight">
                 The Private Concierge
               </h2>
 
@@ -81,10 +81,10 @@ export const Contact: React.FC<ContactProps> = ({ onOpenConcierge }) => {
               </p>
 
               {/* Atelier Cities Pill Row */}
-              <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 pt-1 text-[9px] font-mono tracking-widest text-gold-400/80">
-                {ATELIER_CITIES.map((c, idx) => (
+              <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 pt-1 text-[8.5px] sm:text-[9px] font-mono tracking-widest text-gold-400/80">
+                {ATELIER_CITIES.map((c) => (
                   <span key={c.city} className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-white/[0.03] border border-white/[0.06]">
-                    <span className="w-1 h-1 rounded-full bg-gold-400" />
+                    <span className="w-1 h-1 rounded-full bg-gold-400 shrink-0" />
                     <span>{c.city} — {c.label}</span>
                   </span>
                 ))}
@@ -97,36 +97,36 @@ export const Contact: React.FC<ContactProps> = ({ onOpenConcierge }) => {
               {/* Primary Cinematic Redirect CTA */}
               <button
                 onClick={onOpenConcierge}
-                className="w-full sm:w-auto px-8 py-4 bg-gold-500 hover:bg-white text-black font-mono font-bold text-xs uppercase tracking-[0.25em] transition-all duration-300 shadow-[0_0_25px_rgba(212,175,55,0.3)] flex items-center justify-center gap-3 cursor-pointer group"
+                className="w-full sm:w-auto px-5 xs:px-8 py-4 bg-gold-500 hover:bg-white text-black font-mono font-bold text-[11px] xs:text-xs uppercase tracking-[0.18em] xs:tracking-[0.25em] transition-all duration-300 shadow-[0_0_25px_rgba(212,175,55,0.3)] flex items-center justify-center gap-3 cursor-pointer group"
               >
                 <span>Enter Private Concierge</span>
-                <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
+                <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform shrink-0" />
               </button>
 
               {/* Direct Confidential Desk Email & Phone */}
               <div className="flex flex-col sm:flex-row items-center gap-2.5 w-full sm:w-auto">
-                <div className="flex items-center gap-2 text-xs font-mono text-white/60 bg-black/60 border border-white/10 px-3.5 py-2 rounded-sm w-full sm:w-auto justify-between sm:justify-start">
-                  <div className="flex items-center gap-2">
-                    <Mail size={13} className="text-gold-400" />
-                    <span className="text-white/80">deuzandco@gmail.com</span>
+                <div className="flex items-center gap-2 text-xs font-mono text-white/60 bg-black/60 border border-white/10 px-3.5 py-2.5 rounded-sm w-full sm:w-auto justify-between sm:justify-start min-w-0">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Mail size={13} className="text-gold-400 shrink-0" />
+                    <span className="text-white/80 truncate">deuzandco@gmail.com</span>
                   </div>
                   <button
                     onClick={handleCopyEmail}
-                    className="ml-1 text-gold-400 hover:text-white transition-colors cursor-pointer"
+                    className="ml-1 text-gold-400 hover:text-white transition-colors cursor-pointer shrink-0"
                     title="Copy Concierge Email"
                   >
                     {copiedEmail ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
                   </button>
                 </div>
 
-                <div className="flex items-center gap-2 text-xs font-mono text-white/60 bg-black/60 border border-white/10 px-3.5 py-2 rounded-sm w-full sm:w-auto justify-between sm:justify-start">
-                  <div className="flex items-center gap-2">
-                    <Phone size={13} className="text-gold-400" />
-                    <a href="tel:+919207676921" className="text-white/80 hover:text-gold-400 transition-colors">+91 920 7676 921</a>
+                <div className="flex items-center gap-2 text-xs font-mono text-white/60 bg-black/60 border border-white/10 px-3.5 py-2.5 rounded-sm w-full sm:w-auto justify-between sm:justify-start min-w-0">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Phone size={13} className="text-gold-400 shrink-0" />
+                    <a href="tel:+919207676921" className="text-white/80 hover:text-gold-400 transition-colors truncate">+91 920 7676 921</a>
                   </div>
                   <button
                     onClick={handleCopyPhone}
-                    className="ml-1 text-gold-400 hover:text-white transition-colors cursor-pointer"
+                    className="ml-1 text-gold-400 hover:text-white transition-colors cursor-pointer shrink-0"
                     title="Copy Phone Number"
                   >
                     {copiedPhone ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
@@ -135,7 +135,7 @@ export const Contact: React.FC<ContactProps> = ({ onOpenConcierge }) => {
               </div>
 
               <div className="flex items-center gap-2 text-[9px] font-mono text-white/40">
-                <ShieldCheck size={11} className="text-gold-400" />
+                <ShieldCheck size={11} className="text-gold-400 shrink-0" />
                 <span>Strict Non-Disclosure Protocol</span>
               </div>
 

@@ -119,17 +119,41 @@ function AppContent() {
   }, [loading, user]);
 
   useEffect(() => {
-    const path = window.location.pathname;
-    if (path === '/admin' || path === '/admin/dashboard') {
-      setShowAdmin(true);
-    } else if (path === '/admin/login') {
-      setShowAdmin(true);
-      openAuthModal();
-    } else if (path === '/admin/setup') {
-      setShowAdminSetup(true);
-    } else if (path === '/login' || path === '/signin') {
-      openAuthModal();
-    }
+    const syncRouteFromLocation = () => {
+      const path = window.location.pathname.toLowerCase();
+      if (path === '/admin' || path === '/admin/dashboard') {
+        setShowAdmin(true);
+      } else if (path === '/admin/login') {
+        setShowAdmin(true);
+        openAuthModal('login');
+      } else if (path === '/admin/setup') {
+        setShowAdminSetup(true);
+      } else if (path === '/login' || path === '/signin') {
+        openAuthModal('login');
+      } else if (path === '/register' || path === '/signup') {
+        openAuthModal('signup');
+      } else if (path === '/store' || path === '/shop' || path === '/collection') {
+        setShowProductPage(true);
+      } else if (path === '/archive' || path === '/vault') {
+        setShowArchivePage(true);
+      } else if (path === '/concierge' || path === '/contact') {
+        setShowContactPage(true);
+      } else if (path === '/orders' || path === '/my-orders' || path === '/track') {
+        setShowMyOrders(true);
+      } else if (path === '/privacy') {
+        setShowPrivacy(true);
+      } else if (path === '/terms') {
+        setShowTerms(true);
+      } else if (path === '/shipping') {
+        setShowShipping(true);
+      } else if (path === '/returns') {
+        setShowReturns(true);
+      }
+    };
+
+    syncRouteFromLocation();
+    window.addEventListener('popstate', syncRouteFromLocation);
+    return () => window.removeEventListener('popstate', syncRouteFromLocation);
   }, []);
 
   const toggleWishlist = (item: WishlistItem) => {
@@ -229,7 +253,16 @@ function AppContent() {
         isOpen={isWishlistOpen}
         onClose={() => setIsWishlistOpen(false)}
         wishlistItems={wishlistItems}
-        onRemoveItem={(id) => setWishlistItems(prev => prev.filter(i => i.id !== id))}
+        onRemoveItem={(id) => {
+          setWishlistItems(prev => {
+            const next = prev.filter(i => i.id !== id);
+            storage.setWishlist(next);
+            if (user && user.id) {
+              db.saveWishlist(user.id, next).catch(() => {});
+            }
+            return next;
+          });
+        }}
         onMoveToCart={moveWishlistToCart}
       />
 
@@ -285,7 +318,7 @@ function AppContent() {
                         onOpenWishlist={() => setIsWishlistOpen(true)}
                         onOpenFashionStore={() => setShowProductPage(true)}
                         onOpenAdmin={() => setShowAdmin(true)}
-                        onOpenMyOrders={user ? () => setShowMyOrders(true) : undefined}
+                        onOpenMyOrders={() => setShowMyOrders(true)}
                         onOpenArchive={() => setShowArchivePage(true)}
                         onOpenContact={() => setShowContactPage(true)}
                       />
@@ -296,6 +329,8 @@ function AppContent() {
                       <Contact onOpenConcierge={() => setShowContactPage(true)} />
                       <Footer 
                         onOpenStore={() => setShowProductPage(true)} 
+                        onOpenArchive={() => setShowArchivePage(true)}
+                        onOpenContact={() => setShowContactPage(true)}
                         onOpenPrivacy={() => setShowPrivacy(true)}
                         onOpenTerms={() => setShowTerms(true)}
                         onOpenShipping={() => setShowShipping(true)}

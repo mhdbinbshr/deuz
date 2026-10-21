@@ -302,7 +302,7 @@ const ConciergeInitiatedPage: React.FC<ConciergeInitiatedPageProps> = ({ orderCo
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[80] bg-[#030303] text-white flex flex-col overflow-y-auto"
+      className="fixed inset-0 z-[80] bg-[#030303] text-white flex flex-col overflow-y-auto overflow-x-hidden"
     >
       {/* Toast */}
       <AnimatePresence>
@@ -320,26 +320,26 @@ const ConciergeInitiatedPage: React.FC<ConciergeInitiatedPageProps> = ({ orderCo
       </AnimatePresence>
 
       {/* Top Navigation Bar with RETURN TO HOME */}
-      <header className="sticky top-0 z-40 bg-[#050505]/95 backdrop-blur-md border-b border-white/10 px-4 sm:px-8 py-4 flex items-center justify-between">
+      <header className="sticky top-0 z-40 bg-[#050505]/95 backdrop-blur-md border-b border-white/10 px-4 sm:px-8 py-3.5 sm:py-4 flex items-center justify-between gap-2">
         <button 
           onClick={onBackToGallery}
-          className="flex items-center gap-2 px-3.5 py-2 bg-white/5 hover:bg-gold-400 hover:text-black border border-white/10 rounded-sm text-white/80 transition-all text-xs font-mono uppercase tracking-[0.2em]"
+          className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3.5 py-2 bg-white/5 hover:bg-gold-400 hover:text-black border border-white/10 rounded-sm text-white/80 transition-all text-[10px] sm:text-xs font-mono uppercase tracking-[0.15em] sm:tracking-[0.2em] shrink-0"
           title="Return directly to the homepage"
         >
-          <Home size={15} />
+          <Home size={14} />
           <span>RETURN TO HOME</span>
         </button>
 
-        <div className="flex items-center gap-3">
-          <div className="w-2 h-2 rounded-full bg-gold-400 animate-pulse" />
-          <span className="font-serif tracking-[0.25em] text-xs sm:text-sm uppercase text-gold-400">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <div className="w-2 h-2 rounded-full bg-gold-400 animate-pulse shrink-0" />
+          <span className="font-serif tracking-[0.15em] sm:tracking-[0.25em] text-[10px] sm:text-sm uppercase text-gold-400 truncate">
             MY DOSSIER • CONFIRMED
           </span>
         </div>
 
         <button
           onClick={handleDownloadInvoice}
-          className="hidden sm:flex items-center gap-2 text-gold-400 hover:text-white transition-colors text-xs font-mono uppercase tracking-widest"
+          className="hidden sm:flex items-center gap-2 text-gold-400 hover:text-white transition-colors text-xs font-mono uppercase tracking-widest shrink-0"
         >
           <FileText size={14} />
           <span>DOWNLOAD INVOICE</span>
@@ -347,28 +347,28 @@ const ConciergeInitiatedPage: React.FC<ConciergeInitiatedPageProps> = ({ orderCo
       </header>
 
       {/* Main Container */}
-      <div className="flex-1 max-w-6xl w-full mx-auto p-4 sm:p-8 lg:p-12 space-y-8">
+      <div className="flex-1 max-w-6xl w-full mx-auto p-4 sm:p-8 lg:p-12 space-y-6 sm:space-y-8">
 
         {/* ========================================================================= */}
         {/* HERO STATUS BANNER: CURRENT STATUS & UNIQUE CODE */}
         {/* ========================================================================= */}
-        <div className="bg-[#0A0A0A] border border-gold-400/40 p-6 sm:p-10 rounded-sm relative overflow-hidden shadow-[0_0_60px_rgba(212,175,55,0.12)]">
+        <div className="bg-[#0A0A0A] border border-gold-400/40 p-5 sm:p-10 rounded-sm relative overflow-hidden shadow-[0_0_60px_rgba(212,175,55,0.12)]">
           <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-transparent via-gold-400 to-transparent" />
           
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 pb-6 border-b border-white/10">
-            <div>
-              <div className="flex items-center gap-2.5 mb-2">
-                <span className="px-2.5 py-1 bg-gold-400/10 border border-gold-400/30 text-gold-400 text-[10px] font-mono font-bold uppercase tracking-widest rounded-sm flex items-center gap-1.5">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-5 sm:gap-6 pb-6 border-b border-white/10">
+            <div className="w-full md:w-auto">
+              <div className="flex flex-wrap items-center gap-2 mb-2">
+                <span className="px-2.5 py-1 bg-gold-400/10 border border-gold-400/30 text-gold-400 text-[9px] sm:text-[10px] font-mono font-bold uppercase tracking-widest rounded-sm flex items-center gap-1.5">
                   <Sparkles size={12} className="animate-spin" />
                   <span>LIVE ATELIER DOSSIER</span>
                 </span>
-                <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest">
+                <span className="text-[9px] sm:text-[10px] font-mono text-white/40 uppercase tracking-widest">
                   Real-Time Admin Sync Active
                 </span>
               </div>
 
               <div className="flex flex-wrap items-center gap-3">
-                <h1 className="text-2xl sm:text-3xl font-serif text-white uppercase tracking-wider">
+                <h1 className="text-xl sm:text-3xl font-serif text-white uppercase tracking-wider break-all">
                   {dossier.conciergeCode || orderCode}
                 </h1>
                 <button 
@@ -385,13 +385,13 @@ const ConciergeInitiatedPage: React.FC<ConciergeInitiatedPageProps> = ({ orderCo
             </div>
 
             {/* Current Status Highlight */}
-            <div className="bg-black/60 border border-gold-400/30 p-4 sm:p-5 rounded-sm min-w-[260px] text-right">
+            <div className="bg-black/60 border border-gold-400/30 p-4 sm:p-5 rounded-sm w-full md:w-auto md:min-w-[260px] text-left md:text-right">
               <span className="text-[9px] font-mono text-white/40 uppercase tracking-widest block mb-1">
                 CURRENT ORDER STATUS
               </span>
-              <div className="flex items-center justify-end gap-2">
-                <div className="w-2 h-2 rounded-full bg-gold-400 animate-ping" />
-                <span className="text-base sm:text-lg font-serif font-bold text-gold-400 uppercase tracking-wider">
+              <div className="flex items-center md:justify-end gap-2">
+                <div className="w-2 h-2 rounded-full bg-gold-400 animate-ping shrink-0" />
+                <span className="text-sm sm:text-lg font-serif font-bold text-gold-400 uppercase tracking-wider">
                   {statusLabel}
                 </span>
               </div>
@@ -404,8 +404,8 @@ const ConciergeInitiatedPage: React.FC<ConciergeInitiatedPageProps> = ({ orderCo
           </div>
 
           {/* Interactive Phase Timeline */}
-          <div className="mt-8 pt-2">
-            <div className="relative flex justify-between items-center px-2">
+          <div className="mt-6 sm:mt-8 pt-2">
+            <div className="relative flex justify-between items-center px-1 sm:px-2">
               <div className="absolute left-2 right-2 top-[6px] h-[1px] bg-white/10 -z-0" />
               <div 
                 className="absolute left-2 top-[6px] h-[2px] bg-gold-400 transition-all duration-1000 -z-0" 
@@ -429,7 +429,7 @@ const ConciergeInitiatedPage: React.FC<ConciergeInitiatedPageProps> = ({ orderCo
                     >
                       {isCompleted && <Check size={8} className="text-black font-bold" />}
                     </div>
-                    <span className={`text-[8.5px] sm:text-[9.5px] uppercase font-mono tracking-widest mt-3 whitespace-nowrap ${
+                    <span className={`text-[7.5px] sm:text-[9.5px] uppercase font-mono tracking-wider sm:tracking-widest mt-2.5 sm:mt-3 text-center ${
                       isCompleted || isCurrent ? 'text-gold-400 font-bold' : 'text-white/30'
                     }`}>
                       {phase.name.split(' — ')[1] || phase.name}
@@ -722,8 +722,8 @@ const ConciergeInitiatedPage: React.FC<ConciergeInitiatedPageProps> = ({ orderCo
 
                   <div>
                     <span className="text-[9px] text-white/40 uppercase block mb-0.5">COMMUNICATION</span>
-                    <p className="text-white/70">Mobile: {dossier.shippingAddress.mobile || (dossier.shippingAddress as any).phone || 'On Record'}</p>
-                    <p className="text-white/70">Email: {dossier.shippingAddress.email}</p>
+                    <p className="text-white/70 break-words">Mobile: {dossier.shippingAddress.mobile || (dossier.shippingAddress as any).phone || 'On Record'}</p>
+                    <p className="text-white/70 break-all">Email: {dossier.shippingAddress.email}</p>
                   </div>
                 </div>
               ) : (

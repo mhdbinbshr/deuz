@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { db } from '../utils/db';
+import { CONCIERGE_CONFIG } from '../utils/conciergeService';
 
 export interface SiteContent {
   heroTitle: string;
@@ -84,12 +85,20 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
 
   const fetchSettings = async () => {
     try {
-      // In a real app, this endpoint might be public or require a simplified token
-      // For now, we assume public access or cached default fallback
       const data = await db.getSystemSettings().catch(() => null);
       if (data) {
         if (data.siteContent) setContent({ ...DEFAULT_CONTENT, ...data.siteContent });
-        if (data.conciergeConfig) setConcierge({ ...DEFAULT_CONCIERGE, ...data.conciergeConfig });
+        if (data.conciergeConfig) {
+          const merged = { ...DEFAULT_CONCIERGE, ...data.conciergeConfig };
+          setConcierge(merged);
+          Object.assign(CONCIERGE_CONFIG, {
+            whatsappNumber: merged.whatsappNumber || DEFAULT_CONCIERGE.whatsappNumber,
+            phoneNumber: merged.phoneNumber || DEFAULT_CONCIERGE.phoneNumber,
+            displayPhone: merged.displayPhone || DEFAULT_CONCIERGE.displayPhone,
+            instagramHandle: merged.instagramHandle || DEFAULT_CONCIERGE.instagramHandle,
+            emailAddress: merged.emailAddress || DEFAULT_CONCIERGE.emailAddress
+          });
+        }
       }
     } catch (e) {
       console.warn("Failed to load dynamic settings, using defaults.");
@@ -103,7 +112,17 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
     const unsub = db.subscribeSystemSettings((data) => {
       if (data) {
         if (data.siteContent) setContent({ ...DEFAULT_CONTENT, ...data.siteContent });
-        if (data.conciergeConfig) setConcierge({ ...DEFAULT_CONCIERGE, ...data.conciergeConfig });
+        if (data.conciergeConfig) {
+          const merged = { ...DEFAULT_CONCIERGE, ...data.conciergeConfig };
+          setConcierge(merged);
+          Object.assign(CONCIERGE_CONFIG, {
+            whatsappNumber: merged.whatsappNumber || DEFAULT_CONCIERGE.whatsappNumber,
+            phoneNumber: merged.phoneNumber || DEFAULT_CONCIERGE.phoneNumber,
+            displayPhone: merged.displayPhone || DEFAULT_CONCIERGE.displayPhone,
+            instagramHandle: merged.instagramHandle || DEFAULT_CONCIERGE.instagramHandle,
+            emailAddress: merged.emailAddress || DEFAULT_CONCIERGE.emailAddress
+          });
+        }
         setLoading(false);
       }
     });

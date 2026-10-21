@@ -16,34 +16,49 @@ import {
   RotateCw,
   UserPlus,
   UserX,
-  ExternalLink
+  ExternalLink,
+  MapPin
 } from 'lucide-react';
 import { db } from '../utils/db';
+import { storage } from '../utils/storage';
 import { useAuth } from '../context/AuthContext';
 import { LoginAtmosphere3D } from './LoginAtmosphere3D';
 
 const AuthModal: React.FC = () => {
   const { 
+    user,
     isAuthModalOpen, 
     closeAuthModal, 
     login, 
     signup, 
     loginWithGoogle, 
     forgotPassword,
+    verifyResetCode,
     confirmPasswordReset,
     authModalMode,
-    authModalCode
+    authModalCode,
+    authBannerNotice,
+    clearAuthBannerNotice
   } = useAuth();
   const formScrollRef = useRef<HTMLDivElement>(null);
   const [mode, setMode] = useState<'login' | 'signup' | 'forgot' | 'resetConfirm'>('login');
   const [recoveryCode, setRecoveryCode] = useState('');
+  const [verifiedResetEmail, setVerifiedResetEmail] = useState('');
+  const [verifyingCode, setVerifyingCode] = useState(false);
   
-  const [formData, setFormData] = useState({
-    fullName: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
-    mobile: ''
+  const [formData, setFormData] = useState(() => {
+    const draft = storage.getRegistrationDraft();
+    return {
+      fullName: draft?.fullName || '',
+      email: draft?.email || '',
+      password: '',
+      confirmPassword: '',
+      mobile: draft?.mobile || '',
+      address: draft?.address || '',
+      city: draft?.city || '',
+      pincode: draft?.pincode || '',
+      termsAccepted: draft?.termsAccepted ?? true
+    };
   });
 
   const [showPassword, setShowPassword] = useState(false);
@@ -60,6 +75,49 @@ const AuthModal: React.FC = () => {
   const [emailCheckStatus, setEmailCheckStatus] = useState<'idle' | 'checking' | 'registered' | 'unregistered'>('idle');
   const [isGoogleAccountSelected, setIsGoogleAccountSelected] = useState(false);
 
+  // If an authenticated Google user has an incomplete profile (e.g. after page refresh), prefill their Google details
+  useEffect(() => {
+    if (isAuthModalOpen && user && user.authProvider === 'google' && user.profileCompleted === false) {
+      const draft = storage.getRegistrationDraft();
+      setIsGoogleAccountSelected(true);
+      setMode('signup');
+      setFormData(prev => ({
+        ...prev,
+        fullName: draft?.fullName || user.fullName || user.displayName || prev.fullName,
+        email: user.email || prev.email,
+        mobile: draft?.mobile || user.mobile || prev.mobile,
+        address: draft?.address || (user.address as any)?.addressLine1 || user.address?.address || prev.address,
+        city: draft?.city || user.address?.city || prev.city,
+        pincode: draft?.pincode || (user.address as any)?.postalCode || user.address?.pincode || prev.pincode,
+        termsAccepted: draft?.termsAccepted ?? true
+      }));
+    }
+  }, [isAuthModalOpen, user]);
+
+  // Persist non-sensitive registration draft so refreshing the page does not lose entered data
+  useEffect(() => {
+    if (mode === 'signup') {
+      storage.setRegistrationDraft({
+        fullName: formData.fullName,
+        email: formData.email,
+        mobile: formData.mobile,
+        address: formData.address,
+        city: formData.city,
+        pincode: formData.pincode,
+        termsAccepted: formData.termsAccepted
+      });
+    }
+  }, [
+    mode,
+    formData.fullName,
+    formData.email,
+    formData.mobile,
+    formData.address,
+    formData.city,
+    formData.pincode,
+    formData.termsAccepted
+  ]);
+
   // Cooldown timer for resending password reset email
   useEffect(() => {
     if (resendCooldown <= 0) return;
@@ -69,7 +127,42 @@ const AuthModal: React.FC = () => {
     return () => clearInterval(interval);
   }, [resendCooldown]);
 
-  // Live debounced Firebase email check
+  // Validate password reset action code whenever mode is resetConfirm and recoveryCode is provided
+  useEffect(() => {
+    if (!isAuthModalOpen || mode !== 'resetConfirm') return;
+    let cleanCode = recoveryCode.trim();
+    if (cleanCode.includes('oobCode=')) {
+      const match = cleanCode.match(/[?&]oobCode=([^&#]+)/);
+      if (match && match[1]) cleanCode = decodeURIComponent(match[1]);
+    }
+    if (!cleanCode || cleanCode.length < 12) {
+      setVerifiedResetEmail('');
+      return;
+    }
+
+    let active = true;
+    setVerifyingCode(true);
+    const timer = setTimeout(async () => {
+      const res = await verifyResetCode(cleanCode);
+      if (!active) return;
+      setVerifyingCode(false);
+      if (res.success && res.email) {
+        setVerifiedResetEmail(res.email);
+        setFormData(prev => ({ ...prev, email: res.email || prev.email }));
+        setError('');
+      } else if (!res.success && res.message) {
+        setVerifiedResetEmail('');
+        setError(res.message);
+      }
+    }, 300);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [isAuthModalOpen, mode, recoveryCode]);
+
+  // Live debounced Cloud Registry email check
   useEffect(() => {
     if (!isAuthModalOpen) return;
     const trimmed = formData.email.toLowerCase().trim();
@@ -141,13 +234,16 @@ const AuthModal: React.FC = () => {
       setIsResetEmailSent(false);
       setShowUserNotFoundPopup(false);
       setNotFoundEmail('');
-      setIsGoogleAccountSelected(false);
       setLoading(false);
     }
   }, [isAuthModalOpen, closeAuthModal]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value, type, checked } = e.target;
+    setFormData({
+      ...formData,
+      [name]: type === 'checkbox' ? checked : value
+    });
     setError('');
     setIsUnregisteredUser(false);
     setIsExistingUserOnSignup(false);
@@ -162,6 +258,7 @@ const AuthModal: React.FC = () => {
     setIsExistingUserOnSignup(false);
     setIsResetEmailSent(false);
     setShowUserNotFoundPopup(false);
+    if (authBannerNotice) clearAuthBannerNotice();
   };
 
   const handleResendResetEmail = async () => {
@@ -203,6 +300,7 @@ const AuthModal: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     setLoading(true);
     setError('');
     setSuccess('');
@@ -216,6 +314,11 @@ const AuthModal: React.FC = () => {
           setLoading(false);
           return;
         }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+          setError('Please enter a valid email address.');
+          setLoading(false);
+          return;
+        }
         if (!formData.password) {
           setError('Please enter your password.');
           setLoading(false);
@@ -225,6 +328,7 @@ const AuthModal: React.FC = () => {
         const res = await login(normalizedEmail, formData.password);
         if (res.success) {
           setSuccess('Identity verified & synchronized. Accessing atelier dossier...');
+          setFormData(prev => ({ ...prev, password: '', confirmPassword: '' }));
           setTimeout(() => {
             closeAuthModal();
           }, 600);
@@ -243,18 +347,43 @@ const AuthModal: React.FC = () => {
           setLoading(false);
           return;
         }
-        if (!normalizedEmail) {
+        if (!normalizedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
           setError('Please provide a valid email address.');
           setLoading(false);
           return;
         }
-        if (!formData.password || formData.password.length < 6) {
+        // Validate phone number if provided or when completing Google dossier registration
+        const cleanPhone = formData.mobile.trim();
+        if (isGoogleAccountSelected && !cleanPhone) {
+          setError('Please provide your Direct Telephone number to complete your Client Dossier.');
+          setLoading(false);
+          return;
+        }
+        if (cleanPhone && !/^[+\d][\d\s\-()]{6,19}$/.test(cleanPhone)) {
+          setError('Please enter a valid telephone number (minimum 7 digits).');
+          setLoading(false);
+          return;
+        }
+
+        // Password is required for email/password registration, and optional for Google users
+        const isPasswordRequired = !isGoogleAccountSelected;
+        if (isPasswordRequired && (!formData.password || formData.password.length < 6)) {
           setError('Password must contain at least 6 characters.');
           setLoading(false);
           return;
         }
-        if (formData.password !== formData.confirmPassword) {
+        if (!isPasswordRequired && formData.password && formData.password.length < 6) {
+          setError('Optional password must contain at least 6 characters if provided.');
+          setLoading(false);
+          return;
+        }
+        if (formData.password && formData.password !== formData.confirmPassword) {
           setError('Passwords do not match. Please re-enter.');
+          setLoading(false);
+          return;
+        }
+        if (!formData.termsAccepted) {
+          setError('Please accept the Atelier Patron Covenant & Privacy Terms to establish your dossier.');
           setLoading(false);
           return;
         }
@@ -262,13 +391,19 @@ const AuthModal: React.FC = () => {
         const res = await signup({
           fullName: formData.fullName.trim(),
           email: normalizedEmail,
-          password: formData.password,
-          mobile: formData.mobile.trim()
+          password: formData.password || undefined,
+          mobile: cleanPhone,
+          address: formData.address.trim(),
+          city: formData.city.trim(),
+          pincode: formData.pincode.trim(),
+          termsAccepted: formData.termsAccepted
         });
 
         if (res.success) {
           setIsExistingUserOnSignup(false);
           setIsGoogleAccountSelected(false);
+          storage.clearRegistrationDraft();
+          setFormData(prev => ({ ...prev, password: '', confirmPassword: '' }));
           setSuccess('Dossier established & synchronized. Welcome to Deuz & Co.');
           setTimeout(() => {
             closeAuthModal();
@@ -280,8 +415,8 @@ const AuthModal: React.FC = () => {
           }
         }
       } else if (mode === 'forgot') {
-        if (!normalizedEmail) {
-          setError('Please provide your registered email address.');
+        if (!normalizedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+          setError('Please provide a valid registered email address.');
           setLoading(false);
           return;
         }
@@ -320,11 +455,12 @@ const AuthModal: React.FC = () => {
           return;
         }
 
-        const res = await confirmPasswordReset(cleanCode, formData.password, normalizedEmail);
+        const res = await confirmPasswordReset(cleanCode, formData.password, verifiedResetEmail || normalizedEmail);
         if (res.success) {
           setSuccess('Your password has been updated and synchronized. Redirecting to Sign In...');
           setFormData(prev => ({ ...prev, password: '', confirmPassword: '' }));
           setRecoveryCode('');
+          setVerifiedResetEmail('');
           setTimeout(() => {
             handleSwitchMode('login');
           }, 1400);
@@ -340,6 +476,7 @@ const AuthModal: React.FC = () => {
   };
 
   const handleGoogleAuth = async () => {
+    if (loading) return;
     setLoading(true);
     setError('');
     setSuccess('');
@@ -349,23 +486,37 @@ const AuthModal: React.FC = () => {
         const googleEmail = (res.user?.email || '').toLowerCase().trim();
         const googleName = res.user?.fullName || res.user?.displayName || '';
         const googleMobile = res.user?.mobile || '';
+        const googleAddress: any = res.user?.address || {};
 
-        // Redirect user to Register a New Dossier after selecting their Google account
+        // Redirect user to Register Dossier with Google profile prefilled
         setFormData(prev => ({
           ...prev,
           fullName: googleName || prev.fullName,
           email: googleEmail || prev.email,
           mobile: googleMobile || prev.mobile,
+          address: googleAddress.addressLine1 || googleAddress.address || prev.address,
+          city: googleAddress.city || prev.city,
+          pincode: googleAddress.postalCode || googleAddress.pincode || prev.pincode,
           password: '',
-          confirmPassword: ''
+          confirmPassword: '',
+          termsAccepted: true
         }));
         setIsGoogleAccountSelected(true);
         setIsExistingUserOnSignup(false);
         setIsUnregisteredUser(false);
-        setMode('signup');
-        setSuccess(
-          `Google account (${googleEmail || 'Verified'}) selected. Please complete the registration fields below to establish your new Client Dossier.`
-        );
+
+        // If returning Google user already has a completed profile and signed in from Login tab, allow immediate entry or dossier review
+        if (!res.isNewUser && res.user?.profileCompleted && mode === 'login') {
+          setMode('signup');
+          setSuccess(
+            `Welcome back, ${googleName || googleEmail}. Your Google account is verified — confirm your Client Dossier details below or close to continue directly.`
+          );
+        } else {
+          setMode('signup');
+          setSuccess(
+            `Google account (${googleEmail || 'Verified'}) selected. Please complete the registration fields below to establish your Client Dossier.`
+          );
+        }
       } else {
         setError(res.message || 'Google authorization interrupted.');
       }
@@ -383,7 +534,7 @@ const AuthModal: React.FC = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 overflow-y-auto overscroll-y-contain bg-black/90 backdrop-blur-2xl gold-scrollbar touch-pan-y"
+          className="fixed inset-0 z-50 overflow-y-auto overflow-x-hidden overscroll-y-contain bg-black/90 backdrop-blur-2xl gold-scrollbar touch-pan-y"
           style={{ WebkitOverflowScrolling: 'touch' }}
         >
           {/* Ambient Stardust Field in Backdrop Across ALL Screens */}
@@ -396,10 +547,10 @@ const AuthModal: React.FC = () => {
             onClick={(e) => {
               if (e.target === e.currentTarget) closeAuthModal();
             }}
-            className="min-h-full w-full flex items-center justify-center p-3 sm:p-5 md:p-6 lg:p-8 py-6 sm:py-8"
+            className="min-h-full w-full flex items-center justify-center p-2.5 xs:p-3 sm:p-5 md:p-6 lg:p-8 py-5 sm:py-8"
           >
             <div 
-              className="relative w-full max-w-lg md:max-w-4xl bg-[#070707] border border-white/15 rounded-xl sm:rounded-lg overflow-hidden shadow-[0_30px_100px_rgba(0,0,0,0.95)] flex flex-col md:flex-row md:max-h-[88vh] z-10 my-auto shrink-0"
+              className="relative w-full max-w-lg md:max-w-4xl bg-[#070707] border border-white/15 rounded-xl sm:rounded-lg overflow-hidden shadow-[0_30px_100px_rgba(0,0,0,0.95)] flex flex-col md:flex-row md:max-h-[90dvh] z-10 my-auto shrink-0"
               onClick={(e) => e.stopPropagation()}
             >
               {/* User Not Found Pop-up Dialog */}
@@ -616,17 +767,48 @@ const AuthModal: React.FC = () => {
                 <div className="mb-5">
                   <h2 className="text-xl sm:text-2xl font-serif text-white tracking-wide">
                     {mode === 'login' && 'Atelier Client Sign In'}
-                    {mode === 'signup' && 'Establish Client Dossier'}
+                    {mode === 'signup' && (isGoogleAccountSelected ? 'Complete Google Client Dossier' : 'Establish Client Dossier')}
                     {mode === 'forgot' && 'Password Recovery Protocol'}
                     {mode === 'resetConfirm' && 'Configure New Dossier Password'}
                   </h2>
                   <p className="text-xs text-white/50 mt-1">
                     {mode === 'login' && 'Authenticate credentials to inspect acquisitions, orders, and tier privileges.'}
-                    {mode === 'signup' && 'Establish your confidential account to unlock private capsule drops.'}
+                    {mode === 'signup' && (isGoogleAccountSelected
+                      ? 'Your Google account is connected. Confirm your patron details below to finalize your Client Dossier.'
+                      : 'Establish your confidential account to unlock private capsule drops.')}
                     {mode === 'forgot' && 'Dispatch an official password recovery link to your registered email inbox.'}
-                    {mode === 'resetConfirm' && 'Paste the recovery link or code from your email to configure your new password.'}
+                    {mode === 'resetConfirm' && 'Validate your recovery link and configure your new password.'}
                   </p>
                 </div>
+
+                {/* Global Auth Banner Notice (e.g. Email Verification Link result) */}
+                {authBannerNotice && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`mb-4 p-3.5 rounded text-xs flex items-center justify-between gap-2.5 border ${
+                      authBannerNotice.type === 'success'
+                        ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300'
+                        : 'bg-red-950/40 border-red-500/40 text-red-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      {authBannerNotice.type === 'success' ? (
+                        <CheckCircle2 size={15} className="shrink-0 text-emerald-400" />
+                      ) : (
+                        <AlertTriangle size={15} className="shrink-0 text-red-400" />
+                      )}
+                      <span>{authBannerNotice.message}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={clearAuthBannerNotice}
+                      className="text-white/50 hover:text-white p-1 cursor-pointer"
+                    >
+                      <X size={13} />
+                    </button>
+                  </motion.div>
+                )}
 
                 {/* Status Notifications */}
                 {error && (
@@ -838,8 +1020,11 @@ const AuthModal: React.FC = () => {
                           onChange={handleChange}
                           placeholder="client@deuz.atelier"
                           required={mode !== 'resetConfirm'}
+                          readOnly={mode === 'signup' && isGoogleAccountSelected && Boolean(formData.email)}
                           autoComplete="email"
-                          className="w-full bg-[#0E0E0E] border border-white/10 rounded py-2.5 pl-10 pr-4 text-xs text-white placeholder:text-white/20 focus:outline-none focus:border-gold-500/80 transition-colors"
+                          className={`w-full bg-[#0E0E0E] border border-white/10 rounded py-2.5 pl-10 pr-4 text-xs text-white placeholder:text-white/20 focus:outline-none focus:border-gold-500/80 transition-colors ${
+                            mode === 'signup' && isGoogleAccountSelected && formData.email ? 'opacity-80 cursor-not-allowed border-emerald-500/30' : ''
+                          }`}
                         />
                       </div>
                       {formData.email.trim().length > 0 && (
@@ -856,7 +1041,7 @@ const AuthModal: React.FC = () => {
                           ) : mode === 'signup' ? (
                             isGoogleAccountSelected ? (
                               <span className="text-emerald-400 flex items-center gap-1">
-                                <CheckCircle2 size={11} /> Google account linked — ready to establish dossier
+                                <CheckCircle2 size={11} /> Google account verified — complete dossier details below
                               </span>
                             ) : emailCheckStatus === 'registered' ? (
                               <span className="text-amber-400 flex items-center gap-1.5">
@@ -914,9 +1099,20 @@ const AuthModal: React.FC = () => {
                             className="w-full bg-[#0E0E0E] border border-white/10 rounded py-2.5 pl-10 pr-4 text-xs font-mono text-white placeholder:text-white/20 focus:outline-none focus:border-gold-500/80 transition-colors"
                           />
                         </div>
-                        <p className="text-[10px] text-white/40 font-mono mt-1">
-                          Paste the full reset link from the recovery email sent to your inbox.
-                        </p>
+                        {verifyingCode ? (
+                          <p className="text-[10px] text-gold-400 font-mono mt-1 flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full border border-gold-400 border-t-transparent animate-spin" />
+                            Validating recovery action code...
+                          </p>
+                        ) : verifiedResetEmail ? (
+                          <p className="text-[10px] text-emerald-400 font-mono mt-1 flex items-center gap-1">
+                            <CheckCircle2 size={11} /> Recovery code verified for {verifiedResetEmail}
+                          </p>
+                        ) : (
+                          <p className="text-[10px] text-white/40 font-mono mt-1">
+                            Paste the full reset link from the recovery email sent to your inbox.
+                          </p>
+                        )}
                       </div>
                     )}
 
@@ -924,7 +1120,7 @@ const AuthModal: React.FC = () => {
                     {mode === 'signup' && (
                       <div className="space-y-1">
                         <label className="text-[10px] uppercase font-mono tracking-widest text-white/60 block">
-                          Direct Telephone <span className="text-white/30 text-[9px]">(Optional for Courier SMS)</span>
+                          Direct Telephone {isGoogleAccountSelected ? <span className="text-gold-500">*</span> : <span className="text-white/30 text-[9px]">(Optional for Courier SMS)</span>}
                         </label>
                         <div className="relative">
                           <Phone size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30" />
@@ -933,8 +1129,44 @@ const AuthModal: React.FC = () => {
                             name="mobile"
                             value={formData.mobile}
                             onChange={handleChange}
+                            required={isGoogleAccountSelected}
                             placeholder="+91 98765 43210"
                             className="w-full bg-[#0E0E0E] border border-white/10 rounded py-2.5 pl-10 pr-4 text-xs text-white placeholder:text-white/20 focus:outline-none focus:border-gold-500/80 transition-colors"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Optional Salon Delivery Coordinates (Sign Up only) */}
+                    {mode === 'signup' && (
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                        <div className="sm:col-span-2 space-y-1">
+                          <label className="text-[10px] uppercase font-mono tracking-widest text-white/60 block">
+                            Primary Residence / Salon Address <span className="text-white/30 text-[9px]">(Optional)</span>
+                          </label>
+                          <div className="relative">
+                            <MapPin size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30" />
+                            <input
+                              type="text"
+                              name="address"
+                              value={formData.address}
+                              onChange={handleChange}
+                              placeholder="Street, Suite or Residence"
+                              className="w-full bg-[#0E0E0E] border border-white/10 rounded py-2 pl-9 pr-3 text-xs text-white placeholder:text-white/20 focus:outline-none focus:border-gold-500/80 transition-colors"
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] uppercase font-mono tracking-widest text-white/60 block">
+                            City <span className="text-white/30 text-[9px]">(Optional)</span>
+                          </label>
+                          <input
+                            type="text"
+                            name="city"
+                            value={formData.city}
+                            onChange={handleChange}
+                            placeholder="City"
+                            className="w-full bg-[#0E0E0E] border border-white/10 rounded py-2 px-3 text-xs text-white placeholder:text-white/20 focus:outline-none focus:border-gold-500/80 transition-colors"
                           />
                         </div>
                       </div>
@@ -945,7 +1177,12 @@ const AuthModal: React.FC = () => {
                       <div className="space-y-1">
                         <div className="flex items-center justify-between">
                           <label className="text-[10px] uppercase font-mono tracking-widest text-white/60 block">
-                            {mode === 'resetConfirm' ? 'New Password' : 'Password'} <span className="text-gold-500">*</span>
+                            {mode === 'resetConfirm' ? 'New Password' : 'Password'}{' '}
+                            {mode === 'signup' && isGoogleAccountSelected ? (
+                              <span className="text-white/35 text-[9px]">(Optional — Set to enable password login)</span>
+                            ) : (
+                              <span className="text-gold-500">*</span>
+                            )}
                           </label>
                           {mode === 'login' && (
                             <button
@@ -964,8 +1201,14 @@ const AuthModal: React.FC = () => {
                             name="password"
                             value={formData.password}
                             onChange={handleChange}
-                            placeholder={mode === 'signup' || mode === 'resetConfirm' ? "Minimum 6 characters" : "••••••••"}
-                            required
+                            placeholder={
+                              mode === 'signup' && isGoogleAccountSelected
+                                ? "Leave blank to use Google-only, or enter 6+ chars"
+                                : mode === 'signup' || mode === 'resetConfirm'
+                                ? "Minimum 6 characters"
+                                : "••••••••"
+                            }
+                            required={!(mode === 'signup' && isGoogleAccountSelected)}
                             autoComplete={mode === 'signup' || mode === 'resetConfirm' ? "new-password" : "current-password"}
                             className="w-full bg-[#0E0E0E] border border-white/10 rounded py-2.5 pl-10 pr-10 text-xs text-white placeholder:text-white/20 focus:outline-none focus:border-gold-500/80 transition-colors"
                           />
@@ -1003,7 +1246,7 @@ const AuthModal: React.FC = () => {
                     )}
 
                     {/* Confirm Password (Sign Up & Reset Confirm) */}
-                    {(mode === 'signup' || mode === 'resetConfirm') && (
+                    {(mode === 'resetConfirm' || (mode === 'signup' && (!isGoogleAccountSelected || formData.password.length > 0))) && (
                       <div className="space-y-1">
                         <label className="text-[10px] uppercase font-mono tracking-widest text-white/60 block">
                           Confirm {mode === 'resetConfirm' ? 'New ' : ''}Password <span className="text-gold-500">*</span>
@@ -1016,7 +1259,7 @@ const AuthModal: React.FC = () => {
                             value={formData.confirmPassword}
                             onChange={handleChange}
                             placeholder="Re-enter password"
-                            required
+                            required={mode === 'resetConfirm' || !isGoogleAccountSelected || formData.password.length > 0}
                             autoComplete="new-password"
                             className="w-full bg-[#0E0E0E] border border-white/10 rounded py-2.5 pl-10 pr-10 text-xs text-white placeholder:text-white/20 focus:outline-none focus:border-gold-500/80 transition-colors"
                           />
@@ -1045,6 +1288,22 @@ const AuthModal: React.FC = () => {
                       </div>
                     )}
 
+                    {/* Terms & Covenant Acceptance (Sign Up only) */}
+                    {mode === 'signup' && (
+                      <label className="flex items-start gap-2.5 pt-1 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          name="termsAccepted"
+                          checked={formData.termsAccepted}
+                          onChange={handleChange}
+                          className="mt-0.5 accent-gold-500 rounded cursor-pointer"
+                        />
+                        <span className="text-[11px] text-white/60 leading-relaxed">
+                          I accept the <span className="text-gold-400 font-medium">Deuz &amp; Co. Patron Covenant</span>, privacy terms, and encrypted dossier synchronization policy. <span className="text-gold-500">*</span>
+                        </span>
+                      </label>
+                    )}
+
                     {/* Submit Button */}
                     <button
                       type="submit"
@@ -1060,7 +1319,7 @@ const AuthModal: React.FC = () => {
                         <>
                           <span>
                             {mode === 'login' && 'Authorize & Sign In'}
-                            {mode === 'signup' && 'Establish Dossier'}
+                            {mode === 'signup' && (isGoogleAccountSelected ? 'Complete & Save Dossier' : 'Establish Dossier')}
                             {mode === 'forgot' && 'Send Password Reset Email'}
                             {mode === 'resetConfirm' && 'Update & Synchronize Password'}
                           </span>
@@ -1104,7 +1363,7 @@ const AuthModal: React.FC = () => {
                           d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                         />
                       </svg>
-                      <span>Google Secure Access</span>
+                      <span>Continue with Google</span>
                     </button>
                   </div>
                 )}
@@ -1214,3 +1473,4 @@ const AuthModal: React.FC = () => {
 };
 
 export default AuthModal;
+

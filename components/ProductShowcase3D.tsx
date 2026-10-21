@@ -127,7 +127,7 @@ const ProductShowcase3D: React.FC<ProductShowcase3DProps> = ({
               setTouchStartX(null);
             }
           }}
-          className="relative aspect-[4/5] h-[min(46vh,350px)] xs:h-[min(50vh,390px)] sm:h-[min(54vh,440px)] md:h-[min(56vh,460px)] lg:h-[min(62vh,510px)] xl:h-[min(65vh,540px)] max-h-[calc(100vh-185px)] w-auto max-w-[88vw] rounded-none bg-[#0A0A0A] border border-white/20 shadow-[0_25px_70px_rgba(0,0,0,0.9)] group mx-auto shrink-0"
+          className="relative aspect-[4/5] h-[min(44dvh,340px)] xs:h-[min(48dvh,380px)] sm:h-[min(52dvh,430px)] md:h-[min(56dvh,460px)] lg:h-[min(62dvh,510px)] xl:h-[min(65dvh,540px)] max-h-[calc(100dvh-185px)] w-auto max-w-[88vw] rounded-none bg-[#0A0A0A] border border-white/20 shadow-[0_25px_70px_rgba(0,0,0,0.9)] group mx-auto shrink-0"
         >
           {/* Ambient Backplane Light Pool */}
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(212,175,55,0.18),transparent_70%)] pointer-events-none filter blur-xl" />

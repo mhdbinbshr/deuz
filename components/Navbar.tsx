@@ -284,7 +284,11 @@ const Navbar: React.FC<NavbarProps> = ({
                               type="button"
                               onClick={() => {
                                 setIsUserMenuOpen(false);
-                                setIsProfileChamberOpen(true);
+                                if (user.authProvider === 'google' && user.profileCompleted === false) {
+                                  openAuthModal('signup');
+                                } else {
+                                  setIsProfileChamberOpen(true);
+                                }
                               }}
                               className="w-full text-left px-3.5 py-2.5 hover:bg-gold-500/10 active:bg-gold-500/15 transition-all flex items-center gap-3 group cursor-pointer"
                             >
@@ -779,7 +783,7 @@ const Navbar: React.FC<NavbarProps> = ({
                     <p className="text-[9px] font-mono text-white/40 uppercase tracking-[0.3em]">
                       CHAMBERS ∞ DIRECT ACCESS
                     </p>
-                    <span className="text-[8px] font-mono text-gold-500/60 tracking-widest">6 DESTINATIONS</span>
+                    <span className="text-[8px] font-mono text-gold-500/60 tracking-widest">5 DESTINATIONS</span>
                   </div>
 
                   {/* 01: Home */}
@@ -814,44 +818,11 @@ const Navbar: React.FC<NavbarProps> = ({
                     </div>
                   </motion.div>
 
-                  {/* 02: Maison */}
+                  {/* 02: Fashion House */}
                   <motion.div
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.14 }}
-                    whileHover={{ x: 4, scale: 1.01 }}
-                    className="p-3 sm:p-3.5 rounded-sm border border-white/5 hover:border-gold-500/30 bg-white/[0.015] hover:bg-white/[0.04] transition-all group cursor-pointer"
-                    onClick={() => {
-                      setMobileMenuOpen(false);
-                      const el = document.getElementById('about');
-                      if (el) el.scrollIntoView({ behavior: 'smooth' });
-                    }}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-7 h-7 rounded-sm bg-white/[0.03] border border-white/5 flex items-center justify-center text-white/40 group-hover:text-gold-400 group-hover:border-gold-500/30 transition-all shrink-0">
-                          <Compass size={13} />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[9px] font-mono text-gold-500/70">02</span>
-                            <h4 className="font-serif text-sm sm:text-base text-white group-hover:text-gold-300 transition-colors tracking-wide truncate">
-                              The Maison
-                            </h4>
-                            <span className="text-[8px] px-1.5 py-0.2 bg-white/5 text-white/50 font-mono tracking-wider rounded shrink-0">MANIFESTO</span>
-                          </div>
-                          <p className="text-[10px] text-white/40 tracking-wider mt-0.5 truncate">Singularity, discipline & architectural evolution</p>
-                        </div>
-                      </div>
-                      <ArrowRight size={14} className="text-white/20 group-hover:text-gold-400 group-hover:translate-x-1 transition-all shrink-0" />
-                    </div>
-                  </motion.div>
-
-                  {/* 03: Fashion House */}
-                  <motion.div
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.18 }}
                     whileHover={{ x: 4, scale: 1.01 }}
                     className="p-3 sm:p-3.5 rounded-sm border border-gold-500/20 hover:border-gold-500/50 bg-gradient-to-r from-gold-500/5 via-white/[0.02] to-transparent hover:bg-white/[0.04] transition-all group cursor-pointer shadow-[0_0_20px_rgba(212,175,55,0.03)]"
                     onClick={() => {
@@ -866,7 +837,7 @@ const Navbar: React.FC<NavbarProps> = ({
                         </div>
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className="text-[9px] font-mono text-gold-500">03</span>
+                            <span className="text-[9px] font-mono text-gold-500">02</span>
                             <h4 className="font-serif text-sm sm:text-base text-white group-hover:text-gold-300 transition-colors tracking-wide truncate">
                               Fashion House
                             </h4>
@@ -882,11 +853,11 @@ const Navbar: React.FC<NavbarProps> = ({
                     </div>
                   </motion.div>
 
-                  {/* 04: The Vault Archive */}
+                  {/* 03: The Vault Archive */}
                   <motion.div
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.22 }}
+                    transition={{ delay: 0.18 }}
                     whileHover={{ x: 4, scale: 1.01 }}
                     className="p-3 sm:p-3.5 rounded-sm border border-white/5 hover:border-gold-500/30 bg-white/[0.015] hover:bg-white/[0.04] transition-all group cursor-pointer"
                     onClick={() => {
@@ -901,7 +872,7 @@ const Navbar: React.FC<NavbarProps> = ({
                         </div>
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className="text-[9px] font-mono text-gold-500/70">04</span>
+                            <span className="text-[9px] font-mono text-gold-500/70">03</span>
                             <h4 className="font-serif text-sm sm:text-base text-white group-hover:text-gold-300 transition-colors tracking-wide truncate">
                               The Vault Archive
                             </h4>
@@ -914,11 +885,11 @@ const Navbar: React.FC<NavbarProps> = ({
                     </div>
                   </motion.div>
 
-                  {/* 05: Private Concierge */}
+                  {/* 04: Private Concierge */}
                   <motion.div
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.26 }}
+                    transition={{ delay: 0.22 }}
                     whileHover={{ x: 4, scale: 1.01 }}
                     className="p-3 sm:p-3.5 rounded-sm border border-white/5 hover:border-gold-500/30 bg-white/[0.015] hover:bg-white/[0.04] transition-all group cursor-pointer"
                     onClick={() => {
@@ -933,7 +904,7 @@ const Navbar: React.FC<NavbarProps> = ({
                         </div>
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className="text-[9px] font-mono text-gold-500/70">05</span>
+                            <span className="text-[9px] font-mono text-gold-500/70">04</span>
                             <h4 className="font-serif text-sm sm:text-base text-white group-hover:text-gold-300 transition-colors tracking-wide truncate">
                               Private Concierge
                             </h4>
@@ -946,11 +917,11 @@ const Navbar: React.FC<NavbarProps> = ({
                     </div>
                   </motion.div>
 
-                  {/* 06: Saved Wishlist */}
+                  {/* 05: Saved Wishlist */}
                   <motion.div
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.3 }}
+                    transition={{ delay: 0.26 }}
                     whileHover={{ x: 4, scale: 1.01 }}
                     className="p-3 sm:p-3.5 rounded-sm border border-white/5 hover:border-red-500/30 bg-white/[0.015] hover:bg-white/[0.04] transition-all group cursor-pointer"
                     onClick={() => {
@@ -965,7 +936,7 @@ const Navbar: React.FC<NavbarProps> = ({
                         </div>
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className="text-[9px] font-mono text-gold-500/70">07</span>
+                            <span className="text-[9px] font-mono text-gold-500/70">05</span>
                             <h4 className="font-serif text-sm sm:text-base text-white group-hover:text-red-300 transition-colors tracking-wide truncate">
                               Saved Wishlist
                             </h4>
