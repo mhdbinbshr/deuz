@@ -232,7 +232,7 @@ const FALLBACK_SETTINGS = {
         heroSubtitle: 'Not for everyone.',
         ctaText: 'Initiate Request',
         checkoutDisclaimer: 'Submit your allocation request. No payment is required until our curators verify your dossier.',
-        footerText: 'Designed in Cinematic Vision'
+        footerText: 'Not for everyone'
     }
 };
 
@@ -3500,7 +3500,17 @@ export const db = {
     try {
         const docRef = doc(firestore, "settings", "global_config");
         const snap = await getDoc(docRef);
-        if (snap.exists()) return snap.data();
+        if (snap.exists()) {
+            const data = snap.data();
+            if (
+                data?.siteContent?.footerText &&
+                (data.siteContent.footerText.trim().toLowerCase() === 'designed in cinematic vision' ||
+                 data.siteContent.footerText.trim().toLowerCase() === 'design in cinematic vision')
+            ) {
+                data.siteContent.footerText = 'Not for everyone';
+            }
+            return data;
+        }
     } catch (error: any) {
         if (error?.message?.includes('offline') || error?.code === 'unavailable') {
             return FALLBACK_SETTINGS;
@@ -3515,7 +3525,15 @@ export const db = {
       const docRef = doc(firestore, "settings", "global_config");
       return onSnapshot(docRef, (snap) => {
         if (snap.exists()) {
-          callback(snap.data());
+          const data = snap.data();
+          if (
+            data?.siteContent?.footerText &&
+            (data.siteContent.footerText.trim().toLowerCase() === 'designed in cinematic vision' ||
+             data.siteContent.footerText.trim().toLowerCase() === 'design in cinematic vision')
+          ) {
+            data.siteContent.footerText = 'Not for everyone';
+          }
+          callback(data);
         } else {
           callback(FALLBACK_SETTINGS);
         }

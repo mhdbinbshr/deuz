@@ -48,7 +48,7 @@ const DEFAULT_CONTENT: SiteContent = {
   heroSubtitle: 'Not for everyone.',
   ctaText: 'Initiate Request',
   checkoutDisclaimer: 'Submit your allocation request. No payment is required until our curators verify your dossier.',
-  footerText: 'Designed in Cinematic Vision',
+  footerText: 'Not for everyone',
   storeImage: 'https://ik.imagekit.io/dto1zguat/Evolve_1.jpg',
   scrollImages: [
     'https://ik.imagekit.io/dto1zguat/Dustbound_1.jpg?updatedAt=1775277953541',
@@ -64,6 +64,18 @@ const DEFAULT_CONTENT: SiteContent = {
   sovereignCategory: 'Apparel',
   sovereignPrice: '₹12,000',
   sovereignStatus: 'Active'
+};
+
+const normalizeSiteContent = (siteContent: Partial<SiteContent>): SiteContent => {
+  const merged = { ...DEFAULT_CONTENT, ...siteContent };
+  if (
+    !merged.footerText ||
+    merged.footerText.trim().toLowerCase() === 'designed in cinematic vision' ||
+    merged.footerText.trim().toLowerCase() === 'design in cinematic vision'
+  ) {
+    merged.footerText = 'Not for everyone';
+  }
+  return merged;
 };
 
 const DEFAULT_CONCIERGE: ConciergeConfig = {
@@ -87,7 +99,7 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
     try {
       const data = await db.getSystemSettings().catch(() => null);
       if (data) {
-        if (data.siteContent) setContent({ ...DEFAULT_CONTENT, ...data.siteContent });
+        if (data.siteContent) setContent(normalizeSiteContent(data.siteContent));
         if (data.conciergeConfig) {
           const merged = { ...DEFAULT_CONCIERGE, ...data.conciergeConfig };
           setConcierge(merged);
@@ -111,7 +123,7 @@ export const SettingsProvider: React.FC<{ children: ReactNode }> = ({ children }
     fetchSettings();
     const unsub = db.subscribeSystemSettings((data) => {
       if (data) {
-        if (data.siteContent) setContent({ ...DEFAULT_CONTENT, ...data.siteContent });
+        if (data.siteContent) setContent(normalizeSiteContent(data.siteContent));
         if (data.conciergeConfig) {
           const merged = { ...DEFAULT_CONCIERGE, ...data.conciergeConfig };
           setConcierge(merged);

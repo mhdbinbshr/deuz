@@ -90,7 +90,7 @@ const Footer: React.FC<FooterProps> = ({
 
         <div className="w-full flex flex-col md:flex-row justify-between items-center text-[10px] text-white/30 uppercase tracking-wider text-center">
           <p>© DEUZ & CO</p>
-          <p className="mt-2 md:mt-0">{content.footerText || 'SINGULAR BY DESIGN.'}</p>
+          <p className="mt-2 md:mt-0">{content.footerText || 'Not for everyone'}</p>
         </div>
       </div>
     </footer>
