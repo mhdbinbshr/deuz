@@ -3,7 +3,7 @@ import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
 import { useSettings } from '../context/SettingsContext';
 import { Sparkles, Compass, Infinity as InfinityIcon } from 'lucide-react';
 
-const NEW_LOGO_URL = "https://ik.imagekit.io/dto1zguat/1775236374031.png?updatedAt=1788674480127";
+const NEW_LOGO_URL = "/logo-cropped.png";
 
 const About: React.FC = () => {
   const { content } = useSettings();
@@ -52,8 +52,12 @@ const About: React.FC = () => {
     y.set(0);
   };
 
-  // Determine logo source with priority on the requested logo
-  const logoSrc = (!content.aboutImage || content.aboutImage.includes("file_0000000054e071fa80c009a3a2a07326"))
+  // Determine logo source with priority on the local cropped logo for universal device visibility
+  const logoSrc = (
+    !content.aboutImage ||
+    content.aboutImage.includes("file_0000000054e071fa80c009a3a2a07326") ||
+    content.aboutImage.includes("1775236374031")
+  )
     ? NEW_LOGO_URL
     : content.aboutImage;
 
@@ -246,9 +250,8 @@ const About: React.FC = () => {
                   <img 
                     src={logoSrc} 
                     alt="The House Standard Logo 3D Depth" 
-                    className="absolute max-w-[160px] xs:max-w-[200px] sm:max-w-[250px] max-h-[160px] xs:max-h-[200px] sm:max-h-[220px] object-contain filter blur-[6px] opacity-40 brightness-150 transform translate-y-3 pointer-events-none select-none"
+                    className="absolute w-[180px] xs:w-[215px] sm:w-[270px] max-w-[82vw] h-auto max-h-[160px] xs:max-h-[200px] sm:max-h-[220px] object-contain filter blur-[6px] opacity-40 brightness-150 transform translate-y-3 pointer-events-none select-none"
                     style={{ transform: "translateZ(-15px)" }}
-                    referrerPolicy="no-referrer"
                   />
 
                   {/* Primary 3D PNG Logo */}
@@ -260,8 +263,7 @@ const About: React.FC = () => {
                     <img 
                       src={logoSrc} 
                       alt="The House Standard Logo" 
-                      className="relative z-10 max-w-[160px] xs:max-w-[200px] sm:max-w-[250px] max-h-[160px] xs:max-h-[200px] sm:max-h-[220px] object-contain drop-shadow-[0_15px_30px_rgba(0,0,0,0.9)] filter brightness-110 contrast-110 transition-all duration-500 select-none pointer-events-none"
-                      referrerPolicy="no-referrer"
+                      className="relative z-10 w-[180px] xs:w-[215px] sm:w-[270px] max-w-[82vw] h-auto max-h-[160px] xs:max-h-[200px] sm:max-h-[220px] object-contain drop-shadow-[0_15px_30px_rgba(0,0,0,0.9)] filter brightness-110 contrast-110 transition-all duration-500 select-none pointer-events-none"
                     />
 
                     {/* Shimmer / Specular Light Sweep Animation across logo */}
