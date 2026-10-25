@@ -6,39 +6,19 @@
   Content-Type: image/svg+xml
   Cache-Control: public, max-age=604800, immutable
 
-/favicon*.png
+/favicon-96x96.png
   Content-Type: image/png
   Cache-Control: public, max-age=604800, immutable
 
-/apple-touch-icon*.png
+/apple-touch-icon.png
   Content-Type: image/png
   Cache-Control: public, max-age=604800, immutable
 
-/android-chrome-*.png
+/web-app-manifest-192x192.png
   Content-Type: image/png
   Cache-Control: public, max-age=604800, immutable
 
-/icon-*.png
-  Content-Type: image/png
-  Cache-Control: public, max-age=604800, immutable
-
-/maskable-icon-*.png
-  Content-Type: image/png
-  Cache-Control: public, max-age=604800, immutable
-
-/mstile-*.png
-  Content-Type: image/png
-  Cache-Control: public, max-age=604800, immutable
-
-/og-logo.png
-  Content-Type: image/png
-  Cache-Control: public, max-age=604800, immutable
-
-/logo.png
-  Content-Type: image/png
-  Cache-Control: public, max-age=604800, immutable
-
-/assets/aistudio/*.png
+/web-app-manifest-512x512.png
   Content-Type: image/png
   Cache-Control: public, max-age=604800, immutable
 

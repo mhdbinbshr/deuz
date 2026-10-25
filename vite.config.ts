@@ -5,7 +5,7 @@ const iconCacheAndMimePlugin = (): Plugin => {
   const applyIconHeaders = (req: any, res: any, next: () => void) => {
     const rawUrl = (req.url || '').split('?')[0];
     const isIconAsset =
-      /^\/(favicon|apple-touch-icon|android-chrome|icon-|maskable-icon|mstile-|og-logo|logo\.png|site\.webmanifest|manifest\.json|browserconfig\.xml)/.test(rawUrl) ||
+      /^\/(favicon|apple-touch-icon|web-app-manifest-|site\.webmanifest)/.test(rawUrl) ||
       rawUrl.startsWith('/assets/aistudio/');
 
     if (isIconAsset) {
