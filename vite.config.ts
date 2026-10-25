@@ -46,6 +46,12 @@ const iconCacheAndMimePlugin = (): Plugin => {
 
   return {
     name: 'icon-cache-and-mime-headers',
+    transformIndexHtml: {
+      order: 'pre',
+      handler(html) {
+        return html.replace(/%PUBLIC_URL%/g, '');
+      }
+    },
     configureServer(server) {
       server.middlewares.use(applyIconHeaders);
     },
