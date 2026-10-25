@@ -77,7 +77,7 @@ const Loader: React.FC<LoaderProps> = ({ onLoadingComplete }) => {
              className="relative z-10 flex flex-col items-center"
            >
               <img 
-                src="/assets/aistudio/1775236374031_9bfa2bc7.png" 
+                src="https://ik.imagekit.io/dto1zguat/Logo.png?updatedAt=1775277696501" 
                 alt="DEUZ & CO" 
                 className="w-32 md:w-40 h-auto object-contain drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]"
               />

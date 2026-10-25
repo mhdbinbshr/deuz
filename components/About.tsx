@@ -3,7 +3,7 @@ import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
 import { useSettings } from '../context/SettingsContext';
 import { Sparkles, Compass, Infinity as InfinityIcon } from 'lucide-react';
 
-const NEW_LOGO_URL = "/logo-cropped.png";
+const NEW_LOGO_URL = "https://ik.imagekit.io/dto1zguat/1775236374031.png?updatedAt=1788674480127";
 
 const About: React.FC = () => {
   const { content } = useSettings();
@@ -52,11 +52,10 @@ const About: React.FC = () => {
     y.set(0);
   };
 
-  // Determine logo source with priority on the local cropped logo for universal device visibility
   const logoSrc = (
     !content.aboutImage ||
     content.aboutImage.includes("file_0000000054e071fa80c009a3a2a07326") ||
-    content.aboutImage.includes("1775236374031")
+    content.aboutImage.includes("logo-cropped.png")
   )
     ? NEW_LOGO_URL
     : content.aboutImage;
