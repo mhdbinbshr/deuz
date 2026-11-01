@@ -17,10 +17,8 @@ const ProductShowcase3D: React.FC<ProductShowcase3DProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   
-  const [isHovered, setIsHovered] = useState(false);
   const [isZoomMode, setIsZoomMode] = useState(false);
   const [zoomCoords, setZoomCoords] = useState({ x: 50, y: 50 });
-  const [touchStartX, setTouchStartX] = useState<number | null>(null);
 
   const allImages = useMemo(() => {
     const imgSet = getProductImageSet(product);
@@ -38,18 +36,14 @@ const ProductShowcase3D: React.FC<ProductShowcase3DProps> = ({
     }
   }, [isZoomMode]);
 
-  const handleMouseLeave = useCallback(() => {
-    setIsHovered(false);
-  }, []);
-
-  // Auto change product perspective in Fashion House 3D showcase
+  // Auto change product perspective in Fashion House 3D showcase (unaffected by mouse or touch)
   useEffect(() => {
-    if (isZoomMode || isHovered || allImages.length <= 1) return;
+    if (isZoomMode || allImages.length <= 1) return;
     const interval = setInterval(() => {
       setCurrentImageIndex((currentImageIndex + 1) % allImages.length);
     }, 4500);
     return () => clearInterval(interval);
-  }, [isZoomMode, isHovered, allImages.length, currentImageIndex, setCurrentImageIndex]);
+  }, [isZoomMode, allImages.length, currentImageIndex, setCurrentImageIndex]);
 
   // Next / Prev image navigation
   const nextImage = useCallback(() => {
@@ -116,17 +110,6 @@ const ProductShowcase3D: React.FC<ProductShowcase3DProps> = ({
         <div
           ref={stageRef}
           onMouseMove={handleMouseMove}
-          onMouseEnter={() => setIsHovered(true)}
-          onMouseLeave={handleMouseLeave}
-          onTouchStart={(e) => setTouchStartX(e.touches[0].clientX)}
-          onTouchEnd={(e) => {
-            if (touchStartX !== null && allImages.length > 1) {
-              const diff = touchStartX - e.changedTouches[0].clientX;
-              if (diff > 45) nextImage();
-              if (diff < -45) prevImage();
-              setTouchStartX(null);
-            }
-          }}
           className="relative aspect-[4/5] h-[min(44dvh,340px)] xs:h-[min(48dvh,380px)] sm:h-[min(52dvh,430px)] md:h-[min(56dvh,460px)] lg:h-[min(62dvh,510px)] xl:h-[min(65dvh,540px)] max-h-[calc(100dvh-185px)] w-auto max-w-[88vw] rounded-none bg-[#0A0A0A] border border-white/20 shadow-[0_25px_70px_rgba(0,0,0,0.9)] group mx-auto shrink-0"
         >
           {/* Ambient Backplane Light Pool */}

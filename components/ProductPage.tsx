@@ -31,7 +31,6 @@ const ProductCard: React.FC<ProductCardProps> = ({
   isWishlisted,
   onToggleWishlist
 }) => {
-  const [isHovered, setIsHovered] = useState(false);
   const [autoIndex, setAutoIndex] = useState(0);
 
   // Guarantee paired primary and secondary views for every product
@@ -46,10 +45,9 @@ const ProductCard: React.FC<ProductCardProps> = ({
 
   const allImages = imageSet.allImages;
 
-  // Requirement 4: Auto change the product perspective in the Fashion House
+  // Auto change the product perspective in the Fashion House (not triggered by mouse or touch)
   useEffect(() => {
     if (allImages.length <= 1) return;
-    // Stagger slightly per product so cards alternate organically across the Fashion House grid
     const seed = typeof product.id === 'number'
       ? product.id
       : (product.id ? String(product.id).split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) : 0);
@@ -62,9 +60,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
     return () => clearInterval(interval);
   }, [allImages.length, product.id]);
 
-  const currentImageIndex = isHovered 
-    ? (autoIndex === 0 ? 1 : 0) 
-    : autoIndex;
+  const currentImageIndex = autoIndex;
   const activeImage = allImages[currentImageIndex] || imageSet.primary;
 
   return (
@@ -72,28 +68,26 @@ const ProductCard: React.FC<ProductCardProps> = ({
       layout
       variants={itemVariants}
       onClick={onClick}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
       className="group cursor-pointer flex flex-col"
     >
       <div
         className="w-full aspect-[3/4] overflow-hidden bg-[#0A0A0A] relative mb-5 rounded-none border border-white/10 group-hover:border-gold-400/50 transition-all duration-500 shadow-[0_20px_50px_rgba(0,0,0,0.6)] group-hover:shadow-[0_25px_60px_rgba(212,175,55,0.12)]"
       >
-        {/* Animated Alternate Product Image View with auto-perspective */}
+        {/* Product Image View (does not change on mouse hover or touch) */}
         <AnimatePresence mode="wait">
           <motion.img 
             key={activeImage}
             layoutId={currentImageIndex === 0 ? `product-image-${product.id}` : undefined}
             src={activeImage} 
             alt={product.title} 
-            initial={{ opacity: 0, scale: 1.03 }}
+            initial={{ opacity: 0 }}
             animate={{ 
               opacity: product.inStock ? 1 : 0.45,
-              scale: isHovered ? 1.04 : 1,
+              scale: 1,
             }}
-            exit={{ opacity: 0, scale: 0.98 }}
+            exit={{ opacity: 0 }}
             transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
-            className={`absolute inset-0 w-full h-full object-cover object-center transition-transform duration-700 ${!product.inStock ? 'grayscale' : ''}`} 
+            className={`absolute inset-0 w-full h-full object-cover object-center ${!product.inStock ? 'grayscale' : ''}`} 
           />
         </AnimatePresence>
 
@@ -351,10 +345,7 @@ const ProductPage: React.FC<ProductPageProps> = ({
     setError('');
   };
 
-  const getEffectiveMaxStock = (product: any, size: string) => {
-    if (size && product?.sizeStock && typeof product.sizeStock[size] === 'number') {
-      return product.sizeStock[size];
-    }
+  const getEffectiveMaxStock = (product: any, _size?: string) => {
     return typeof product?.countInStock === 'number' ? product.countInStock : 99;
   };
 
@@ -365,8 +356,8 @@ const ProductPage: React.FC<ProductPageProps> = ({
       return;
     }
     const maxStock = getEffectiveMaxStock(selectedProduct, selectedSize);
-    if (maxStock <= 0 || (selectedSize && selectedProduct.outOfStockSizes?.includes(selectedSize))) {
-      setError('Selected size is currently out of stock.');
+    if (maxStock <= 0) {
+      setError('This piece is currently out of stock.');
       return;
     }
         
@@ -390,8 +381,8 @@ const ProductPage: React.FC<ProductPageProps> = ({
       return;
     }
     const maxStock = getEffectiveMaxStock(selectedProduct, selectedSize);
-    if (maxStock <= 0 || (selectedSize && selectedProduct.outOfStockSizes?.includes(selectedSize))) {
-      setError('Selected size is currently out of stock.');
+    if (maxStock <= 0) {
+      setError('This piece is currently out of stock.');
       return;
     }
         
@@ -505,12 +496,12 @@ const ProductPage: React.FC<ProductPageProps> = ({
                 transition={{ duration: 0.8, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
                 className="max-w-2xl w-full mx-auto md:mx-0"
               >
-                {/* Header: Category & Release Status */}
+                {/* Header: Release Status */}
                 <div className="flex items-center justify-between mb-5 pb-3.5 border-b border-white/10">
                   <div className="flex items-center gap-2">
                     <Compass size={13} className="text-gold-400 animate-spin-slow" />
                     <span className="text-[10px] sm:text-xs font-mono tracking-[0.25em] text-gold-400 uppercase font-semibold">
-                      {selectedProduct.category ? selectedProduct.category.toUpperCase() : 'ATELIER'}
+                      DEUZ ATELIER
                     </span>
                   </div>
                   <div className="flex items-center gap-2 text-[9px] sm:text-[10px] font-mono uppercase tracking-widest">
@@ -552,10 +543,6 @@ const ProductPage: React.FC<ProductPageProps> = ({
                 </motion.h1>
 
                 <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-5">
-                  <span className="text-[9.5px] sm:text-[11px] text-white/50 uppercase tracking-[0.25em] font-mono">
-                    CATEGORY: {selectedProduct.category ? selectedProduct.category.toUpperCase() : 'GARMENT'}
-                  </span>
-                  <span className="text-white/20 hidden sm:inline">•</span>
                   <span className="text-[9.5px] sm:text-[11px] text-gold-400/80 uppercase tracking-[0.25em] font-mono">
                     CRAFTED AT DEUZ ATELIER
                   </span>
@@ -903,15 +890,7 @@ const ProductPage: React.FC<ProductPageProps> = ({
                  <div className="h-[1px] w-24 bg-gradient-to-r from-transparent via-gold-400/60 to-transparent mt-4" />
                </motion.div>
                
-               <div className="flex flex-wrap items-center justify-between md:justify-end gap-3 sm:gap-6 w-full">
-                 {/* Mobile Filter Toggle */}
-                 <button 
-                   onClick={() => setIsFilterOpen(!isFilterOpen)}
-                   className="md:hidden flex items-center gap-2 px-3.5 py-2 bg-black/70 border border-gold-400/40 text-[9.5px] font-mono uppercase tracking-[0.2em] text-gold-300 rounded-none cursor-pointer"
-                 >
-                   <Filter size={12} /> Categories
-                 </button>
-
+               <div className="flex flex-wrap items-center justify-end gap-3 sm:gap-6 w-full">
                  {/* Sort Dropdown */}
                  <div className="relative group z-30">
                     <button className="flex items-center gap-2 px-3.5 py-2 bg-black/70 border border-white/15 hover:border-gold-400/60 text-white/80 hover:text-white transition-all text-[9.5px] font-mono uppercase tracking-[0.2em] rounded-none shadow-md cursor-pointer">
@@ -936,36 +915,13 @@ const ProductPage: React.FC<ProductPageProps> = ({
                </div>
              </div>
 
-             <div className="flex flex-col md:flex-row gap-8 md:gap-10 lg:gap-12 w-full">
-                {/* Sidebar Filters */}
-                <aside className={`md:w-48 lg:w-56 shrink-0 space-y-6 md:space-y-8 ${isFilterOpen ? 'block bg-white/[0.02] border border-white/10 p-4 md:p-0 md:bg-transparent md:border-0' : 'hidden md:block'}`}>
-                   <div>
-                     <h3 className="text-gold-500 text-xs font-bold uppercase tracking-widest mb-4 md:mb-6">Categories</h3>
-                     <div className="flex flex-wrap md:flex-col gap-2.5 md:gap-4">
-                       {categories.map(cat => (
-                         <button
-                           key={cat}
-                           onClick={() => {
-                             setFilterCategory(cat);
-                             setIsFilterOpen(false);
-                           }}
-                           className={`text-left text-xs uppercase tracking-widest transition-all duration-300 px-3 py-1.5 md:p-0 border md:border-0 ${
-                             filterCategory === cat ? 'text-white border-gold-500 bg-gold-500/10 md:bg-transparent md:pl-4 md:border-l-2 md:border-gold-500' : 'text-white/40 border-white/10 hover:text-white md:hover:pl-2'
-                           }`}
-                         >
-                           {cat}
-                         </button>
-                       ))}
-                     </div>
-                   </div>
-                </aside>
-
+             <div className="w-full">
                 {/* Product Grid */}
                 <motion.div 
                   variants={containerVariants}
                   initial="hidden"
                   animate="show"
-                  className="flex-1 w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-x-6 sm:gap-x-8 gap-y-12 sm:gap-y-16"
+                  className="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-x-6 sm:gap-x-8 gap-y-12 sm:gap-y-16"
                 >
                    <AnimatePresence>
                    {filteredProducts.map((product) => (

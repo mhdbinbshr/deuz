@@ -133,7 +133,6 @@ export const INITIAL_PRODUCTS = [
     countInStock: 25,
     isArchived: false,
     sizes: ["S", "M", "L", "XL", "XXL"],
-    sizeStock: { "S": 5, "M": 8, "L": 6, "XL": 4, "XXL": 2 },
     details: {
       "Silhouette": "Sculpted Architectural",
       "Fabric": "480 GSM Heavy French Terry",
@@ -157,7 +156,6 @@ export const INITIAL_PRODUCTS = [
     countInStock: 18,
     isArchived: false,
     sizes: ["S", "M", "L", "XL", "XXL"],
-    sizeStock: { "S": 3, "M": 6, "L": 5, "XL": 3, "XXL": 1 },
     details: {
       "Silhouette": "Oversized Drape",
       "Fabric": "Custom Mineral Washed Fleece",
@@ -181,7 +179,6 @@ export const INITIAL_PRODUCTS = [
     countInStock: 12,
     isArchived: false,
     sizes: ["S", "M", "L", "XL", "XXL"],
-    sizeStock: { "S": 2, "M": 4, "L": 3, "XL": 2, "XXL": 1 },
     details: {
       "Silhouette": "Tailored Box Fit",
       "Fabric": "Double-faced Bonded Wool Blend",
@@ -205,7 +202,6 @@ export const INITIAL_PRODUCTS = [
     countInStock: 30,
     isArchived: false,
     sizes: ["S", "M", "L", "XL", "XXL"],
-    sizeStock: { "S": 6, "M": 10, "L": 8, "XL": 4, "XXL": 2 },
     details: {
       "Silhouette": "Relaxed Dropped Shoulder",
       "Fabric": "320 GSM Combed Mercerized Cotton",
@@ -2035,10 +2031,7 @@ export const db = {
                             if (pDoc.exists()) {
                                 const pData = pDoc.data();
                                 
-                                let maxStock = pData.countInStock ?? 0;
-                                if (item.selectedSize && pData.sizeStock && typeof pData.sizeStock[item.selectedSize] === 'number') {
-                                    maxStock = pData.sizeStock[item.selectedSize];
-                                }
+                                const maxStock = pData.countInStock ?? 99;
                                 
                                 if (maxStock <= 0) {
                                     cartModified = true;
@@ -2048,7 +2041,6 @@ export const db = {
                                 item.product = {
                                     ...item.product,
                                     countInStock: pData.countInStock ?? null,
-                                    sizeStock: pData.sizeStock || null,
                                     price: pData.price || item.product.price,
                                     title: pData.title || item.product.title,
                                     image: pData.image || item.product.image
@@ -2102,18 +2094,14 @@ export const db = {
         );
 
         if (existingIdx > -1) {
-            const maxStock = item.selectedSize && productData.sizeStock && typeof productData.sizeStock[item.selectedSize] === 'number'
-                ? productData.sizeStock[item.selectedSize]
-                : productData.countInStock ?? 99;
+            const maxStock = productData.countInStock ?? 99;
                 
             if (currentItems[existingIdx].quantity + (item.quantity || 1) > maxStock) {
                 throw new Error(JSON.stringify({ error: "Maximum allocation reached for this artifact." }));
             }
             currentItems[existingIdx].quantity += (item.quantity || 1);
         } else {
-            const maxStock = item.selectedSize && productData.sizeStock && typeof productData.sizeStock[item.selectedSize] === 'number'
-                ? productData.sizeStock[item.selectedSize]
-                : productData.countInStock ?? 99;
+            const maxStock = productData.countInStock ?? 99;
                 
             if ((item.quantity || 1) > maxStock) {
                 throw new Error(JSON.stringify({ error: "Maximum allocation reached for this artifact." }));
@@ -2127,8 +2115,7 @@ export const db = {
                     price: productData.price || item.price || 0,
                     image: productData.image || item.image || "",
                     category: productData.category || "",
-                    countInStock: productData.countInStock ?? null,
-                    sizeStock: productData.sizeStock || null
+                    countInStock: productData.countInStock ?? null
                 },
                 quantity: item.quantity || 1,
                 selectedSize: item.selectedSize || null
@@ -2171,9 +2158,7 @@ export const db = {
 
         if (itemIndex > -1) {
             const item = items[itemIndex];
-            const maxStock = item.selectedSize && item.product?.sizeStock && typeof item.product.sizeStock[item.selectedSize] === 'number'
-                ? item.product.sizeStock[item.selectedSize]
-                : item.product?.countInStock ?? 99;
+            const maxStock = item.product?.countInStock ?? 99;
                 
             if (quantity > maxStock) {
                 throw new Error(JSON.stringify({ error: "Maximum allocation reached for this artifact." }));
@@ -2359,20 +2344,14 @@ export const db = {
                 const pSnap = await getDoc(pRef);
                 if (pSnap.exists()) {
                     const productData = pSnap.data();
-                    let maxStock = productData.countInStock ?? 0;
-                    if (item.selectedSize && productData.sizeStock && typeof productData.sizeStock[item.selectedSize] === 'number') {
-                        maxStock = productData.sizeStock[item.selectedSize];
-                    }
+                    const maxStock = productData.countInStock ?? 0;
                     if (maxStock < item.quantity) {
                         throw new Error(`Item "${item.title || 'Unknown'}" is out of stock or exceeds available quantity.`);
                     }
                 } else {
                     const fallbackProduct = INITIAL_PRODUCTS.find((p, idx) => `seed_${idx}` === pid || p.houseCode === pid || p.title === item.title);
                     if (fallbackProduct) {
-                        let maxStock = fallbackProduct.countInStock ?? 20;
-                        if (item.selectedSize && fallbackProduct.sizeStock && typeof (fallbackProduct.sizeStock as any)[item.selectedSize] === 'number') {
-                            maxStock = (fallbackProduct.sizeStock as any)[item.selectedSize];
-                        }
+                        const maxStock = fallbackProduct.countInStock ?? 20;
                         if (maxStock < item.quantity) {
                             throw new Error(`Item "${item.title || 'Unknown'}" is out of stock or exceeds available quantity.`);
                         }
@@ -2454,19 +2433,11 @@ export const db = {
                     if (pSnap.exists()) {
                         const productData = pSnap.data();
                         const current = productData.countInStock || 0;
-                        const updateData: any = { countInStock: Math.max(0, current - item.quantity) };
-                        
-                        if (item.selectedSize && productData.sizeStock && typeof productData.sizeStock[item.selectedSize] === 'number') {
-                            const newSizeStock = { ...productData.sizeStock };
-                            newSizeStock[item.selectedSize] = Math.max(0, newSizeStock[item.selectedSize] - item.quantity);
-                            updateData.sizeStock = newSizeStock;
-                            
-                            const outOfStock = Object.entries(newSizeStock)
-                                .filter(([_, stock]) => (stock as number) <= 0)
-                                .map(([s, _]) => s);
-                            updateData.outOfStockSizes = outOfStock;
-                        }
-                        
+                        const updateData: any = {
+                            countInStock: Math.max(0, current - item.quantity),
+                            sizeStock: {},
+                            outOfStockSizes: []
+                        };
                         await updateDoc(pRef, updateData);
                     }
                 }
@@ -2893,19 +2864,11 @@ export const db = {
                         if (productSnap.exists()) {
                             const productData = productSnap.data();
                             const currentStock = productData.countInStock || 0;
-                            const updateData: any = { countInStock: currentStock + item.quantity };
-                            
-                            if (item.selectedSize && productData.sizeStock && typeof productData.sizeStock[item.selectedSize] === 'number') {
-                                const newSizeStock = { ...productData.sizeStock };
-                                newSizeStock[item.selectedSize] = newSizeStock[item.selectedSize] + item.quantity;
-                                updateData.sizeStock = newSizeStock;
-                                
-                                const outOfStock = Object.entries(newSizeStock)
-                                    .filter(([_, stock]) => (stock as number) <= 0)
-                                    .map(([s, _]) => s);
-                                updateData.outOfStockSizes = outOfStock;
-                            }
-                            
+                            const updateData: any = {
+                                countInStock: currentStock + item.quantity,
+                                sizeStock: {},
+                                outOfStockSizes: []
+                            };
                             await updateDoc(productRef, updateData);
                         }
                     }

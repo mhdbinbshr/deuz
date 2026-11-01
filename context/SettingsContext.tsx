@@ -2,6 +2,21 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { db } from '../utils/db';
 import { CONCIERGE_CONFIG } from '../utils/conciergeService';
 
+export interface CollectionOneItem {
+  id: string;
+  title: string;
+  houseCode?: string;
+  tag?: string;
+  category: string;
+  price: string;
+  status: string;
+  description: string;
+  image: string;
+  secondaryImage?: string;
+  gallery?: string[];
+  details?: Record<string, string>;
+}
+
 export interface SiteContent {
   heroTitle: string;
   heroSubtitle: string;
@@ -17,13 +32,20 @@ export interface SiteContent {
   sovereignCategory?: string;
   sovereignPrice?: string;
   sovereignStatus?: string;
+  latestDropMode?: 'custom' | 'inventory';
   latestDropProductId?: string;
   latestDropTitle?: string;
+  latestDropHouseCode?: string;
+  latestDropTag?: string;
   latestDropDescription?: string;
   latestDropImage?: string;
+  latestDropSecondaryImage?: string;
+  latestDropGallery?: string[];
   latestDropCategory?: string;
   latestDropPrice?: string;
   latestDropStatus?: string;
+  latestDropDetails?: Record<string, string>;
+  collectionOneItems?: CollectionOneItem[];
 }
 
 interface ConciergeConfig {
@@ -60,7 +82,20 @@ const DEFAULT_CONTENT: SiteContent = {
   aboutSubtitle: 'DEUZ IS THE DESIGN.',
   aboutDescription: 'DEUZ & CO is anchored in singularity. One design defines the house — structured with discipline, refined with precision, and elevated through measured evolution. We do not multiply form. We perfect it. Each release strengthens the standard.',
   aboutImage: 'https://ik.imagekit.io/dto1zguat/1775236374031.png?updatedAt=1788674480127',
-  latestDropProductId: 'auto',
+  latestDropMode: 'custom',
+  latestDropProductId: 'custom',
+  latestDropTitle: 'DEUZ — AFTERLIGHT',
+  latestDropHouseCode: 'DEUZ-C01-AFT',
+  latestDropTag: 'New Drop',
+  latestDropDescription: 'A study in structure and restraint. Heavyweight French terry designed for enduring presence.',
+  latestDropImage: 'https://ik.imagekit.io/dto1zguat/Afterlight_1.png',
+  latestDropSecondaryImage: 'https://ik.imagekit.io/dto1zguat/Afterlight_2.png',
+  latestDropGallery: [],
+  latestDropCategory: 'TEE',
+  latestDropPrice: '₹2,999',
+  latestDropStatus: 'Active',
+  latestDropDetails: {},
+  collectionOneItems: [],
   sovereignCategory: 'Apparel',
   sovereignPrice: '₹12,000',
   sovereignStatus: 'Active'

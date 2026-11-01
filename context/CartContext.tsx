@@ -39,10 +39,7 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return backendCart.items.map((item: any) => {
         // If product is populated
         if (item.product && typeof item.product === 'object') {
-            const sizeStockVal = item.selectedSize && item.product.sizeStock && typeof item.product.sizeStock[item.selectedSize] === 'number'
-                ? item.product.sizeStock[item.selectedSize]
-                : undefined;
-            const maxStock = sizeStockVal !== undefined ? sizeStockVal : (item.product.countInStock ?? 99);
+            const maxStock = item.product.countInStock ?? 99;
 
             return {
                 cartItemId: item._id || item.cartItemId || `${item.product._id || item.product.id}_${item.selectedSize}`, // The ID of the line item in cart
@@ -75,10 +72,7 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 try {
                     const pDoc = await db.getProductById(String(item.id));
                     if (pDoc) {
-                        const sizeStockVal = item.selectedSize && pDoc.sizeStock && typeof pDoc.sizeStock[item.selectedSize] === 'number'
-                            ? pDoc.sizeStock[item.selectedSize]
-                            : undefined;
-                        const maxStock = sizeStockVal !== undefined ? sizeStockVal : (pDoc.countInStock ?? 99);
+                        const maxStock = pDoc.countInStock ?? 99;
                             
                         if (maxStock <= 0) {
                             cartModified = true;
@@ -150,10 +144,7 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                       try {
                           const pDoc = await db.getProductById(String(item.id));
                           if (pDoc) {
-                              const sizeStockVal = item.selectedSize && pDoc.sizeStock && typeof pDoc.sizeStock[item.selectedSize] === 'number'
-                                  ? pDoc.sizeStock[item.selectedSize]
-                                  : undefined;
-                              const maxStock = sizeStockVal !== undefined ? sizeStockVal : (pDoc.countInStock ?? 99);
+                              const maxStock = pDoc.countInStock ?? 99;
                                   
                               if (maxStock <= 0) {
                                   cartModified = true;

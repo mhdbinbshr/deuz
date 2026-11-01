@@ -186,7 +186,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
   const isAdmin = user?.role === 'admin';
 
   // Navigation
-  const [activeTab, setActiveTab] = useState<'orders' | 'products' | 'users' | 'dashboard' | 'concierge' | 'settings' | 'audit' | 'trash' | 'archive' | 'wishlists'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'orders' | 'products' | 'collection1' | 'users' | 'dashboard' | 'concierge' | 'settings' | 'audit' | 'trash' | 'archive' | 'wishlists'>('dashboard');
   const [orderFilter, setOrderFilter] = useState<'all' | 'new' | 'confirmed' | 'shipped' | 'cancelled'>('all');
   
   // Data State
@@ -998,6 +998,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
         ...product,
         productType: product.productType || 'APPAREL',
         sizes: Array.isArray(product.sizes) && product.sizes.length > 0 ? product.sizes : PREDEFINED_SIZES,
+        sizeStock: {},
+        outOfStockSizes: [],
         details: safeDetails,
         imageTag: product.imageTag || '',
         isArchived: !!product.isArchived
@@ -1007,6 +1009,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
       setIsEditing(false);
       setCurrentProduct({
         ...INITIAL_PRODUCT,
+        sizeStock: {},
+        outOfStockSizes: [],
         isArchived: defaultArchived
       });
       setDetailsText(JSON.stringify(INITIAL_PRODUCT.details || {}, null, 2));
@@ -1018,11 +1022,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
     e.preventDefault();
     setActionLoading(true);
     try {
+      const sanitizedProduct = {
+        ...currentProduct,
+        sizeStock: {},
+        outOfStockSizes: []
+      };
       if (isEditing && currentProduct._id) {
-        await db.updateProduct(currentProduct._id, currentProduct);
+        await db.updateProduct(currentProduct._id, sanitizedProduct);
         showNotification('Product updated');
       } else {
-        await db.createProduct(currentProduct);
+        await db.createProduct(sanitizedProduct);
         showNotification('Product created');
       }
       setIsModalOpen(false);
@@ -1031,6 +1040,49 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
       showNotification(error.message || 'Failed to save product', 'error');
     }
     setActionLoading(false);
+  };
+
+  // Helper to convert uploaded image file to optimized Data URL for Collection 1 or Product images
+  const handleImageFileUpload = (file: File, onComplete: (dataUrl: string) => void) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const maxDim = 1200;
+        let w = img.width;
+        let h = img.height;
+        if (w > maxDim || h > maxDim) {
+          if (w > h) {
+            h = Math.round((h * maxDim) / w);
+            w = maxDim;
+          } else {
+            w = Math.round((w * maxDim) / h);
+            h = maxDim;
+          }
+        }
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, w, h);
+          const compressed = canvas.toDataURL('image/jpeg', 0.84);
+          onComplete(compressed);
+        } else if (typeof ev.target?.result === 'string') {
+          onComplete(ev.target.result);
+        }
+      };
+      img.onerror = () => {
+        if (typeof ev.target?.result === 'string') {
+          onComplete(ev.target.result);
+        }
+      };
+      if (typeof ev.target?.result === 'string') {
+        img.src = ev.target.result;
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleDeleteProduct = async (id: string) => {
@@ -1208,6 +1260,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
                 { id: 'orders', icon: Package, label: 'Allocations' },
                 { id: 'concierge', icon: Calendar, label: 'Concierge Dossiers', badge: appointments.filter(a => a.status === 'PENDING').length },
                 { id: 'products', icon: ShoppingBag, label: 'Inventory' },
+                ...(isAdmin ? [
+                    { id: 'collection1', icon: Crown, label: 'Collection 1' },
+                ] : []),
                 { id: 'wishlists', icon: Heart, label: 'Wishlists', badge: wishlists.reduce((acc, w) => acc + (Array.isArray(w.items) ? w.items.length : 0), 0) },
                 ...(isAdmin ? [
                     { id: 'users', icon: Users, label: 'Operatives' }, 
@@ -2891,168 +2946,630 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
              );
          })()}
 
-         {activeTab === 'settings' && settings && (
-             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-                 <div className="bg-[#0A0A0A] border border-white/10 p-8">
-                     <h3 className="text-white font-serif mb-6 flex items-center gap-2"><Crown size={18} className="text-gold-500"/> Collection 1 — Latest Drop (Homepage)</h3>
-                     <form onSubmit={handleSettingsUpdate} className="space-y-6">
-                         <div>
-                             <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Featured Artifact on Homepage</label>
-                             <select 
-                                 value={settings.siteContent?.latestDropProductId || 'auto'} 
-                                 onChange={e => {
-                                     const val = e.target.value;
-                                     const selected = products.find(p => p._id === val || p.id === val);
-                                     setSettings({
-                                         ...settings,
-                                         siteContent: {
-                                             ...settings.siteContent,
-                                             latestDropProductId: val,
-                                             ...(selected ? {
-                                                 latestDropTitle: selected.title,
-                                                 latestDropDescription: selected.description,
-                                                 latestDropImage: selected.image,
-                                                 latestDropCategory: selected.category,
-                                                 latestDropPrice: `₹${selected.price?.toLocaleString('en-IN')}`,
-                                                 latestDropStatus: selected.countInStock > 0 ? 'Active' : 'Exhausted',
-                                                 sovereignCategory: selected.category,
-                                                 sovereignPrice: `₹${selected.price?.toLocaleString('en-IN')}`,
-                                                 sovereignStatus: selected.countInStock > 0 ? 'Active' : 'Exhausted'
-                                             } : {})
-                                         }
-                                     });
-                                 }}
-                                 className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none font-mono"
-                             >
-                                 <option value="auto">Auto (Most Recent Drop Added to Store)</option>
-                                 {products.filter(p => !p.isArchived).map(p => (
-                                     <option key={p._id || p.id} value={p._id || p.id}>
-                                         {p.title} — ₹{p.price?.toLocaleString('en-IN')} ({p.countInStock > 0 ? 'In Stock' : 'Sold Out'})
-                                     </option>
-                                 ))}
-                             </select>
-                             <p className="text-[10px] text-white/40 mt-1.5 font-mono">
-                                 Select which single product is spotlighted in Collection 1 on the homepage.
-                             </p>
+         {(activeTab === 'collection1' || activeTab === 'settings') && settings && (() => {
+             const siteContent = settings.siteContent || {};
+             const rawDetailsObj: Record<string, string> =
+                 siteContent.latestDropDetails && typeof siteContent.latestDropDetails === 'object'
+                     ? siteContent.latestDropDetails
+                     : {};
+             const detailsObj: Record<string, string> = Object.fromEntries(
+                 Object.entries(rawDetailsObj).filter(
+                     ([k]) => k.trim().toLowerCase() !== 'silhouette' && k.trim().toLowerCase() !== 'fabric'
+                 )
+             );
+             const detailsEntries = Object.entries(detailsObj);
+             const extraItems: any[] = Array.isArray(siteContent.collectionOneItems) ? siteContent.collectionOneItems : [];
+
+             const updateSiteContentField = (updates: Record<string, any>) => {
+                 setSettings({
+                     ...settings,
+                     siteContent: {
+                         ...siteContent,
+                         ...updates
+                     }
+                 });
+             };
+
+             return (
+             <div className="space-y-10">
+                 {/* Collection 1 Independent Studio Header Banner */}
+                 <div className="bg-gradient-to-r from-[#0A0A0A] via-[#11100C] to-[#0A0A0A] border border-gold-500/30 p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                     <div>
+                         <div className="inline-flex items-center gap-2 px-2.5 py-1 bg-gold-500/10 border border-gold-500/30 text-gold-400 text-[9px] font-mono uppercase tracking-widest mb-2">
+                             <Crown size={11} /> Independent Collection 1 Studio
                          </div>
+                         <h3 className="text-xl font-serif text-white tracking-wider uppercase">
+                             Collection 1 — Homepage Images, Product Details & Showcase
+                         </h3>
+                         <p className="text-xs text-white/50 font-mono mt-1">
+                             Collection 1 images, product details, pricing, and descriptions are stored independently from your Store Inventory. You can customize them freely or add multiple products to Collection 1 without affecting Inventory items.
+                         </p>
+                     </div>
+                     <div className="flex items-center gap-3 shrink-0">
+                         <select
+                             value=""
+                             onChange={e => {
+                                 const val = e.target.value;
+                                 if (!val) return;
+                                 const selected = products.find(p => p._id === val || p.id === val);
+                                 if (selected) {
+                                     updateSiteContentField({
+                                         latestDropMode: 'custom',
+                                         latestDropProductId: 'custom',
+                                         latestDropTitle: selected.title,
+                                         latestDropHouseCode: selected.houseCode || 'DEUZ-C01',
+                                         latestDropTag: selected.imageTag || 'New Drop',
+                                         latestDropDescription: selected.description,
+                                         latestDropImage: selected.image,
+                                         latestDropSecondaryImage: Array.isArray(selected.gallery) && selected.gallery[0] ? selected.gallery[0] : '',
+                                         latestDropGallery: Array.isArray(selected.gallery) ? selected.gallery.slice(1) : [],
+                                         latestDropCategory: selected.category,
+                                         latestDropPrice: `₹${selected.price?.toLocaleString('en-IN') || selected.price}`,
+                                         latestDropStatus: selected.countInStock > 0 ? 'Active' : 'Exhausted',
+                                         latestDropDetails: selected.details && typeof selected.details === 'object' ? { ...selected.details } : detailsObj
+                                     });
+                                     showNotification(`Copied template from "${selected.title}" — you can now edit Collection 1 independently.`);
+                                 }
+                             }}
+                             className="bg-black border border-gold-500/40 text-gold-300 text-xs font-mono p-2.5 outline-none focus:border-gold-400 cursor-pointer"
+                         >
+                             <option value="">Optional: Copy Template from Inventory...</option>
+                             {products.map(p => (
+                                 <option key={p._id || p.id} value={p._id || p.id}>
+                                     Copy from: {p.title} (₹{p.price?.toLocaleString('en-IN')})
+                                 </option>
+                             ))}
+                         </select>
+                     </div>
+                 </div>
 
-                         {/* Live Preview Card */}
-                         {(() => {
-                             const activeDropId = settings.siteContent?.latestDropProductId;
-                             const selectedDrop = products.find(p => p._id === activeDropId || p.id === activeDropId) || products[0];
-                             const previewImg = settings.siteContent?.latestDropImage || selectedDrop?.image || settings.siteContent?.storeImage;
-                             const previewTitle = settings.siteContent?.latestDropTitle || selectedDrop?.title || 'DEUZ FORM 01 — SOVEREIGN';
-                             const previewPrice = settings.siteContent?.latestDropPrice || (selectedDrop ? `₹${selectedDrop.price?.toLocaleString('en-IN')}` : '₹12,000');
-                             const previewCat = settings.siteContent?.latestDropCategory || selectedDrop?.category || 'APPAREL';
-                             const previewStatus = settings.siteContent?.latestDropStatus || (selectedDrop?.countInStock > 0 ? 'Active' : 'Exhausted');
+                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                     {/* Left Column: Primary Collection 1 Product Details & Images Form */}
+                     <div className="lg:col-span-8 bg-[#0A0A0A] border border-white/10 p-6 md:p-8">
+                         <h3 className="text-white font-serif mb-6 flex items-center justify-between gap-2 border-b border-white/10 pb-4">
+                             <span className="flex items-center gap-2">
+                                 <Crown size={18} className="text-gold-500" />
+                                 <span>Primary Collection 1 Product & Imagery</span>
+                             </span>
+                             <span className="text-[10px] font-mono uppercase tracking-widest text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-1">
+                                  decoupled from inventory
+                             </span>
+                         </h3>
 
-                             return (
-                                 <div className="bg-black/40 border border-gold-500/20 p-4 rounded-sm flex gap-4 items-center">
-                                     {previewImg && (
-                                         <img src={previewImg} alt="Preview" className="w-16 h-20 object-cover border border-white/10 rounded-sm" />
-                                     )}
-                                     <div className="flex-1 min-w-0">
-                                         <div className="flex items-center gap-2 mb-1">
-                                             <span className="text-[9px] uppercase tracking-widest text-gold-500 font-mono font-bold">
-                                                 ACTIVE HOMEPAGE DROP
-                                             </span>
-                                             <span className={`text-[8px] font-mono px-1.5 py-0.5 rounded-sm ${previewStatus.toLowerCase() === 'active' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                                                 {previewStatus}
-                                             </span>
+                         <form onSubmit={handleSettingsUpdate} className="space-y-6">
+                             {/* Live Preview Card */}
+                             {(() => {
+                                 const previewImg = siteContent.latestDropImage || 'https://ik.imagekit.io/dto1zguat/Afterlight_1.png';
+                                 const previewSecondary = siteContent.latestDropSecondaryImage || 'https://ik.imagekit.io/dto1zguat/Afterlight_2.png';
+                                 const previewTitle = siteContent.latestDropTitle || 'DEUZ — AFTERLIGHT';
+                                 const previewPrice = siteContent.latestDropPrice || '₹2,999';
+                                 const previewCat = siteContent.latestDropCategory || 'TEE';
+                                 const previewStatus = siteContent.latestDropStatus || 'Active';
+
+                                 return (
+                                     <div className="bg-black/60 border border-gold-500/25 p-4 rounded-sm flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                                         <div className="flex items-center gap-2 shrink-0">
+                                             {previewImg && (
+                                                 <div className="relative">
+                                                     <img src={previewImg} alt="Primary Preview" className="w-16 h-20 object-cover border border-gold-500/40 rounded-sm" />
+                                                     <span className="absolute bottom-0 inset-x-0 bg-black/80 text-[7px] font-mono text-center text-gold-400 uppercase py-0.5">Primary</span>
+                                                 </div>
+                                             )}
+                                             {previewSecondary && (
+                                                 <div className="relative">
+                                                     <img src={previewSecondary} alt="Secondary Preview" className="w-16 h-20 object-cover border border-white/15 rounded-sm" />
+                                                     <span className="absolute bottom-0 inset-x-0 bg-black/80 text-[7px] font-mono text-center text-white/70 uppercase py-0.5">Angle 2</span>
+                                                 </div>
+                                             )}
                                          </div>
-                                         <h4 className="text-white text-xs font-serif truncate">{previewTitle}</h4>
-                                         <div className="text-[10px] text-white/50 font-mono mt-1 flex gap-3">
-                                             <span>{previewCat}</span>
-                                             <span className="text-gold-400">{previewPrice}</span>
+                                         <div className="flex-1 min-w-0">
+                                             <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                                 <span className="text-[9px] uppercase tracking-widest text-gold-500 font-mono font-bold">
+                                                     COLLECTION 1 SPOTLIGHT
+                                                 </span>
+                                                 <span className="text-[8px] font-mono px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400">
+                                                     {siteContent.latestDropTag || 'New Drop'}
+                                                 </span>
+                                                 <span className="text-[8px] font-mono px-1.5 py-0.5 bg-white/10 text-white/70">
+                                                     {previewStatus}
+                                                 </span>
+                                             </div>
+                                             <h4 className="text-white text-sm font-serif truncate">{previewTitle}</h4>
+                                             <div className="text-[10px] text-white/50 font-mono mt-1 flex gap-3">
+                                                 <span>{previewCat}</span>
+                                                 <span className="text-gold-400 font-bold">{previewPrice}</span>
+                                                 <span>{detailsEntries.length} Custom Details</span>
+                                             </div>
+                                         </div>
+                                     </div>
+                                 );
+                             })()}
+
+                             {/* Section 1: Collection 1 Images */}
+                             <div className="p-4 bg-black/40 border border-white/10 space-y-4">
+                                 <h4 className="text-gold-500 text-xs font-bold uppercase tracking-widest flex items-center gap-2">
+                                     <Sparkles size={13} /> 1. Collection 1 Images (Independent from Inventory)
+                                 </h4>
+
+                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                     <div>
+                                         <label className="block text-[10px] uppercase tracking-widest text-white/50 mb-1.5">Primary Image URL or Upload</label>
+                                         <div className="flex gap-2">
+                                             <input
+                                                 value={siteContent.latestDropImage ?? 'https://ik.imagekit.io/dto1zguat/Afterlight_1.png'}
+                                                 onChange={e => updateSiteContentField({ latestDropImage: e.target.value })}
+                                                 className="flex-1 bg-black border border-white/15 p-2.5 text-white text-xs focus:border-gold-500 outline-none font-mono"
+                                                 placeholder="https://..."
+                                             />
+                                             <label className="px-3 py-2.5 bg-gold-500/15 border border-gold-500/40 hover:bg-gold-500 hover:text-black text-gold-300 text-[10px] font-mono uppercase tracking-wider cursor-pointer flex items-center shrink-0 transition-colors">
+                                                 Upload
+                                                 <input
+                                                     type="file"
+                                                     accept="image/*"
+                                                     className="hidden"
+                                                     onChange={e => {
+                                                         const file = e.target.files?.[0];
+                                                         if (file) {
+                                                             handleImageFileUpload(file, dataUrl => {
+                                                                 updateSiteContentField({ latestDropImage: dataUrl });
+                                                                 showNotification('Primary Collection 1 image uploaded');
+                                                             });
+                                                         }
+                                                     }}
+                                                 />
+                                             </label>
+                                         </div>
+                                     </div>
+
+                                     <div>
+                                         <label className="block text-[10px] uppercase tracking-widest text-white/50 mb-1.5">Secondary Angle Image URL or Upload</label>
+                                         <div className="flex gap-2">
+                                             <input
+                                                 value={siteContent.latestDropSecondaryImage ?? 'https://ik.imagekit.io/dto1zguat/Afterlight_2.png'}
+                                                 onChange={e => updateSiteContentField({ latestDropSecondaryImage: e.target.value })}
+                                                 className="flex-1 bg-black border border-white/15 p-2.5 text-white text-xs focus:border-gold-500 outline-none font-mono"
+                                                 placeholder="https://... (Optional 2nd angle)"
+                                             />
+                                             <label className="px-3 py-2.5 bg-gold-500/15 border border-gold-500/40 hover:bg-gold-500 hover:text-black text-gold-300 text-[10px] font-mono uppercase tracking-wider cursor-pointer flex items-center shrink-0 transition-colors">
+                                                 Upload
+                                                 <input
+                                                     type="file"
+                                                     accept="image/*"
+                                                     className="hidden"
+                                                     onChange={e => {
+                                                         const file = e.target.files?.[0];
+                                                         if (file) {
+                                                             handleImageFileUpload(file, dataUrl => {
+                                                                 updateSiteContentField({ latestDropSecondaryImage: dataUrl });
+                                                                 showNotification('Secondary Collection 1 image uploaded');
+                                                             });
+                                                         }
+                                                     }}
+                                                 />
+                                             </label>
                                          </div>
                                      </div>
                                  </div>
-                             );
-                         })()}
 
-                         <div className="pt-4 border-t border-white/10 space-y-4">
-                             <h4 className="text-gold-500 text-xs font-bold uppercase tracking-widest">Optional Custom Overrides</h4>
+                                 {/* Additional Gallery Images for Collection 1 */}
+                                 <div>
+                                     <div className="flex items-center justify-between mb-2">
+                                         <label className="text-[10px] uppercase tracking-widest text-white/40">Additional Collection 1 Gallery Angles</label>
+                                         <button
+                                             type="button"
+                                             onClick={() => updateSiteContentField({ latestDropGallery: [...(siteContent.latestDropGallery || []), ''] })}
+                                             className="text-[10px] font-mono uppercase tracking-wider text-gold-400 hover:text-white cursor-pointer"
+                                         >
+                                             + Add Angle Image
+                                         </button>
+                                     </div>
+                                     {(siteContent.latestDropGallery || []).map((gUrl: string, gIdx: number) => (
+                                         <div key={gIdx} className="flex gap-2 mb-2">
+                                             <input
+                                                 value={gUrl}
+                                                 onChange={e => {
+                                                     const next = [...(siteContent.latestDropGallery || [])];
+                                                     next[gIdx] = e.target.value;
+                                                     updateSiteContentField({ latestDropGallery: next });
+                                                 }}
+                                                 placeholder="Gallery Image URL"
+                                                 className="flex-1 bg-black border border-white/15 p-2 text-white text-xs font-mono focus:border-gold-500 outline-none"
+                                             />
+                                             <label className="px-2.5 py-2 bg-white/5 border border-white/15 hover:border-gold-400 text-white/70 text-[9px] font-mono uppercase cursor-pointer flex items-center">
+                                                 Upload
+                                                 <input
+                                                     type="file"
+                                                     accept="image/*"
+                                                     className="hidden"
+                                                     onChange={e => {
+                                                         const file = e.target.files?.[0];
+                                                         if (file) {
+                                                             handleImageFileUpload(file, dataUrl => {
+                                                                 const next = [...(siteContent.latestDropGallery || [])];
+                                                                 next[gIdx] = dataUrl;
+                                                                 updateSiteContentField({ latestDropGallery: next });
+                                                             });
+                                                         }
+                                                     }}
+                                                 />
+                                             </label>
+                                             <button
+                                                 type="button"
+                                                 onClick={() => {
+                                                     const next = (siteContent.latestDropGallery || []).filter((_: any, i: number) => i !== gIdx);
+                                                     updateSiteContentField({ latestDropGallery: next });
+                                                 }}
+                                                 className="px-3 bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white text-xs transition-colors cursor-pointer"
+                                             >
+                                                 <X size={13} />
+                                             </button>
+                                         </div>
+                                     ))}
+                                 </div>
+                             </div>
+
+                             {/* Section 2: Collection 1 Core Info */}
+                             <div className="p-4 bg-black/40 border border-white/10 space-y-4">
+                                 <h4 className="text-gold-500 text-xs font-bold uppercase tracking-widest">
+                                     2. Collection 1 Title, Pricing & Description
+                                 </h4>
+
+                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                     <div className="sm:col-span-1">
+                                         <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-1.5">Product Title</label>
+                                         <input
+                                             value={siteContent.latestDropTitle ?? 'DEUZ — AFTERLIGHT'}
+                                             onChange={e => updateSiteContentField({ latestDropTitle: e.target.value })}
+                                             className="w-full bg-black border border-white/15 p-2.5 text-white text-xs focus:border-gold-500 outline-none"
+                                             placeholder="DEUZ — AFTERLIGHT"
+                                         />
+                                     </div>
+                                     <div>
+                                         <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-1.5">House Code</label>
+                                         <input
+                                             value={siteContent.latestDropHouseCode ?? 'DEUZ-C01-AFT'}
+                                             onChange={e => updateSiteContentField({ latestDropHouseCode: e.target.value })}
+                                             className="w-full bg-black border border-white/15 p-2.5 text-white text-xs font-mono focus:border-gold-500 outline-none"
+                                             placeholder="DEUZ-C01-AFT"
+                                         />
+                                     </div>
+                                     <div>
+                                         <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-1.5">Cursor Badge Tag</label>
+                                         <input
+                                             value={siteContent.latestDropTag ?? 'New Drop'}
+                                             onChange={e => updateSiteContentField({ latestDropTag: e.target.value })}
+                                             className="w-full bg-black border border-white/15 p-2.5 text-white text-xs font-mono focus:border-gold-500 outline-none"
+                                             placeholder="New Drop"
+                                         />
+                                     </div>
+                                 </div>
+
+                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                     <div>
+                                         <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-1.5">Price Display</label>
+                                         <input
+                                             value={siteContent.latestDropPrice ?? '₹2,999'}
+                                             onChange={e => updateSiteContentField({ latestDropPrice: e.target.value, sovereignPrice: e.target.value })}
+                                             className="w-full bg-black border border-white/15 p-2.5 text-white text-xs focus:border-gold-500 outline-none"
+                                             placeholder="₹2,999"
+                                         />
+                                     </div>
+                                     <div>
+                                         <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-1.5">Status Display</label>
+                                         <input
+                                             value={siteContent.latestDropStatus ?? 'Active'}
+                                             onChange={e => updateSiteContentField({ latestDropStatus: e.target.value, sovereignStatus: e.target.value })}
+                                             className="w-full bg-black border border-white/15 p-2.5 text-white text-xs focus:border-gold-500 outline-none"
+                                             placeholder="Active"
+                                         />
+                                     </div>
+                                 </div>
+
+                                 <div>
+                                     <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-1.5">Collection 1 Description / Editorial Caption</label>
+                                     <textarea
+                                         value={siteContent.latestDropDescription ?? 'A study in structure and restraint. Heavyweight French terry designed for enduring presence.'}
+                                         onChange={e => updateSiteContentField({ latestDropDescription: e.target.value })}
+                                         className="w-full bg-black border border-white/15 p-3 text-white text-xs focus:border-gold-500 outline-none h-20"
+                                         placeholder="Describe the Collection 1 piece..."
+                                     />
+                                 </div>
+                             </div>
+
+                             {/* Section 3: Collection 1 Product Details & Specifications Builder */}
+                             <div className="p-4 bg-black/40 border border-white/10 space-y-4">
+                                 <div className="flex items-center justify-between">
+                                     <div>
+                                         <h4 className="text-gold-500 text-xs font-bold uppercase tracking-widest">
+                                             3. Collection 1 Product Details & Specifications
+                                         </h4>
+                                         <p className="text-[10px] text-white/40 font-mono mt-0.5">
+                                             Shown in the Collection 1 PROPERTIES box on the homepage.
+                                         </p>
+                                     </div>
+                                     <button
+                                         type="button"
+                                         onClick={() => {
+                                             const nextKey = `Spec ${detailsEntries.length + 1}`;
+                                             updateSiteContentField({
+                                                 latestDropDetails: {
+                                                     ...detailsObj,
+                                                     [nextKey]: ''
+                                                 }
+                                             });
+                                         }}
+                                         className="px-3 py-1.5 bg-gold-500/15 border border-gold-500/40 hover:bg-gold-500 hover:text-black text-gold-400 text-[10px] font-mono uppercase tracking-wider transition-colors cursor-pointer"
+                                     >
+                                         + Add Detail Row
+                                     </button>
+                                 </div>
+
+                                 <div className="space-y-2">
+                                     {detailsEntries.map(([dKey, dVal], dIdx) => (
+                                         <div key={dIdx} className="flex gap-2 items-center">
+                                             <input
+                                                 value={dKey}
+                                                 onChange={e => {
+                                                     const newEntries = [...detailsEntries];
+                                                     newEntries[dIdx] = [e.target.value, dVal];
+                                                     updateSiteContentField({
+                                                         latestDropDetails: Object.fromEntries(newEntries)
+                                                     });
+                                                 }}
+                                                 placeholder="Label (e.g. Colorway)"
+                                                 className="w-1/3 bg-black border border-white/15 p-2 text-gold-300 text-xs font-mono focus:border-gold-500 outline-none"
+                                             />
+                                             <input
+                                                 value={dVal}
+                                                 onChange={e => {
+                                                     const newEntries = [...detailsEntries];
+                                                     newEntries[dIdx] = [dKey, e.target.value];
+                                                     updateSiteContentField({
+                                                         latestDropDetails: Object.fromEntries(newEntries)
+                                                     });
+                                                 }}
+                                                 placeholder="Value (e.g. Obsidian Black)"
+                                                 className="flex-1 bg-black border border-white/15 p-2 text-white text-xs font-mono focus:border-gold-500 outline-none"
+                                             />
+                                             <button
+                                                 type="button"
+                                                 onClick={() => {
+                                                     const newEntries = detailsEntries.filter((_, i) => i !== dIdx);
+                                                     updateSiteContentField({
+                                                         latestDropDetails: Object.fromEntries(newEntries)
+                                                     });
+                                                 }}
+                                                 className="p-2 bg-red-500/15 text-red-400 hover:bg-red-500 hover:text-white transition-colors cursor-pointer"
+                                                 title="Remove Detail"
+                                             >
+                                                 <Trash size={12} />
+                                             </button>
+                                         </div>
+                                     ))}
+                                 </div>
+                             </div>
+
+                             {/* Section 4: Additional Standalone Collection 1 Products */}
+                             <div className="p-4 bg-black/40 border border-white/10 space-y-4">
+                                 <div className="flex items-center justify-between">
+                                     <div>
+                                         <h4 className="text-gold-500 text-xs font-bold uppercase tracking-widest">
+                                             4. Additional Collection 1 Products ({extraItems.length})
+                                         </h4>
+                                         <p className="text-[10px] text-white/40 font-mono mt-0.5">
+                                             Add extra standalone products to Collection 1 with their own images and details.
+                                         </p>
+                                     </div>
+                                     <button
+                                         type="button"
+                                         onClick={() => {
+                                             const newItem = {
+                                                 id: `c1_${Date.now()}`,
+                                                 title: `COLLECTION I — PIECE 0${extraItems.length + 2}`,
+                                                 houseCode: `DEUZ-C01-0${extraItems.length + 2}`,
+                                                 tag: 'New Drop',
+                                                 category: 'APPAREL',
+                                                 price: '₹3,499',
+                                                 status: 'Active',
+                                                 description: 'Crafted exclusively for Collection I.',
+                                                 image: 'https://ik.imagekit.io/dto1zguat/Afterlight_1.png',
+                                                 secondaryImage: '',
+                                                 gallery: [],
+                                                 details: {}
+                                             };
+                                             updateSiteContentField({
+                                                 collectionOneItems: [...extraItems, newItem]
+                                             });
+                                         }}
+                                         className="px-3 py-1.5 bg-gold-500 text-black hover:bg-white text-[10px] font-mono font-bold uppercase tracking-wider transition-colors cursor-pointer flex items-center gap-1"
+                                     >
+                                         <Plus size={12} /> Add Product to Collection 1
+                                     </button>
+                                 </div>
+
+                                 {extraItems.length > 0 && (
+                                     <div className="space-y-4 pt-2">
+                                         {extraItems.map((item: any, idx: number) => {
+                                             const itemDetailsEntries = Object.entries(item.details || {}).filter(
+                                                 ([k]) => k.toLowerCase() !== 'silhouette' && k.toLowerCase() !== 'fabric'
+                                             );
+                                             const updateItem = (patch: Record<string, any>) => {
+                                                 const next = [...extraItems];
+                                                 next[idx] = { ...next[idx], ...patch };
+                                                 updateSiteContentField({ collectionOneItems: next });
+                                             };
+                                             return (
+                                                 <div key={item.id || idx} className="p-4 bg-[#070707] border border-gold-500/25 space-y-3">
+                                                     <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                                                         <span className="text-xs font-serif text-gold-400 uppercase tracking-wider">
+                                                             Collection 1 Product #{idx + 2}: {item.title}
+                                                         </span>
+                                                         <button
+                                                             type="button"
+                                                             onClick={() => {
+                                                                 const next = extraItems.filter((_, i) => i !== idx);
+                                                                 updateSiteContentField({ collectionOneItems: next });
+                                                             }}
+                                                             className="text-red-400 hover:text-red-300 text-[10px] font-mono uppercase flex items-center gap-1 cursor-pointer"
+                                                         >
+                                                             <Trash size={11} /> Remove
+                                                         </button>
+                                                     </div>
+
+                                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                         <input
+                                                             value={item.title || ''}
+                                                             onChange={e => updateItem({ title: e.target.value })}
+                                                             placeholder="Product Title"
+                                                             className="bg-black border border-white/15 p-2 text-white text-xs outline-none focus:border-gold-500"
+                                                         />
+                                                         <input
+                                                             value={item.price || ''}
+                                                             onChange={e => updateItem({ price: e.target.value })}
+                                                             placeholder="Price (e.g. ₹3,499)"
+                                                             className="bg-black border border-white/15 p-2 text-white text-xs outline-none focus:border-gold-500"
+                                                         />
+                                                     </div>
+
+                                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                         <div className="flex gap-2">
+                                                             <input
+                                                                 value={item.image || ''}
+                                                                 onChange={e => updateItem({ image: e.target.value })}
+                                                                 placeholder="Primary Image URL"
+                                                                 className="flex-1 bg-black border border-white/15 p-2 text-white text-xs font-mono outline-none focus:border-gold-500"
+                                                             />
+                                                             <label className="px-2.5 py-2 bg-gold-500/15 border border-gold-500/40 text-gold-300 text-[9px] font-mono uppercase cursor-pointer flex items-center">
+                                                                 Upload
+                                                                 <input
+                                                                     type="file"
+                                                                     accept="image/*"
+                                                                     className="hidden"
+                                                                     onChange={e => {
+                                                                         const file = e.target.files?.[0];
+                                                                         if (file) handleImageFileUpload(file, url => updateItem({ image: url }));
+                                                                     }}
+                                                                 />
+                                                             </label>
+                                                         </div>
+                                                         <div className="flex gap-2">
+                                                             <input
+                                                                 value={item.secondaryImage || ''}
+                                                                 onChange={e => updateItem({ secondaryImage: e.target.value })}
+                                                                 placeholder="Secondary Image URL (Optional)"
+                                                                 className="flex-1 bg-black border border-white/15 p-2 text-white text-xs font-mono outline-none focus:border-gold-500"
+                                                             />
+                                                             <label className="px-2.5 py-2 bg-gold-500/15 border border-gold-500/40 text-gold-300 text-[9px] font-mono uppercase cursor-pointer flex items-center">
+                                                                 Upload
+                                                                 <input
+                                                                     type="file"
+                                                                     accept="image/*"
+                                                                     className="hidden"
+                                                                     onChange={e => {
+                                                                         const file = e.target.files?.[0];
+                                                                         if (file) handleImageFileUpload(file, url => updateItem({ secondaryImage: url }));
+                                                                     }}
+                                                                 />
+                                                             </label>
+                                                         </div>
+                                                     </div>
+
+                                                     <textarea
+                                                         value={item.description || ''}
+                                                         onChange={e => updateItem({ description: e.target.value })}
+                                                         placeholder="Product Description"
+                                                         className="w-full bg-black border border-white/15 p-2 text-white text-xs outline-none focus:border-gold-500 h-16"
+                                                     />
+
+                                                     {/* Item Details */}
+                                                     <div className="space-y-1.5">
+                                                         <div className="flex items-center justify-between">
+                                                             <span className="text-[9px] font-mono uppercase text-white/40">Product Details</span>
+                                                             <button
+                                                                 type="button"
+                                                                 onClick={() => updateItem({
+                                                                     details: { ...(item.details || {}), [`Spec ${itemDetailsEntries.length + 1}`]: '' }
+                                                                 })}
+                                                                 className="text-[9px] font-mono text-gold-400 hover:text-white cursor-pointer"
+                                                             >
+                                                                 + Add Detail
+                                                             </button>
+                                                         </div>
+                                                         {itemDetailsEntries.map(([k, v], dIdx) => (
+                                                             <div key={dIdx} className="flex gap-2">
+                                                                 <input
+                                                                     value={k}
+                                                                     onChange={e => {
+                                                                         const nextD = [...itemDetailsEntries];
+                                                                         nextD[dIdx] = [e.target.value, String(v)];
+                                                                         updateItem({ details: Object.fromEntries(nextD) });
+                                                                     }}
+                                                                     className="w-1/3 bg-black border border-white/10 p-1.5 text-gold-300 text-[11px] font-mono"
+                                                                 />
+                                                                 <input
+                                                                     value={String(v)}
+                                                                     onChange={e => {
+                                                                         const nextD = [...itemDetailsEntries];
+                                                                         nextD[dIdx] = [k, e.target.value];
+                                                                         updateItem({ details: Object.fromEntries(nextD) });
+                                                                     }}
+                                                                     className="flex-1 bg-black border border-white/10 p-1.5 text-white text-[11px] font-mono"
+                                                                 />
+                                                                 <button
+                                                                     type="button"
+                                                                     onClick={() => {
+                                                                         const nextD = itemDetailsEntries.filter((_, i) => i !== dIdx);
+                                                                         updateItem({ details: Object.fromEntries(nextD) });
+                                                                     }}
+                                                                     className="px-2 bg-red-500/15 text-red-400 hover:bg-red-500 hover:text-white text-xs"
+                                                                 >
+                                                                     ×
+                                                                 </button>
+                                                             </div>
+                                                         ))}
+                                                     </div>
+                                                 </div>
+                                             );
+                                         })}
+                                     </div>
+                                 )}
+                             </div>
+
+                             <button disabled={actionLoading} className="w-full py-3.5 bg-gold-500 text-black uppercase tracking-widest text-xs font-bold hover:bg-white transition-colors disabled:opacity-50 cursor-pointer shadow-[0_0_20px_rgba(212,175,55,0.3)]">
+                                 {actionLoading ? 'Saving Collection 1...' : 'Save & Publish Collection 1 to Homepage'}
+                             </button>
+                         </form>
+                     </div>
+
+                     {/* Right Column: Private Acquisition Details */}
+                     <div className="lg:col-span-4 bg-[#0A0A0A] border border-white/10 p-6 md:p-8 h-fit">
+                         <h3 className="text-white font-serif mb-6 flex items-center gap-2"><Crown size={18} className="text-gold-500"/> Private Acquisition Details</h3>
+                         <form onSubmit={handleSettingsUpdate} className="space-y-6">
                              <div>
-                                 <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Display Title</label>
-                                 <input 
-                                     value={settings.siteContent?.latestDropTitle || ''} 
-                                     onChange={e => setSettings({...settings, siteContent: {...settings.siteContent, latestDropTitle: e.target.value}})} 
-                                     className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" 
-                                     placeholder="Leave empty to use artifact title" 
-                                 />
-                             </div>
-                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                 <div>
-                                     <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Category Display</label>
-                                     <input 
-                                         value={settings.siteContent?.latestDropCategory || settings.siteContent?.sovereignCategory || ''} 
-                                         onChange={e => setSettings({...settings, siteContent: {...settings.siteContent, latestDropCategory: e.target.value, sovereignCategory: e.target.value}})} 
-                                         className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" 
-                                         placeholder="Apparel" 
-                                     />
-                                 </div>
-                                 <div>
-                                     <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Price Display</label>
-                                     <input 
-                                         value={settings.siteContent?.latestDropPrice || settings.siteContent?.sovereignPrice || ''} 
-                                         onChange={e => setSettings({...settings, siteContent: {...settings.siteContent, latestDropPrice: e.target.value, sovereignPrice: e.target.value}})} 
-                                         className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" 
-                                         placeholder="₹12,000" 
-                                     />
-                                 </div>
-                                 <div>
-                                     <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Status Display</label>
-                                     <input 
-                                         value={settings.siteContent?.latestDropStatus || settings.siteContent?.sovereignStatus || ''} 
-                                         onChange={e => setSettings({...settings, siteContent: {...settings.siteContent, latestDropStatus: e.target.value, sovereignStatus: e.target.value}})} 
-                                         className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" 
-                                         placeholder="Active" 
-                                     />
-                                 </div>
+                                 <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">WhatsApp Line</label>
+                                 <input value={settings.conciergeConfig.whatsappNumber || ''} onChange={e => setSettings({...settings, conciergeConfig: {...settings.conciergeConfig, whatsappNumber: e.target.value}})} className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" />
                              </div>
                              <div>
-                                 <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Description / Notes</label>
-                                 <textarea 
-                                     value={settings.siteContent?.latestDropDescription || ''} 
-                                     onChange={e => setSettings({...settings, siteContent: {...settings.siteContent, latestDropDescription: e.target.value}})} 
-                                     className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none h-20" 
-                                     placeholder="Leave empty to use artifact description" 
-                                 />
+                                 <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Direct Phone Line</label>
+                                 <input value={settings.conciergeConfig.phoneNumber || settings.conciergeConfig.displayPhone || '+91 920 7676 921'} onChange={e => setSettings({...settings, conciergeConfig: {...settings.conciergeConfig, phoneNumber: e.target.value, displayPhone: e.target.value}})} className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" />
                              </div>
-                         </div>
-
-                         <button disabled={actionLoading} className="w-full py-3 bg-white text-black uppercase tracking-widest text-xs font-bold hover:bg-gold-500 hover:text-white transition-colors disabled:opacity-50">
-                             {actionLoading ? 'Saving...' : 'Update Homepage Collection 1 Drop'}
-                         </button>
-                     </form>
-                 </div>
-
-                 <div className="bg-[#0A0A0A] border border-white/10 p-8">
-                     <h3 className="text-white font-serif mb-6 flex items-center gap-2"><Crown size={18} className="text-gold-500"/> Private Acquisition Details</h3>
-                     <form onSubmit={handleSettingsUpdate} className="space-y-6">
-                         <div>
-                             <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">WhatsApp Line</label>
-                             <input value={settings.conciergeConfig.whatsappNumber || ''} onChange={e => setSettings({...settings, conciergeConfig: {...settings.conciergeConfig, whatsappNumber: e.target.value}})} className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" />
-                         </div>
-                         <div>
-                             <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Direct Phone Line</label>
-                             <input value={settings.conciergeConfig.phoneNumber || settings.conciergeConfig.displayPhone || '+91 920 7676 921'} onChange={e => setSettings({...settings, conciergeConfig: {...settings.conciergeConfig, phoneNumber: e.target.value, displayPhone: e.target.value}})} className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" />
-                         </div>
-                         <div>
-                             <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Instagram Handle</label>
-                             <input value={settings.conciergeConfig.instagramHandle || ''} onChange={e => setSettings({...settings, conciergeConfig: {...settings.conciergeConfig, instagramHandle: e.target.value}})} className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" />
-                         </div>
-                         <div>
-                             <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Email Address</label>
-                             <input value={settings.conciergeConfig.emailAddress || ''} onChange={e => setSettings({...settings, conciergeConfig: {...settings.conciergeConfig, emailAddress: e.target.value}})} className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" />
-                         </div>
-                         <button disabled={actionLoading} className="w-full py-3 bg-white text-black uppercase tracking-widest text-xs font-bold hover:bg-gold-500 hover:text-white transition-colors disabled:opacity-50">
-                             {actionLoading ? 'Saving...' : 'Update Protocol'}
-                         </button>
-                     </form>
+                             <div>
+                                 <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Instagram Handle</label>
+                                 <input value={settings.conciergeConfig.instagramHandle || ''} onChange={e => setSettings({...settings, conciergeConfig: {...settings.conciergeConfig, instagramHandle: e.target.value}})} className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" />
+                             </div>
+                             <div>
+                                 <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Email Address</label>
+                                 <input value={settings.conciergeConfig.emailAddress || ''} onChange={e => setSettings({...settings, conciergeConfig: {...settings.conciergeConfig, emailAddress: e.target.value}})} className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" />
+                             </div>
+                             <button disabled={actionLoading} className="w-full py-3 bg-white text-black uppercase tracking-widest text-xs font-bold hover:bg-gold-500 hover:text-white transition-colors disabled:opacity-50 cursor-pointer">
+                                 {actionLoading ? 'Saving...' : 'Update Protocol'}
+                             </button>
+                         </form>
+                     </div>
                  </div>
              </div>
-         )}
+             );
+         })()}
       </main>
 
       {/* Notification Toast */}
@@ -3450,11 +3967,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
                         placeholder='{&#10;  "Material": "100% Cotton",&#10;  "Origin": "Italy"&#10;}'
                       />
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                          <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Category</label>
-                          <input required value={currentProduct.category} onChange={e => setCurrentProduct({...currentProduct, category: e.target.value})} className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" />
-                      </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                       <div>
                           <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">House Code</label>
                           <input value={currentProduct.houseCode || ''} onChange={e => setCurrentProduct({...currentProduct, houseCode: e.target.value})} placeholder="e.g. ARC-001" className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" />
@@ -3476,45 +3989,49 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
                       </div>
                   </div>
                   <div>
-                      <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Sizes & Stock</label>
-                      <div className="space-y-2">
-                          {currentProduct.sizes?.map((size, idx) => (
-                              <div key={idx} className="flex gap-2 items-center">
-                                  <div className="w-1/3 bg-white/5 border border-white/10 p-2 text-white text-sm text-center font-mono">
-                                      {size}
-                                  </div>
-                                  <input 
-                                      type="number"
-                                      value={currentProduct.sizeStock?.[size] ?? ''}
-                                      onChange={e => {
-                                          const val = e.target.value;
-                                          const newStock = {...(currentProduct.sizeStock || {})};
-                                          
-                                          if (val === '') {
-                                              delete newStock[size];
-                                          } else {
-                                              newStock[size] = parseInt(val) || 0;
-                                          }
-                                          
-                                          const totalStock = Object.values(newStock).reduce((a, b) => a + b, 0);
-                                          
-                                          const outOfStock = Object.entries(newStock)
-                                              .filter(([_, stock]) => stock <= 0)
-                                              .map(([s, _]) => s);
-
+                      <div className="flex items-center justify-between mb-2">
+                          <label className="block text-[10px] uppercase tracking-widest text-white/40">Available Sizes (No Fixed Per-Size Stock Limit)</label>
+                          <button
+                              type="button"
+                              onClick={() => setCurrentProduct({ ...currentProduct, sizes: PREDEFINED_SIZES, sizeStock: {}, outOfStockSizes: [] })}
+                              className="text-[9px] font-mono uppercase tracking-wider text-gold-400 hover:text-white cursor-pointer"
+                          >
+                              Select All Standard Sizes
+                          </button>
+                      </div>
+                      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                          {['XS', 'S', 'M', 'L', 'XL', 'XXL'].map((size) => {
+                              const isSelected = currentProduct.sizes?.includes(size);
+                              return (
+                                  <button
+                                      key={size}
+                                      type="button"
+                                      onClick={() => {
+                                          const currentSizes = Array.isArray(currentProduct.sizes) ? currentProduct.sizes : [];
+                                          const nextSizes = isSelected
+                                              ? currentSizes.filter(s => s !== size)
+                                              : [...currentSizes, size];
                                           setCurrentProduct({
-                                              ...currentProduct, 
-                                              sizeStock: newStock,
-                                              countInStock: totalStock,
-                                              outOfStockSizes: outOfStock
+                                              ...currentProduct,
+                                              sizes: nextSizes,
+                                              sizeStock: {},
+                                              outOfStockSizes: []
                                           });
                                       }}
-                                      className="w-2/3 bg-black border border-white/10 p-2 text-white text-sm focus:border-gold-500 outline-none"
-                                      placeholder="Stock Amount"
-                                  />
-                              </div>
-                          ))}
+                                      className={`p-2.5 text-xs font-mono uppercase tracking-wider border transition-colors cursor-pointer ${
+                                          isSelected
+                                              ? 'bg-gold-500/20 border-gold-500 text-gold-300 font-bold'
+                                              : 'bg-black border-white/10 text-white/40 hover:border-white/30 hover:text-white'
+                                      }`}
+                                  >
+                                      {size}
+                                  </button>
+                              );
+                          })}
                       </div>
+                      <p className="text-[10px] text-white/40 font-mono mt-1.5">
+                          All enabled sizes share the overall product availability without fixed per-size stock limits.
+                      </p>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div>
@@ -3526,7 +4043,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
                                 if (val === 'archived') {
                                     setCurrentProduct({...currentProduct, isArchived: true});
                                 } else if (val === 'active') {
-                                    setCurrentProduct({...currentProduct, isArchived: false, countInStock: Math.max(1, currentProduct.countInStock)});
+                                    setCurrentProduct({...currentProduct, isArchived: false, countInStock: Math.max(1, currentProduct.countInStock || 25)});
                                 } else {
                                     setCurrentProduct({...currentProduct, isArchived: false, countInStock: 0});
                                 }
@@ -3539,14 +4056,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit, onViewArchive, 
                           </select>
                       </div>
                       <div>
-                          <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Total Stock Count</label>
+                          <label className="block text-[10px] uppercase tracking-widest text-white/40 mb-2">Overall Stock Count</label>
                           <input 
                             type="number" 
                             required 
+                            min={0}
                             value={currentProduct.countInStock} 
-                            onChange={e => setCurrentProduct({...currentProduct, countInStock: Number(e.target.value)})} 
-                            className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none disabled:opacity-50" 
-                            disabled={currentProduct.sizes && currentProduct.sizes.length > 0}
+                            onChange={e => setCurrentProduct({...currentProduct, countInStock: Math.max(0, Number(e.target.value)), sizeStock: {}, outOfStockSizes: []})} 
+                            className="w-full bg-black border border-white/10 p-3 text-white text-sm focus:border-gold-500 outline-none" 
                           />
                       </div>
                   </div>
